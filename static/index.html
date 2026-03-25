@@ -93,21 +93,19 @@
           <div id="debugStatus" class="debug-status muted small">debug: pending</div>
         </div>
 
-        <div class="tree-nav-strip">
-          <div class="nav-buttons-row compact">
-            <button id="backBtn" class="icon-btn" title="Back">‹</button>
-            <button id="forwardBtn" class="icon-btn" title="Forward">›</button>
-            <button id="upBtn" class="icon-btn" title="Parent folder">↑</button>
-            <button id="refreshTreeBtn" class="refresh-btn">Refresh</button>
-          </div>
-          <div id="breadcrumbs" class="breadcrumbs slim"></div>
-        </div>
-
         <div class="sidebar-stack" id="sidebarStack">
           <div class="tree-wrap" id="treeWrap">
             <div class="section-head">
               <h2>Tree</h2>
-              <span class="muted small">classic folder navigation</span>
+              <div class="tree-header-nav">
+                <div class="nav-buttons-row inline-minimal">
+                  <button id="backBtn" class="icon-link" title="Back">‹</button>
+                  <button id="forwardBtn" class="icon-link" title="Forward">›</button>
+                  <button id="upBtn" class="icon-link" title="Parent folder">↑</button>
+                </div>
+                <div id="breadcrumbs" class="breadcrumbs textlike"></div>
+                <button id="refreshTreeBtn" class="refresh-btn">Refresh</button>
+              </div>
             </div>
             <div id="treeView" class="tree-view"></div>
           </div>
