@@ -8,6 +8,7 @@ const state = {
   expandedDirs: new Set(['']),
   activePath: '',
   tree: [],
+  imageScale: 1,
 };
 
 const ROOT_MAP = {
@@ -24,6 +25,9 @@ const openPathBtn = document.getElementById('openPathBtn');
 const openAbsoluteBtn = document.getElementById('openAbsoluteBtn');
 const searchInput = document.getElementById('searchInput');
 const searchBtn = document.getElementById('searchBtn');
+const kindFilter = document.getElementById('kindFilter');
+const ageFilter = document.getElementById('ageFilter');
+const sizeFilter = document.getElementById('sizeFilter');
 const searchResults = document.getElementById('searchResults');
 const openFolderBtn = document.getElementById('openFolderBtn');
 const refreshTreeBtn = document.getElementById('refreshTreeBtn');
@@ -31,21 +35,17 @@ const treeView = document.getElementById('treeView');
 const docsIndex = document.getElementById('docsIndex');
 const viewer = document.getElementById('viewer');
 const outline = document.getElementById('outline');
+const previewControls = document.getElementById('previewControls');
 const rawBtn = document.getElementById('rawBtn');
 const previewBtn = document.getElementById('previewBtn');
 const copyLinkBtn = document.getElementById('copyLinkBtn');
 const relativePathDisplay = document.getElementById('relativePathDisplay');
 const absolutePathDisplay = document.getElementById('absolutePathDisplay');
-const sidebar = document.getElementById('sidebar');
 const sidebarResizer = document.getElementById('sidebarResizer');
-const outlinePanel = document.getElementById('outlinePanel');
 const outlineResizer = document.getElementById('outlineResizer');
 
 function escapeHtml(input) {
-  return String(input)
-    .replaceAll('&', '&amp;')
-    .replaceAll('<', '&lt;')
-    .replaceAll('>', '&gt;');
+  return String(input).replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;');
 }
 
 function appBase() {
@@ -56,9 +56,7 @@ function appBase() {
 function apiUrl(pathname, params) {
   const url = new URL(`${appBase()}/api/${pathname}`, window.location.origin);
   if (params) {
-    for (const [key, value] of Object.entries(params)) {
-      url.searchParams.set(key, value);
-    }
+    for (const [key, value] of Object.entries(params)) url.searchParams.set(key, value);
   }
   return url.toString();
 }
@@ -72,8 +70,7 @@ function updateUrl() {
   } else {
     params.set('dir', state.currentFolder);
   }
-  const base = appBase();
-  history.replaceState({}, '', `${base}/?${params.toString()}`);
+  history.replaceState({}, '', `${appBase()}/?${params.toString()}`);
 }
 
 async function fetchJson(url) {
@@ -110,6 +107,29 @@ function renderOutline(headings = []) {
   }
 }
 
+function renderPreviewControls(kind = 'text') {
+  previewControls.innerHTML = '';
+  if (kind !== 'image') return;
+
+  const controls = [
+    ['Fit', () => setImageScale(0.6)],
+    ['100%', () => setImageScale(1)],
+    ['-', () => setImageScale(Math.max(0.2, Number((state.imageScale - 0.1).toFixed(2))))],
+    ['+', () => setImageScale(Math.min(2, Number((state.imageScale + 0.1).toFixed(2))))],
+  ];
+  for (const [label, fn] of controls) {
+    const btn = document.createElement('button');
+    btn.textContent = label;
+    btn.onclick = fn;
+    previewControls.appendChild(btn);
+  }
+}
+
+function setImageScale(scale) {
+  state.imageScale = scale;
+  document.documentElement.style.setProperty('--image-scale', String(scale));
+}
+
 function setPathDisplays(relativePath = '', absolutePath = '') {
   relativePathDisplay.value = relativePath;
   absolutePathDisplay.value = absolutePath;
@@ -130,8 +150,7 @@ function ensureExpandedFor(pathValue = '') {
 function inferRootFromAbsolute(absPath) {
   for (const [key, rootPath] of Object.entries(ROOT_MAP)) {
     if (absPath === rootPath || absPath.startsWith(`${rootPath}/`)) {
-      const relative = absPath.slice(rootPath.length).replace(/^\//, '');
-      return { root: key, relative };
+      return { root: key, relative: absPath.slice(rootPath.length).replace(/^\//, '') };
     }
   }
   return null;
@@ -229,6 +248,7 @@ function renderTreeNodes(nodes, container) {
         viewer.className = 'viewer empty-state';
         viewer.textContent = 'Folder selected. Choose a file from the tree.';
         renderOutline([]);
+        renderPreviewControls('text');
         setPathDisplays(node.path, `${ROOT_MAP[state.currentRoot]}/${node.path}`.replace(/\/$/, ''));
         updateUrl();
       };
@@ -252,9 +272,7 @@ function renderTreeNodes(nodes, container) {
       const label = document.createElement('button');
       label.className = `tree-label ${state.activePath === node.path ? 'active' : ''}`;
       label.textContent = `📄 ${node.name}`;
-      label.onclick = async () => {
-        await loadFile(node.path, state.currentMode);
-      };
+      label.onclick = async () => { await loadFile(node.path, state.currentMode); };
       row.appendChild(label);
       wrapper.appendChild(row);
     }
@@ -287,6 +305,7 @@ async function loadFolder() {
   viewer.className = 'viewer empty-state';
   viewer.textContent = 'Folder selected. Choose a file from the tree.';
   renderOutline([]);
+  renderPreviewControls('text');
   await loadTree(dir);
   const abs = dir ? `${ROOT_MAP[state.currentRoot]}/${dir}` : ROOT_MAP[state.currentRoot];
   setPathDisplays(dir || '', abs);
@@ -298,16 +317,37 @@ async function loadFile(filePath, mode = state.currentMode) {
   state.currentMode = mode;
   state.activePath = filePath;
   const data = await fetchJson(apiUrl('file', { root: state.currentRoot, path: filePath, mode }));
-  if (mode === 'preview' && data.html) {
+
+  if (data.kind === 'text') {
+    if (mode === 'preview' && data.html) {
+      viewer.className = 'viewer';
+      viewer.innerHTML = `<article class="markdown-body">${data.html}</article>`;
+      renderOutline(data.headings);
+      await renderMermaid();
+    } else {
+      viewer.className = 'viewer';
+      viewer.innerHTML = `<pre><code>${escapeHtml(data.raw)}</code></pre>`;
+      renderOutline(data.headings || []);
+    }
+    renderPreviewControls('text');
+  } else if (data.kind === 'image') {
     viewer.className = 'viewer';
-    viewer.innerHTML = `<article class="markdown-body">${data.html}</article>`;
-    renderOutline(data.headings);
-    await renderMermaid();
-  } else {
+    setImageScale(0.6);
+    viewer.innerHTML = `
+      <div class="media-frame">
+        <div class="media-image-wrap">
+          <img class="media-image" src="${data.mediaUrl}" alt="${escapeHtml(data.relativePath)}" />
+        </div>
+      </div>`;
+    renderOutline([]);
+    renderPreviewControls('image');
+  } else if (data.kind === 'pdf') {
     viewer.className = 'viewer';
-    viewer.innerHTML = `<pre><code>${escapeHtml(data.raw)}</code></pre>`;
-    renderOutline(data.headings || []);
+    viewer.innerHTML = `<div class="media-frame"><iframe class="media-pdf" src="${data.mediaUrl}"></iframe></div>`;
+    renderOutline([]);
+    renderPreviewControls('pdf');
   }
+
   setPathDisplays(data.relativePath, data.absolutePath);
   renderTree();
   updateUrl();
@@ -340,13 +380,30 @@ async function renderMermaid() {
   }
 }
 
+function formatBytes(size) {
+  if (size < 1024) return `${size} B`;
+  if (size < 1024 * 1024) return `${(size / 1024).toFixed(1)} KB`;
+  return `${(size / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+function formatDate(ts) {
+  return new Date(ts).toLocaleDateString();
+}
+
 async function runSearch() {
   const q = searchInput.value.trim();
   if (!q) {
     searchResults.textContent = 'No search yet.';
     return;
   }
-  const data = await fetchJson(apiUrl('search', { root: state.currentRoot, q, maxResults: 30 }));
+  const data = await fetchJson(apiUrl('search', {
+    root: state.currentRoot,
+    q,
+    maxResults: 30,
+    kind: kindFilter.value,
+    age: ageFilter.value,
+    size: sizeFilter.value,
+  }));
   if (!data.results.length) {
     searchResults.innerHTML = `<div>No matches for <strong>${escapeHtml(q)}</strong>.</div>`;
     return;
@@ -355,10 +412,8 @@ async function runSearch() {
   for (const result of data.results) {
     const li = document.createElement('li');
     const btn = document.createElement('button');
-    btn.textContent = `${result.type === 'dir' ? '📁' : '📄'} ${result.path}`;
-    btn.onclick = async () => {
-      await openTarget(result.path, state.currentRoot);
-    };
+    btn.innerHTML = `${result.type === 'dir' ? '📁' : '📄'} ${escapeHtml(result.path)}<div class="search-meta">${escapeHtml(result.kind)} • ${formatBytes(result.size)} • ${formatDate(result.updatedAt)}</div>`;
+    btn.onclick = async () => { await openTarget(result.path, state.currentRoot); };
     li.appendChild(btn);
     ul.appendChild(li);
   }
@@ -392,7 +447,6 @@ function setupResizablePanes() {
   const savedOutline = localStorage.getItem('workbench.outlineWidth');
   if (savedSidebar) document.documentElement.style.setProperty('--sidebar-width', `${savedSidebar}px`);
   if (savedOutline) document.documentElement.style.setProperty('--outline-width', `${savedOutline}px`);
-
   attachResizable(sidebarResizer, '--sidebar-width', 260, 720, 'normal', 'workbench.sidebarWidth');
   attachResizable(outlineResizer, '--outline-width', 180, 500, 'inverse', 'workbench.outlineWidth');
 }
@@ -410,15 +464,12 @@ refreshTreeBtn.onclick = () => loadTree(pathInput.value.trim()).catch(showError)
 openPathBtn.onclick = () => openTarget(pathInput.value.trim(), state.currentRoot).catch(showError);
 openAbsoluteBtn.onclick = () => openTarget(absolutePathInput.value.trim()).catch(showError);
 searchBtn.onclick = () => runSearch().catch(showError);
-searchInput.addEventListener('keydown', (event) => {
-  if (event.key === 'Enter') runSearch().catch(showError);
-});
-relativePathDisplay.addEventListener('keydown', (event) => {
-  if (event.key === 'Enter') openTarget(relativePathDisplay.value.trim(), state.currentRoot).catch(showError);
-});
-absolutePathDisplay.addEventListener('keydown', (event) => {
-  if (event.key === 'Enter') openTarget(absolutePathDisplay.value.trim()).catch(showError);
-});
+searchInput.addEventListener('keydown', (event) => { if (event.key === 'Enter') runSearch().catch(showError); });
+kindFilter.onchange = () => { if (searchInput.value.trim()) runSearch().catch(showError); };
+ageFilter.onchange = () => { if (searchInput.value.trim()) runSearch().catch(showError); };
+sizeFilter.onchange = () => { if (searchInput.value.trim()) runSearch().catch(showError); };
+relativePathDisplay.addEventListener('keydown', (event) => { if (event.key === 'Enter') openTarget(relativePathDisplay.value.trim(), state.currentRoot).catch(showError); });
+absolutePathDisplay.addEventListener('keydown', (event) => { if (event.key === 'Enter') openTarget(absolutePathDisplay.value.trim()).catch(showError); });
 rootSelect.onchange = () => {
   state.currentRoot = rootSelect.value;
   state.currentFolder = '';
@@ -429,12 +480,8 @@ rootSelect.onchange = () => {
   absolutePathInput.value = ROOT_MAP[state.currentRoot];
   loadFolder().catch(showError);
 };
-rawBtn.onclick = () => {
-  if (state.currentFile) loadFile(state.currentFile, 'raw').catch(showError);
-};
-previewBtn.onclick = () => {
-  if (state.currentFile) loadFile(state.currentFile, 'preview').catch(showError);
-};
+rawBtn.onclick = () => { if (state.currentFile) loadFile(state.currentFile, 'raw').catch(showError); };
+previewBtn.onclick = () => { if (state.currentFile) loadFile(state.currentFile, 'preview').catch(showError); };
 copyLinkBtn.onclick = async () => {
   await navigator.clipboard.writeText(location.href);
   copyLinkBtn.textContent = 'Copied';

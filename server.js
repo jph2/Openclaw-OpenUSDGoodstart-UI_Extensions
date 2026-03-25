@@ -22,6 +22,9 @@ const TEXT_EXTENSIONS = new Set([
   '.yml', '.yaml', '.toml', '.py', '.sh', '.env', '.gitignore', '.ini', '.cfg', '.sql'
 ]);
 
+const IMAGE_EXTENSIONS = new Set(['.png', '.jpg', '.jpeg', '.gif', '.webp', '.svg']);
+const PDF_EXTENSIONS = new Set(['.pdf']);
+
 const renderer = new marked.Renderer();
 renderer.heading = ({ tokens, depth }) => {
   const text = tokens.map((token) => token.text || '').join('');
@@ -54,10 +57,16 @@ function resolveSafe(rootKey, relativePath = '') {
   return { rootPath, resolved, relative: relative === '' ? '.' : relative };
 }
 
-function isTextFile(filePath) {
+function getFileKind(filePath) {
   const ext = path.extname(filePath).toLowerCase();
-  if (TEXT_EXTENSIONS.has(ext)) return true;
-  return path.basename(filePath).toUpperCase() === 'README' || path.basename(filePath).endsWith('.md');
+  if (TEXT_EXTENSIONS.has(ext) || path.basename(filePath).toUpperCase() === 'README' || path.basename(filePath).endsWith('.md')) return 'text';
+  if (IMAGE_EXTENSIONS.has(ext)) return 'image';
+  if (PDF_EXTENSIONS.has(ext)) return 'pdf';
+  return 'other';
+}
+
+function isTextFile(filePath) {
+  return getFileKind(filePath) === 'text';
 }
 
 function extractHeadings(markdown) {
@@ -156,26 +165,43 @@ router.get('/file', async (req, res) => {
     if (!stat.isFile()) {
       return res.status(400).json({ error: 'Path is not a file' });
     }
-    if (!isTextFile(resolved)) {
-      return res.status(415).json({ error: 'Unsupported file type for MVP' });
-    }
-    const raw = await fs.readFile(resolved, 'utf8');
-    const ext = path.extname(resolved).toLowerCase();
-    const isMarkdown = ext === '.md' || path.basename(resolved).toLowerCase().endsWith('.md');
-    const html = mode === 'preview' && isMarkdown ? marked.parse(raw) : null;
-    const headings = isMarkdown ? extractHeadings(raw) : [];
 
-    res.json({
-      root,
-      absolutePath: resolved,
-      rootPath,
-      relativePath: relative.replaceAll(path.sep, '/'),
-      raw,
-      html,
-      isMarkdown,
-      headings,
-      mode,
-    });
+    const kind = getFileKind(resolved);
+    const ext = path.extname(resolved).toLowerCase();
+
+    if (kind === 'text') {
+      const raw = await fs.readFile(resolved, 'utf8');
+      const isMarkdown = ext === '.md' || path.basename(resolved).toLowerCase().endsWith('.md');
+      const html = mode === 'preview' && isMarkdown ? marked.parse(raw) : null;
+      const headings = isMarkdown ? extractHeadings(raw) : [];
+
+      return res.json({
+        root,
+        absolutePath: resolved,
+        rootPath,
+        relativePath: relative.replaceAll(path.sep, '/'),
+        kind,
+        raw,
+        html,
+        isMarkdown,
+        headings,
+        mode,
+      });
+    }
+
+    if (kind === 'image' || kind === 'pdf') {
+      return res.json({
+        root,
+        absolutePath: resolved,
+        rootPath,
+        relativePath: relative.replaceAll(path.sep, '/'),
+        kind,
+        mediaUrl: `/workbench/api/media?root=${encodeURIComponent(root)}&path=${encodeURIComponent(relPath)}`,
+        mode: 'preview',
+      });
+    }
+
+    return res.status(415).json({ error: 'Unsupported file type for current viewer' });
   } catch (error) {
     res.status(400).json({ error: error.message });
   }
@@ -229,10 +255,33 @@ router.get('/search', async (req, res) => {
     const q = String(req.query.q || '').trim().toLowerCase();
     const root = String(req.query.root || 'workspace');
     const maxResults = Math.max(1, Math.min(100, Number(req.query.maxResults || 40)));
+    const kindFilter = String(req.query.kind || 'all');
+    const ageFilter = String(req.query.age || 'all');
+    const sizeFilter = String(req.query.size || 'all');
+    const now = Date.now();
     if (!q) return res.json({ root, query: '', results: [] });
 
     const rootPath = assertRoot(root);
     const results = [];
+
+    function ageMatch(updatedAt) {
+      if (ageFilter === 'all') return true;
+      const ageMs = now - updatedAt;
+      if (ageFilter === '1d') return ageMs <= 86400000;
+      if (ageFilter === '7d') return ageMs <= 7 * 86400000;
+      if (ageFilter === '30d') return ageMs <= 30 * 86400000;
+      if (ageFilter === 'older') return ageMs > 30 * 86400000;
+      return true;
+    }
+
+    function sizeMatch(size) {
+      if (sizeFilter === 'all') return true;
+      if (sizeFilter === 'tiny') return size < 10 * 1024;
+      if (sizeFilter === 'small') return size >= 10 * 1024 && size < 100 * 1024;
+      if (sizeFilter === 'medium') return size >= 100 * 1024 && size < 1024 * 1024;
+      if (sizeFilter === 'large') return size >= 1024 * 1024;
+      return true;
+    }
 
     async function walk(currentPath) {
       if (results.length >= maxResults) return;
@@ -243,12 +292,19 @@ router.get('/search', async (req, res) => {
         const fullPath = path.join(currentPath, entry.name);
         const rel = path.relative(rootPath, fullPath).replaceAll(path.sep, '/');
         const nameLower = entry.name.toLowerCase();
-        if (nameLower.includes(q)) {
-          const stat = await fs.stat(fullPath);
+        const stat = await fs.stat(fullPath);
+        const resultKind = entry.isDirectory() ? 'dir' : getFileKind(fullPath);
+        const normalizedKind = resultKind === 'text' || resultKind === 'image' || resultKind === 'pdf' ? resultKind : (entry.isDirectory() ? 'dir' : 'other');
+        const kindOk = kindFilter === 'all' || normalizedKind === kindFilter;
+        const ageOk = ageMatch(stat.mtimeMs);
+        const sizeOk = sizeMatch(stat.size);
+
+        if (nameLower.includes(q) && kindOk && ageOk && sizeOk) {
           results.push({
             name: entry.name,
             path: rel,
             type: entry.isDirectory() ? 'dir' : 'file',
+            kind: normalizedKind,
             size: stat.size,
             updatedAt: stat.mtimeMs,
           });
@@ -266,9 +322,24 @@ router.get('/search', async (req, res) => {
       if (aExact !== bExact) return aExact - bExact;
       return a.name.localeCompare(b.name);
     });
-    res.json({ root, query: q, results });
+    res.json({ root, query: q, filters: { kind: kindFilter, age: ageFilter, size: sizeFilter }, results });
   } catch (error) {
     res.status(400).json({ error: error.message });
+  }
+});
+
+router.get('/media', async (req, res) => {
+  try {
+    const root = String(req.query.root || 'workspace');
+    const relPath = String(req.query.path || '');
+    const { resolved } = resolveSafe(root, relPath);
+    const stat = await fs.stat(resolved);
+    if (!stat.isFile()) return res.status(400).send('Path is not a file');
+    const kind = getFileKind(resolved);
+    if (kind !== 'image' && kind !== 'pdf') return res.status(415).send('Unsupported media type');
+    res.sendFile(resolved);
+  } catch (error) {
+    res.status(400).send(error.message);
   }
 });
 }

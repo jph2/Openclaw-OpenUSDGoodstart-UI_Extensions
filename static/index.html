@@ -39,6 +39,29 @@
             <button id="searchBtn">Find</button>
           </div>
         </label>
+        <div class="filter-row three-up">
+          <select id="kindFilter">
+            <option value="all">all kinds</option>
+            <option value="text">text</option>
+            <option value="image">image</option>
+            <option value="pdf">pdf</option>
+            <option value="dir">folder</option>
+          </select>
+          <select id="ageFilter">
+            <option value="all">all ages</option>
+            <option value="1d">1 day</option>
+            <option value="7d">7 days</option>
+            <option value="30d">30 days</option>
+            <option value="older">older</option>
+          </select>
+          <select id="sizeFilter">
+            <option value="all">all sizes</option>
+            <option value="tiny">&lt;10 KB</option>
+            <option value="small">10–100 KB</option>
+            <option value="medium">100 KB–1 MB</option>
+            <option value="large">&gt;1 MB</option>
+          </select>
+        </div>
         <div id="searchResults" class="search-results muted small">No search yet.</div>
         <div class="control-row">
           <button id="openFolderBtn">Open folder</button>
@@ -82,7 +105,10 @@
           </section>
           <div id="outlineResizer" class="pane-resizer vertical" aria-hidden="true"></div>
           <aside class="outline-panel" id="outlinePanel">
-            <h2>Outline</h2>
+            <div class="outline-header">
+              <h2>Outline / Preview tools</h2>
+              <div id="previewControls" class="preview-controls"></div>
+            </div>
             <ul id="outline"></ul>
           </aside>
         </section>

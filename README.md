@@ -18,7 +18,9 @@ Read-only workbench MVP for browsing laptop-hosted OpenClaw-related repositories
 - stable browser URL parameters
 - latest workspace docs list
 - editable absolute + relative path fields
-- filename search within the selected root
+- filename search within the selected root with kind/age/size filters
+- image preview with scalable overview controls
+- PDF preview
 - resizable sidebar and outline pane
 - markdown heading outline panel
 
