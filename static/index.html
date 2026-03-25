@@ -73,13 +73,6 @@
             <h2>Tree navigation</h2>
             <span class="muted small">browse current root</span>
           </div>
-          <div class="nav-buttons-row">
-            <button id="backBtn" title="Back">&lt;</button>
-            <button id="forwardBtn" title="Forward">&gt;</button>
-            <button id="upBtn" title="Parent folder">↑</button>
-            <button id="refreshTreeBtn">Refresh tree</button>
-          </div>
-          <div id="breadcrumbs" class="breadcrumbs"></div>
           <label>
             <span>Relative path</span>
             <div class="input-row">
@@ -98,6 +91,16 @@
             <button id="openFolderBtn">Open folder</button>
           </div>
           <div id="debugStatus" class="debug-status muted small">debug: pending</div>
+        </div>
+
+        <div class="tree-nav-strip">
+          <div class="nav-buttons-row compact">
+            <button id="backBtn" class="icon-btn" title="Back">‹</button>
+            <button id="forwardBtn" class="icon-btn" title="Forward">›</button>
+            <button id="upBtn" class="icon-btn" title="Parent folder">↑</button>
+            <button id="refreshTreeBtn" class="refresh-btn">Refresh</button>
+          </div>
+          <div id="breadcrumbs" class="breadcrumbs slim"></div>
         </div>
 
         <div class="sidebar-stack" id="sidebarStack">
