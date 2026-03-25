@@ -297,8 +297,8 @@ async function loadTree(rootPath = '') {
   renderTree();
 }
 
-async function loadFolder() {
-  const dir = pathInput.value.trim();
+async function loadFolder(forcedDir = null) {
+  const dir = forcedDir !== null ? forcedDir : pathInput.value.trim();
   state.currentFolder = dir;
   state.currentFile = '';
   state.activePath = dir;
@@ -310,6 +310,8 @@ async function loadFolder() {
   await loadTree(dir);
   const abs = dir ? `${ROOT_MAP[state.currentRoot]}/${dir}` : ROOT_MAP[state.currentRoot];
   setPathDisplays(dir || '', abs);
+  pathInput.value = dir || '';
+  absolutePathInput.value = abs;
   updateUrl();
 }
 
@@ -512,7 +514,7 @@ rootSelect.onchange = () => {
   state.expandedDirs = new Set(['']);
   pathInput.value = '';
   absolutePathInput.value = ROOT_MAP[state.currentRoot];
-  loadFolder().catch(showError);
+  loadFolder('').catch(showError);
 };
 rawBtn.onclick = () => { if (state.currentFile) loadFile(state.currentFile, 'raw').catch(showError); };
 previewBtn.onclick = () => { if (state.currentFile) loadFile(state.currentFile, 'preview').catch(showError); };
@@ -530,13 +532,16 @@ function showError(error) {
 async function init() {
   parseInitialState();
   await loadRoots();
+  if (!state.roots.find((r) => r.key === state.currentRoot)) {
+    state.currentRoot = state.roots[0]?.key || 'workspace';
+  }
   await loadDocsIndex();
   setupResizablePanes();
   rootSelect.value = state.currentRoot;
   if (state.currentFolder) ensureExpandedFor(state.currentFolder);
   pathInput.value = state.currentFile ? state.currentFile.split('/').slice(0, -1).join('/') : state.currentFolder;
   absolutePathInput.value = ROOT_MAP[state.currentRoot];
-  await loadFolder();
+  await loadFolder(state.currentFolder || '');
   if (state.currentFile) {
     const dir = state.currentFile.split('/').slice(0, -1).join('/');
     ensureExpandedFor(dir);
