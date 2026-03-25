@@ -9,6 +9,7 @@ const __dirname = path.dirname(__filename);
 
 const app = express();
 const PORT = process.env.PORT || 4260;
+app.use(express.json({ limit: '10mb' }));
 
 const ROOTS = {
   workspace: '/home/claw-agentbox/.openclaw/workspace',
@@ -16,6 +17,8 @@ const ROOTS = {
   'studio-framework': '/media/claw-agentbox/data/9999_LocalRepo/Studio_Framework',
   'ui-extensions': '/media/claw-agentbox/data/9999_LocalRepo/Openclaw-OpenUSDGoodtstart-Extension',
 };
+
+const WRITABLE_ROOTS = new Set(['workspace', 'studio-framework']);
 
 const TEXT_EXTENSIONS = new Set([
   '.md', '.txt', '.json', '.js', '.mjs', '.cjs', '.ts', '.tsx', '.jsx', '.css', '.html',
@@ -44,6 +47,19 @@ function assertRoot(rootKey) {
     throw new Error(`Unknown root: ${rootKey}`);
   }
   return rootPath;
+}
+
+function assertWritableRoot(rootKey) {
+  if (!WRITABLE_ROOTS.has(rootKey)) {
+    throw new Error(`Root is read-only: ${rootKey}`);
+  }
+}
+
+function validateName(name) {
+  if (!name || typeof name !== 'string') throw new Error('Name is required');
+  if (name.includes('/') || name.includes('\\')) throw new Error('Name must not contain path separators');
+  if (name === '.' || name === '..') throw new Error('Invalid name');
+  return name.trim();
 }
 
 function resolveSafe(rootKey, relativePath = '') {
@@ -340,6 +356,56 @@ router.get('/media', async (req, res) => {
     res.sendFile(resolved);
   } catch (error) {
     res.status(400).send(error.message);
+  }
+});
+
+router.post('/mkdir', async (req, res) => {
+  try {
+    const root = String(req.body.root || 'workspace');
+    const dir = String(req.body.dir || '');
+    const name = validateName(String(req.body.name || ''));
+    assertWritableRoot(root);
+    const { resolved } = resolveSafe(root, dir);
+    const target = path.join(resolved, name);
+    await fs.mkdir(target, { recursive: false });
+    res.json({ ok: true, path: path.relative(assertRoot(root), target).replaceAll(path.sep, '/') });
+  } catch (error) {
+    res.status(400).json({ error: error.message });
+  }
+});
+
+router.post('/mkfile', async (req, res) => {
+  try {
+    const root = String(req.body.root || 'workspace');
+    const dir = String(req.body.dir || '');
+    const name = validateName(String(req.body.name || ''));
+    const content = String(req.body.content || '');
+    assertWritableRoot(root);
+    if (!/\.(md|txt)$/i.test(name)) throw new Error('Only .md and .txt files are allowed in step 1');
+    const { resolved } = resolveSafe(root, dir);
+    const target = path.join(resolved, name);
+    await fs.writeFile(target, content, { flag: 'wx' });
+    res.json({ ok: true, path: path.relative(assertRoot(root), target).replaceAll(path.sep, '/') });
+  } catch (error) {
+    res.status(400).json({ error: error.message });
+  }
+});
+
+router.post('/upload', async (req, res) => {
+  try {
+    const root = String(req.body.root || 'workspace');
+    const dir = String(req.body.dir || '');
+    const name = validateName(String(req.body.name || ''));
+    const base64 = String(req.body.base64 || '');
+    assertWritableRoot(root);
+    if (!base64) throw new Error('Upload payload missing');
+    const { resolved } = resolveSafe(root, dir);
+    const target = path.join(resolved, name);
+    const buffer = Buffer.from(base64, 'base64');
+    await fs.writeFile(target, buffer, { flag: 'wx' });
+    res.json({ ok: true, path: path.relative(assertRoot(root), target).replaceAll(path.sep, '/') });
+  } catch (error) {
+    res.status(400).json({ error: error.message });
   }
 });
 }

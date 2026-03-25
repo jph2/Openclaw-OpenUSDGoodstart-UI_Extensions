@@ -62,6 +62,7 @@ button:hover { border-color: var(--accent); }
 .filter-row.three-up { grid-template-columns: repeat(3, 1fr); }
 .control-row { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
 .control-row.single { grid-template-columns: 1fr; }
+.control-row.three-actions { grid-template-columns: 1fr 1fr 1fr; }
 .section-head, .outline-header {
   display: flex;
   justify-content: space-between;

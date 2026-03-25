@@ -32,6 +32,10 @@ const absolutePathInput = document.getElementById('absolutePathInput');
 const openPathBtn = document.getElementById('openPathBtn');
 const openAbsoluteBtn = document.getElementById('openAbsoluteBtn');
 const openFolderBtn = document.getElementById('openFolderBtn');
+const newFolderBtn = document.getElementById('newFolderBtn');
+const newFileBtn = document.getElementById('newFileBtn');
+const uploadBtn = document.getElementById('uploadBtn');
+const uploadInput = document.getElementById('uploadInput');
 const refreshTreeBtn = document.getElementById('refreshTreeBtn');
 const backBtn = document.getElementById('backBtn');
 const forwardBtn = document.getElementById('forwardBtn');
@@ -203,10 +207,22 @@ function pushHistory(entry) {
   updateNavButtons();
 }
 
+function currentTargetDir() {
+  return state.currentFile ? state.currentFile.split('/').slice(0, -1).join('/') : state.currentFolder;
+}
+
+function isWritableRoot() {
+  return state.currentRoot === 'workspace' || state.currentRoot === 'studio-framework';
+}
+
 function updateNavButtons() {
   backBtn.disabled = state.historyIndex <= 0;
   forwardBtn.disabled = state.historyIndex >= state.history.length - 1;
   upBtn.disabled = !(state.currentFolder || state.currentFile);
+  const writable = isWritableRoot();
+  newFolderBtn.disabled = !writable;
+  newFileBtn.disabled = !writable;
+  uploadBtn.disabled = !writable;
 }
 
 function renderBreadcrumbs() {
@@ -585,6 +601,49 @@ async function navigateUp() {
   await openFolderAt(parent);
 }
 
+async function postJson(pathname, payload) {
+  const res = await fetch(apiUrl(pathname), {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || 'Request failed');
+  return data;
+}
+
+async function createFolder() {
+  const name = window.prompt('New folder name');
+  if (!name) return;
+  const dir = currentTargetDir();
+  await postJson('mkdir', { root: state.currentRoot, dir, name });
+  await openFolderAt(dir || '');
+}
+
+async function createFile() {
+  const name = window.prompt('New file name (.md or .txt)');
+  if (!name) return;
+  const dir = currentTargetDir();
+  const content = /\.md$/i.test(name) ? '# New file\n' : '';
+  const result = await postJson('mkfile', { root: state.currentRoot, dir, name, content });
+  await openTarget(result.path, state.currentRoot);
+}
+
+async function uploadSelectedFile(file) {
+  if (!file) return;
+  const dir = currentTargetDir();
+  const buffer = await file.arrayBuffer();
+  let binary = '';
+  const bytes = new Uint8Array(buffer);
+  const chunk = 0x8000;
+  for (let i = 0; i < bytes.length; i += chunk) {
+    binary += String.fromCharCode(...bytes.subarray(i, i + chunk));
+  }
+  const base64 = btoa(binary);
+  const result = await postJson('upload', { root: state.currentRoot, dir, name: file.name, base64 });
+  await openTarget(result.path, state.currentRoot);
+}
+
 function showError(error) {
   viewer.className = 'viewer';
   viewer.innerHTML = `<pre><code>${escapeHtml(error.message)}</code></pre>`;
@@ -610,6 +669,13 @@ sizeFilter.onchange = () => scheduleSearch();
 openPathBtn.onclick = () => openTarget(pathInput.value.trim(), state.currentRoot).catch(showError);
 openAbsoluteBtn.onclick = () => openTarget(absolutePathInput.value.trim()).catch(showError);
 openFolderBtn.onclick = () => openFolderAt(pathInput.value.trim()).catch(showError);
+newFolderBtn.onclick = () => createFolder().catch(showError);
+newFileBtn.onclick = () => createFile().catch(showError);
+uploadBtn.onclick = () => uploadInput.click();
+uploadInput.onchange = () => {
+  const file = uploadInput.files?.[0];
+  uploadSelectedFile(file).catch(showError).finally(() => { uploadInput.value = ''; });
+};
 refreshTreeBtn.onclick = () => loadTree(state.currentFolder || '').catch(showError);
 backBtn.onclick = () => navigateHistory(-1).catch(showError);
 forwardBtn.onclick = () => navigateHistory(1).catch(showError);
