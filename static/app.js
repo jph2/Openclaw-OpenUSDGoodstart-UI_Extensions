@@ -302,9 +302,11 @@ async function loadFolder(forcedDir = null) {
   state.currentFolder = dir;
   state.currentFile = '';
   state.activePath = dir;
+  state.treePath = dir;
+  state.expandedDirs = new Set(['']);
   ensureExpandedFor(dir);
   viewer.className = 'viewer empty-state';
-  viewer.textContent = 'Folder selected. Choose a file from the tree.';
+  viewer.textContent = dir ? 'Folder selected. Choose a file from the tree.' : 'Root loaded. Choose a folder or file from the tree.';
   renderOutline([]);
   renderPreviewControls('text');
   await loadTree(dir);
@@ -511,9 +513,16 @@ rootSelect.onchange = () => {
   state.currentFolder = '';
   state.currentFile = '';
   state.activePath = '';
+  state.tree = [];
+  state.treePath = '';
   state.expandedDirs = new Set(['']);
   pathInput.value = '';
   absolutePathInput.value = ROOT_MAP[state.currentRoot];
+  relativePathDisplay.value = '';
+  absolutePathDisplay.value = ROOT_MAP[state.currentRoot];
+  viewer.className = 'viewer empty-state';
+  viewer.textContent = 'Loading selected root…';
+  treeView.innerHTML = '<div class="muted">Loading root…</div>';
   loadFolder('').catch(showError);
 };
 rawBtn.onclick = () => { if (state.currentFile) loadFile(state.currentFile, 'raw').catch(showError); };
@@ -538,16 +547,19 @@ async function init() {
   await loadDocsIndex();
   setupResizablePanes();
   rootSelect.value = state.currentRoot;
-  if (state.currentFolder) ensureExpandedFor(state.currentFolder);
-  pathInput.value = state.currentFile ? state.currentFile.split('/').slice(0, -1).join('/') : state.currentFolder;
   absolutePathInput.value = ROOT_MAP[state.currentRoot];
-  await loadFolder(state.currentFolder || '');
+  relativePathDisplay.value = '';
+  absolutePathDisplay.value = ROOT_MAP[state.currentRoot];
+
   if (state.currentFile) {
     const dir = state.currentFile.split('/').slice(0, -1).join('/');
     ensureExpandedFor(dir);
     await loadTree(dir);
     await loadFile(state.currentFile, state.currentMode);
+    return;
   }
+
+  await loadFolder(state.currentFolder || '');
 }
 
 init().catch(showError);
