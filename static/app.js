@@ -29,6 +29,7 @@ const kindFilter = document.getElementById('kindFilter');
 const ageFilter = document.getElementById('ageFilter');
 const sizeFilter = document.getElementById('sizeFilter');
 const searchResults = document.getElementById('searchResults');
+const debugStatus = document.getElementById('debugStatus');
 const openFolderBtn = document.getElementById('openFolderBtn');
 const refreshTreeBtn = document.getElementById('refreshTreeBtn');
 const treeView = document.getElementById('treeView');
@@ -281,17 +282,41 @@ function renderTreeNodes(nodes, container) {
   }
 }
 
+function countTreeItems(nodes = []) {
+  let count = 0;
+  for (const node of nodes) {
+    count += 1;
+    if (node.children?.length) count += countTreeItems(node.children);
+  }
+  return count;
+}
+
+function updateDebugStatus(extra = '') {
+  const lines = [
+    `root: ${state.currentRoot}`,
+    `folder: ${state.currentFolder || '(root)'}`,
+    `treePath: ${state.treePath || '(root)'}`,
+    `file: ${state.currentFile || '(none)'}`,
+    `treeItems: ${countTreeItems(state.tree || [])}`,
+  ];
+  if (extra) lines.push(`note: ${extra}`);
+  debugStatus.textContent = lines.join(' | ');
+}
+
 function renderTree() {
   treeView.innerHTML = '';
   if (!state.tree?.length) {
     treeView.innerHTML = '<div class="muted">No files</div>';
+    updateDebugStatus('tree empty after render');
     return;
   }
   renderTreeNodes(state.tree, treeView);
+  updateDebugStatus();
 }
 
 async function loadTree(rootPath = '') {
   state.treePath = rootPath;
+  updateDebugStatus('loading tree');
   const data = await fetchJson(apiUrl('tree', { root: state.currentRoot, path: rootPath, maxDepth: 5 }));
   state.tree = data.tree;
   renderTree();
@@ -536,6 +561,7 @@ copyLinkBtn.onclick = async () => {
 function showError(error) {
   viewer.className = 'viewer';
   viewer.innerHTML = `<pre><code>${escapeHtml(error.message)}</code></pre>`;
+  updateDebugStatus(`error: ${error.message}`);
 }
 
 async function init() {
