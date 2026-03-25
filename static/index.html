@@ -4,8 +4,19 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>OpenClaw Workbench MVP</title>
-    <link rel="stylesheet" href="./static/styles.css?v=20260325d" />
-    <script type="module" src="./static/app.js?v=20260325d" defer></script>
+    <link rel="stylesheet" href="./static/styles.css?v=20260325e" />
+    <script>
+      window.addEventListener('error', function (event) {
+        const el = document.getElementById('debugStatus');
+        if (el) el.textContent = 'startup error: ' + (event.message || 'unknown error');
+      });
+      window.addEventListener('unhandledrejection', function (event) {
+        const el = document.getElementById('debugStatus');
+        const reason = event.reason && event.reason.message ? event.reason.message : String(event.reason || 'unknown rejection');
+        if (el) el.textContent = 'startup rejection: ' + reason;
+      });
+    </script>
+    <script type="module" src="./static/app.js?v=20260325e" defer></script>
   </head>
   <body>
     <div class="app-shell">
