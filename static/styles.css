@@ -110,6 +110,23 @@ button:hover { border-color: var(--accent); }
   white-space: pre-wrap;
   line-height: 1.4;
 }
+.drop-zone {
+  border: 1px dashed rgba(88,166,255,0.45);
+  border-radius: 10px;
+  padding: 12px;
+  text-align: center;
+  background: rgba(88,166,255,0.06);
+  transition: background 120ms ease, border-color 120ms ease, color 120ms ease;
+}
+.drop-zone.active {
+  background: rgba(88,166,255,0.14);
+  border-color: rgba(88,166,255,0.9);
+  color: var(--text);
+}
+.drop-zone.disabled {
+  opacity: 0.45;
+  border-color: rgba(139,148,158,0.35);
+}
 .nav-buttons-row {
   display: grid;
   grid-template-columns: 52px 52px 52px 1fr;

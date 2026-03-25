@@ -36,6 +36,7 @@ const newFolderBtn = document.getElementById('newFolderBtn');
 const newFileBtn = document.getElementById('newFileBtn');
 const uploadBtn = document.getElementById('uploadBtn');
 const uploadInput = document.getElementById('uploadInput');
+const dropZone = document.getElementById('dropZone');
 const refreshTreeBtn = document.getElementById('refreshTreeBtn');
 const backBtn = document.getElementById('backBtn');
 const forwardBtn = document.getElementById('forwardBtn');
@@ -223,6 +224,8 @@ function updateNavButtons() {
   newFolderBtn.disabled = !writable;
   newFileBtn.disabled = !writable;
   uploadBtn.disabled = !writable;
+  dropZone.classList.toggle('disabled', !writable);
+  dropZone.textContent = writable ? 'Drop file here into current folder' : 'Drag-and-drop disabled in read-only roots';
 }
 
 function renderBreadcrumbs() {
@@ -676,6 +679,23 @@ uploadInput.onchange = () => {
   const file = uploadInput.files?.[0];
   uploadSelectedFile(file).catch(showError).finally(() => { uploadInput.value = ''; });
 };
+dropZone.addEventListener('dragover', (event) => {
+  if (!isWritableRoot()) return;
+  event.preventDefault();
+  dropZone.classList.add('active');
+});
+dropZone.addEventListener('dragleave', () => {
+  dropZone.classList.remove('active');
+});
+dropZone.addEventListener('drop', (event) => {
+  dropZone.classList.remove('active');
+  if (!isWritableRoot()) return;
+  event.preventDefault();
+  const file = event.dataTransfer?.files?.[0];
+  if (file) {
+    uploadSelectedFile(file).catch(showError);
+  }
+});
 refreshTreeBtn.onclick = () => loadTree(state.currentFolder || '').catch(showError);
 backBtn.onclick = () => navigateHistory(-1).catch(showError);
 forwardBtn.onclick = () => navigateHistory(1).catch(showError);
