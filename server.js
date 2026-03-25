@@ -96,13 +96,12 @@ async function listDirectory(rootKey, relativePath = '') {
   return items;
 }
 
-app.use('/static', express.static(path.join(__dirname, 'static')));
-
-app.get('/api/roots', (req, res) => {
+function registerApiRoutes(router) {
+router.get('/roots', (req, res) => {
   res.json({ roots: Object.entries(ROOTS).map(([key, value]) => ({ key, path: value })) });
 });
 
-app.get('/api/list', async (req, res) => {
+router.get('/list', async (req, res) => {
   try {
     const root = String(req.query.root || 'workspace');
     const relPath = String(req.query.path || '');
@@ -124,7 +123,7 @@ app.get('/api/list', async (req, res) => {
   }
 });
 
-app.get('/api/file', async (req, res) => {
+router.get('/file', async (req, res) => {
   try {
     const root = String(req.query.root || 'workspace');
     const relPath = String(req.query.path || '');
@@ -159,7 +158,7 @@ app.get('/api/file', async (req, res) => {
   }
 });
 
-app.get('/api/docs-index', async (req, res) => {
+router.get('/docs-index', async (req, res) => {
   try {
     const root = 'workspace';
     const docsDir = path.join(ROOTS[root], 'docs');
@@ -181,12 +180,21 @@ app.get('/api/docs-index', async (req, res) => {
     res.status(400).json({ error: error.message });
   }
 });
+}
+
+app.use('/static', express.static(path.join(__dirname, 'static')));
+app.use('/workbench/static', express.static(path.join(__dirname, 'static')));
+
+const apiRouter = express.Router();
+registerApiRoutes(apiRouter);
+app.use('/api', apiRouter);
+app.use('/workbench/api', apiRouter);
 
 app.get('/health', (req, res) => {
   res.json({ ok: true });
 });
 
-app.get('*', (req, res) => {
+app.get(['/workbench', '/workbench/*', '/', '/*'], (req, res) => {
   res.sendFile(path.join(__dirname, 'static', 'index.html'));
 });
 
