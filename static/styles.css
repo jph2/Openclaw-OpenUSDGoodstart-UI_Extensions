@@ -8,6 +8,8 @@
   --accent: #58a6ff;
   --border: #30363d;
   --code: #0b1220;
+  --sidebar-width: 380px;
+  --outline-width: 280px;
 }
 
 * { box-sizing: border-box; }
@@ -21,7 +23,7 @@ body {
 
 .app-shell {
   display: grid;
-  grid-template-columns: 360px 1fr;
+  grid-template-columns: var(--sidebar-width) 8px 1fr;
   min-height: 100vh;
   height: 100vh;
 }
@@ -55,6 +57,12 @@ input, select, button {
 }
 button { cursor: pointer; }
 button:hover { border-color: var(--accent); }
+.input-row {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 8px;
+}
+.input-row button { width: auto; }
 .control-row {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -74,7 +82,25 @@ button:hover { border-color: var(--accent); }
 }
 .small { font-size: 0.8rem; }
 .muted { color: var(--muted); }
-
+.search-results {
+  background: var(--panel-2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 10px;
+  max-height: 180px;
+  overflow: auto;
+}
+.search-results ul {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+.search-results li { margin-bottom: 6px; }
+.search-results button {
+  text-align: left;
+  width: 100%;
+  padding: 8px 10px;
+}
 .tree-wrap {
   display: flex;
   flex-direction: column;
@@ -125,15 +151,9 @@ button:hover { border-color: var(--accent); }
   background: rgba(88,166,255,0.12);
   border-color: rgba(88,166,255,0.4);
 }
-.tree-kind { color: var(--muted); }
-.docs-list-wrap {
-  flex: 0 0 auto;
-}
-#docsIndex {
-  list-style: none;
-  padding: 0;
-  margin: 10px 0 0;
-}
+.tree-kind { color: var(--muted); width: 20px; text-align: center; }
+.docs-list-wrap { flex: 0 0 auto; }
+#docsIndex { list-style: none; padding: 0; margin: 10px 0 0; }
 #docsIndex li { margin-bottom: 6px; }
 #docsIndex a {
   display: block;
@@ -146,6 +166,15 @@ button:hover { border-color: var(--accent); }
 }
 #docsIndex a:hover { border-color: var(--accent); }
 .file::before { content: '📄 '; }
+
+.pane-resizer {
+  background: linear-gradient(to right, transparent, rgba(88,166,255,0.25), transparent);
+  cursor: col-resize;
+}
+.pane-resizer.vertical {
+  width: 8px;
+  cursor: col-resize;
+}
 
 .main-panel {
   display: grid;
@@ -161,8 +190,14 @@ button:hover { border-color: var(--accent); }
   padding: 16px 20px;
   background: rgba(22, 27, 34, 0.96);
 }
-.path-block { font-size: 0.95rem; line-height: 1.5; }
-.path-block span { color: var(--muted); word-break: break-all; }
+.path-block {
+  display: grid;
+  gap: 6px;
+  width: min(820px, 100%);
+}
+.path-edit {
+  font-size: 0.92rem;
+}
 .toolbar-actions {
   display: flex;
   gap: 8px;
@@ -171,9 +206,9 @@ button:hover { border-color: var(--accent); }
 .toolbar-actions button { width: auto; }
 .content-grid {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 280px;
+  grid-template-columns: minmax(0, 1fr) 8px var(--outline-width);
   min-height: 0;
-  height: calc(100vh - 84px);
+  height: calc(100vh - 126px);
 }
 .viewer {
   padding: 24px;
@@ -212,31 +247,25 @@ pre {
   overflow: auto;
   white-space: pre-wrap;
 }
-code {
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-}
-.markdown-body {
-  max-width: 960px;
-}
+code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+.markdown-body { max-width: 960px; }
 .markdown-body h1, .markdown-body h2, .markdown-body h3 {
   border-bottom: 1px solid var(--border);
   padding-bottom: 0.25em;
 }
-.markdown-body table {
-  border-collapse: collapse;
-}
+.markdown-body table { border-collapse: collapse; }
 .markdown-body th, .markdown-body td {
   border: 1px solid var(--border);
   padding: 6px 10px;
 }
 @media (max-width: 1100px) {
   .content-grid { grid-template-columns: 1fr; height: auto; }
-  .outline-panel { border-left: 0; border-top: 1px solid var(--border); }
+  .pane-resizer.vertical, .outline-panel { display: none; }
 }
-
 @media (max-width: 900px) {
   .app-shell { grid-template-columns: 1fr; height: auto; }
+  #sidebarResizer { display: none; }
   .sidebar, .main-panel { height: auto; }
   .toolbar { flex-direction: column; }
-  .control-row { grid-template-columns: 1fr; }
+  .control-row, .input-row { grid-template-columns: 1fr; }
 }

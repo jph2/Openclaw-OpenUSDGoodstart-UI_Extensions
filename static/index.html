@@ -9,7 +9,7 @@
   </head>
   <body>
     <div class="app-shell">
-      <aside class="sidebar">
+      <aside class="sidebar" id="sidebar">
         <div class="sidebar-head">
           <h1>Workbench</h1>
           <p>Read-only artifact browser MVP</p>
@@ -19,9 +19,27 @@
           <select id="rootSelect"></select>
         </label>
         <label>
-          <span>Folder</span>
-          <input id="pathInput" type="text" placeholder="docs" />
+          <span>Relative path</span>
+          <div class="input-row">
+            <input id="pathInput" type="text" placeholder="docs/openclaw-four-repo-strategy-v1.md" />
+            <button id="openPathBtn">Open</button>
+          </div>
         </label>
+        <label>
+          <span>Absolute path</span>
+          <div class="input-row">
+            <input id="absolutePathInput" type="text" placeholder="/home/claw-agentbox/.openclaw/workspace/docs/..." />
+            <button id="openAbsoluteBtn">Open</button>
+          </div>
+        </label>
+        <label>
+          <span>Filename search</span>
+          <div class="input-row">
+            <input id="searchInput" type="text" placeholder="openclaw-four-repo-strategy-v1.md" />
+            <button id="searchBtn">Find</button>
+          </div>
+        </label>
+        <div id="searchResults" class="search-results muted small">No search yet.</div>
         <div class="control-row">
           <button id="openFolderBtn">Open folder</button>
           <button id="refreshTreeBtn">Refresh tree</button>
@@ -41,11 +59,15 @@
         </div>
       </aside>
 
+      <div id="sidebarResizer" class="pane-resizer" aria-hidden="true"></div>
+
       <main class="main-panel">
         <header class="toolbar">
           <div class="path-block">
-            <div><strong>Repo-relative:</strong> <span id="relativePath">—</span></div>
-            <div><strong>Absolute:</strong> <span id="absolutePath">—</span></div>
+            <div><strong>Repo-relative:</strong></div>
+            <input id="relativePathDisplay" class="path-edit" type="text" />
+            <div><strong>Absolute:</strong></div>
+            <input id="absolutePathDisplay" class="path-edit" type="text" />
           </div>
           <div class="toolbar-actions">
             <button id="rawBtn">Raw</button>
@@ -58,7 +80,8 @@
           <section id="viewer" class="viewer empty-state">
             Select a file from the left.
           </section>
-          <aside class="outline-panel">
+          <div id="outlineResizer" class="pane-resizer vertical" aria-hidden="true"></div>
+          <aside class="outline-panel" id="outlinePanel">
             <h2>Outline</h2>
             <ul id="outline"></ul>
           </aside>

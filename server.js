@@ -223,6 +223,54 @@ router.get('/tree', async (req, res) => {
     res.status(400).json({ error: error.message });
   }
 });
+
+router.get('/search', async (req, res) => {
+  try {
+    const q = String(req.query.q || '').trim().toLowerCase();
+    const root = String(req.query.root || 'workspace');
+    const maxResults = Math.max(1, Math.min(100, Number(req.query.maxResults || 40)));
+    if (!q) return res.json({ root, query: '', results: [] });
+
+    const rootPath = assertRoot(root);
+    const results = [];
+
+    async function walk(currentPath) {
+      if (results.length >= maxResults) return;
+      const entries = await fs.readdir(currentPath, { withFileTypes: true });
+      const filtered = entries.filter((entry) => !entry.name.startsWith('.git'));
+      for (const entry of filtered) {
+        if (results.length >= maxResults) break;
+        const fullPath = path.join(currentPath, entry.name);
+        const rel = path.relative(rootPath, fullPath).replaceAll(path.sep, '/');
+        const nameLower = entry.name.toLowerCase();
+        if (nameLower.includes(q)) {
+          const stat = await fs.stat(fullPath);
+          results.push({
+            name: entry.name,
+            path: rel,
+            type: entry.isDirectory() ? 'dir' : 'file',
+            size: stat.size,
+            updatedAt: stat.mtimeMs,
+          });
+        }
+        if (entry.isDirectory()) {
+          await walk(fullPath);
+        }
+      }
+    }
+
+    await walk(rootPath);
+    results.sort((a, b) => {
+      const aExact = a.name.toLowerCase() === q ? 0 : 1;
+      const bExact = b.name.toLowerCase() === q ? 0 : 1;
+      if (aExact !== bExact) return aExact - bExact;
+      return a.name.localeCompare(b.name);
+    });
+    res.json({ root, query: q, results });
+  } catch (error) {
+    res.status(400).json({ error: error.message });
+  }
+});
 }
 
 app.use('/static', express.static(path.join(__dirname, 'static')));
