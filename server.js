@@ -102,23 +102,25 @@ function extractHeadings(markdown) {
 async function listDirectory(rootKey, relativePath = '') {
   const { resolved, rootPath } = resolveSafe(rootKey, relativePath);
   const entries = await fs.readdir(resolved, { withFileTypes: true });
-  const items = entries
-    .filter(entry => !entry.name.startsWith('.git'))
-    .map(entry => {
-      const childAbsolute = path.join(resolved, entry.name);
-      const childRelative = path.relative(rootPath, childAbsolute).replaceAll(path.sep, '/');
-      return {
-        name: entry.name,
-        path: childRelative,
-        type: entry.isDirectory() ? 'dir' : 'file',
-      };
-    })
-    .sort((a, b) => {
-      if (a.type !== b.type) return a.type === 'dir' ? -1 : 1;
-      return a.name.localeCompare(b.name);
-    });
+  const filtered = entries.filter(entry => !entry.name.startsWith('.git'));
+  const items = await Promise.all(filtered.map(async (entry) => {
+    const childAbsolute = path.join(resolved, entry.name);
+    const childRelative = path.relative(rootPath, childAbsolute).replaceAll(path.sep, '/');
+    const stat = await fs.stat(childAbsolute);
+    return {
+      name: entry.name,
+      path: childRelative,
+      type: entry.isDirectory() ? 'dir' : 'file',
+      size: stat.size,
+      updatedAt: stat.mtimeMs,
+      kind: entry.isDirectory() ? 'dir' : getFileKind(childAbsolute),
+    };
+  }));
 
-  return items;
+  return items.sort((a, b) => {
+    if (a.type !== b.type) return a.type === 'dir' ? -1 : 1;
+    return a.name.localeCompare(b.name);
+  });
 }
 
 async function buildTree(rootKey, relativePath = '', depth = 0, maxDepth = 4) {
@@ -270,13 +272,12 @@ router.get('/search', async (req, res) => {
   try {
     const q = String(req.query.q || '').trim().toLowerCase();
     const root = String(req.query.root || 'workspace');
-    const maxResults = Math.max(1, Math.min(100, Number(req.query.maxResults || 40)));
+    const maxResults = Math.max(1, Math.min(1000, Number(req.query.maxResults || 200)));
     const kindFilter = String(req.query.kind || 'all');
     const ageFilter = String(req.query.age || 'all');
     const sizeFilter = String(req.query.size || 'all');
+    const sort = String(req.query.sort || 'name');
     const now = Date.now();
-    if (!q) return res.json({ root, query: '', results: [] });
-
     const rootPath = assertRoot(root);
     const results = [];
 
@@ -315,7 +316,8 @@ router.get('/search', async (req, res) => {
         const ageOk = ageMatch(stat.mtimeMs);
         const sizeOk = sizeMatch(stat.size);
 
-        if (nameLower.includes(q) && kindOk && ageOk && sizeOk) {
+        const nameOk = !q || nameLower.includes(q);
+        if (nameOk && kindOk && ageOk && sizeOk) {
           results.push({
             name: entry.name,
             path: rel,
@@ -333,12 +335,16 @@ router.get('/search', async (req, res) => {
 
     await walk(rootPath);
     results.sort((a, b) => {
-      const aExact = a.name.toLowerCase() === q ? 0 : 1;
-      const bExact = b.name.toLowerCase() === q ? 0 : 1;
+      if (sort === 'newest') return b.updatedAt - a.updatedAt || a.name.localeCompare(b.name);
+      if (sort === 'oldest') return a.updatedAt - b.updatedAt || a.name.localeCompare(b.name);
+      if (sort === 'largest') return b.size - a.size || a.name.localeCompare(b.name);
+      if (sort === 'smallest') return a.size - b.size || a.name.localeCompare(b.name);
+      const aExact = q && a.name.toLowerCase() === q ? 0 : 1;
+      const bExact = q && b.name.toLowerCase() === q ? 0 : 1;
       if (aExact !== bExact) return aExact - bExact;
       return a.name.localeCompare(b.name);
     });
-    res.json({ root, query: q, filters: { kind: kindFilter, age: ageFilter, size: sizeFilter }, results });
+    res.json({ root, query: q, filters: { kind: kindFilter, age: ageFilter, size: sizeFilter, sort }, results });
   } catch (error) {
     res.status(400).json({ error: error.message });
   }

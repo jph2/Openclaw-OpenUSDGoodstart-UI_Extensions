@@ -16,6 +16,15 @@ const state = {
   activeDocumentKey: null,
   documents: new Map(),
   lastFocusedElement: null,
+  treeFilter: {
+    query: '',
+    kind: 'all',
+    age: 'all',
+    size: 'all',
+    sort: 'name',
+    matches: null,
+    totalMatches: 0,
+  },
 };
 
 const ROOT_MAP = {
@@ -30,6 +39,7 @@ const searchInput = document.getElementById('searchInput');
 const kindFilter = document.getElementById('kindFilter');
 const ageFilter = document.getElementById('ageFilter');
 const sizeFilter = document.getElementById('sizeFilter');
+const sortFilter = document.getElementById('sortFilter');
 const searchResults = document.getElementById('searchResults');
 const pathInput = document.getElementById('pathInput');
 const absolutePathInput = document.getElementById('absolutePathInput');
@@ -173,6 +183,56 @@ function dirtyDocumentCount() {
 function dirtyLabelForFile(pathValue) {
   const doc = getDocument(state.currentRoot, pathValue);
   return !!(doc && isDocumentDirty(doc));
+}
+
+function isTreeFilterActive() {
+  const { query, kind, age, size } = state.treeFilter;
+  return !!(query || kind !== 'all' || age !== 'all' || size !== 'all');
+}
+
+function sortNodes(nodes = []) {
+  const sort = state.treeFilter.sort;
+  const compare = (a, b) => {
+    if (a.type !== b.type) return a.type === 'dir' ? -1 : 1;
+    if (sort === 'name') return a.name.localeCompare(b.name);
+    const aTime = a.updatedAt || 0;
+    const bTime = b.updatedAt || 0;
+    const aSize = a.size || 0;
+    const bSize = b.size || 0;
+    if (sort === 'newest') return bTime - aTime || a.name.localeCompare(b.name);
+    if (sort === 'oldest') return aTime - bTime || a.name.localeCompare(b.name);
+    if (sort === 'largest') return bSize - aSize || a.name.localeCompare(b.name);
+    if (sort === 'smallest') return aSize - bSize || a.name.localeCompare(b.name);
+    return a.name.localeCompare(b.name);
+  };
+  return [...nodes].sort(compare).map((node) => ({
+    ...node,
+    children: node.children ? sortNodes(node.children) : node.children,
+  }));
+}
+
+function applyTreeFilter(nodes = []) {
+  const matches = state.treeFilter.matches;
+  const active = isTreeFilterActive();
+  const walk = (inputNodes) => {
+    const output = [];
+    for (const node of inputNodes) {
+      const filteredChildren = node.children ? walk(node.children) : [];
+      const isMatch = !active || !matches || matches.has(node.path);
+      const keepNode = node.type === 'dir' ? (isMatch || filteredChildren.length > 0) : isMatch;
+      if (!keepNode) continue;
+      output.push({
+        ...node,
+        children: node.children ? filteredChildren : undefined,
+      });
+    }
+    return output;
+  };
+  return walk(sortNodes(nodes));
+}
+
+function updateFilterStatus(text) {
+  if (searchResults) searchResults.textContent = text;
 }
 
 function setEditorMode(active) {
@@ -457,12 +517,13 @@ function renderTreeNodes(nodes, container) {
 
 function renderTree() {
   treeView.innerHTML = '';
-  if (!state.tree?.length) {
-    treeView.innerHTML = '<div class="muted">No files</div>';
+  const visibleTree = applyTreeFilter(state.tree || []);
+  if (!visibleTree.length) {
+    treeView.innerHTML = `<div class="muted">${isTreeFilterActive() ? 'No items match the current tree filter.' : 'No files'}</div>`;
     updateDebugStatus('tree empty after render');
     return;
   }
-  renderTreeNodes(state.tree, treeView);
+  renderTreeNodes(visibleTree, treeView);
   const activeLabel = treeView.querySelector('.tree-label.active');
   if (activeLabel) {
     requestAnimationFrame(() => {
@@ -477,6 +538,7 @@ async function loadTree(rootPath = '') {
   updateDebugStatus('loading tree');
   const data = await fetchJson(apiUrl('tree', { root: state.currentRoot, path: rootPath, maxDepth: 5 }));
   state.tree = data.tree;
+  await runSearch({ silent: true });
   renderTree();
 }
 
@@ -773,39 +835,52 @@ function formatDate(ts) {
   return new Date(ts).toLocaleDateString();
 }
 
-async function runSearch() {
-  const q = searchInput.value.trim();
-  if (!q) {
-    searchResults.textContent = 'Start typing to search.';
+async function runSearch(options = {}) {
+  state.treeFilter.query = searchInput.value.trim();
+  state.treeFilter.kind = kindFilter.value;
+  state.treeFilter.age = ageFilter.value;
+  state.treeFilter.size = sizeFilter.value;
+  state.treeFilter.sort = sortFilter?.value || 'name';
+
+  const active = isTreeFilterActive();
+  if (!active) {
+    state.treeFilter.matches = null;
+    state.treeFilter.totalMatches = 0;
+    updateFilterStatus(`No active tree filter. Sorting by ${state.treeFilter.sort}.`);
+    if (!options.silent) renderTree();
     return;
   }
+
   const data = await fetchJson(apiUrl('search', {
     root: state.currentRoot,
-    q,
-    maxResults: 30,
-    kind: kindFilter.value,
-    age: ageFilter.value,
-    size: sizeFilter.value,
+    q: state.treeFilter.query,
+    maxResults: 500,
+    kind: state.treeFilter.kind,
+    age: state.treeFilter.age,
+    size: state.treeFilter.size,
+    sort: state.treeFilter.sort,
   }));
-  if (!data.results.length) {
-    searchResults.innerHTML = `<div>No matches for <strong>${escapeHtml(q)}</strong>.</div>`;
-    return;
-  }
-  const ul = document.createElement('ul');
+
+  const matches = new Set();
   for (const result of data.results) {
-    const isDirty = result.type === 'file' && dirtyLabelForFile(result.path);
-    const li = document.createElement('li');
-    const btn = document.createElement('button');
-    btn.innerHTML = `${result.type === 'dir' ? '📁' : '📄'} ${isDirty ? '● ' : ''}${escapeHtml(result.path)}<div class="search-meta">${escapeHtml(result.kind)} • ${formatBytes(result.size)} • ${formatDate(result.updatedAt)}</div>`;
-    btn.onclick = async () => {
-      if (result.type === 'dir') await guardedOpenFolderAt(result.path);
-      else await guardedOpenTarget(result.path, state.currentRoot);
-    };
-    li.appendChild(btn);
-    ul.appendChild(li);
+    const parts = result.path.split('/').filter(Boolean);
+    let current = '';
+    for (const part of parts) {
+      current = current ? `${current}/${part}` : part;
+      matches.add(current);
+    }
   }
-  searchResults.innerHTML = '';
-  searchResults.appendChild(ul);
+  state.treeFilter.matches = matches;
+  state.treeFilter.totalMatches = data.results.length;
+
+  const bits = [];
+  if (state.treeFilter.query) bits.push(`name contains “${state.treeFilter.query}”`);
+  if (state.treeFilter.kind !== 'all') bits.push(`kind: ${state.treeFilter.kind}`);
+  if (state.treeFilter.age !== 'all') bits.push(`age: ${state.treeFilter.age}`);
+  if (state.treeFilter.size !== 'all') bits.push(`size: ${state.treeFilter.size}`);
+  bits.push(`sort: ${state.treeFilter.sort}`);
+  updateFilterStatus(`${data.results.length} matching item${data.results.length === 1 ? '' : 's'} • ${bits.join(' • ')}`);
+  if (!options.silent) renderTree();
 }
 
 async function openTarget(targetPath, preferredRoot = state.currentRoot, options = {}) {
@@ -1116,7 +1191,7 @@ rootSelect.onchange = async () => {
   state.treePath = '';
   state.expandedDirs = new Set(['']);
   setCurrentDocument(null);
-  searchResults.textContent = 'Start typing to search.';
+  updateFilterStatus('No active tree filter.');
   openFolderAt('').catch(showError);
 };
 
@@ -1124,6 +1199,7 @@ searchInput.addEventListener('input', () => scheduleSearch());
 kindFilter.onchange = () => scheduleSearch();
 ageFilter.onchange = () => scheduleSearch();
 sizeFilter.onchange = () => scheduleSearch();
+if (sortFilter) sortFilter.onchange = () => scheduleSearch();
 openPathBtn.onclick = () => guardedOpenTarget(pathInput.value.trim(), state.currentRoot).catch(showError);
 openAbsoluteBtn.onclick = () => guardedOpenTarget(absolutePathInput.value.trim()).catch(showError);
 openFolderBtn.onclick = () => guardedOpenFolderAt(pathInput.value.trim()).catch(showError);

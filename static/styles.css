@@ -73,6 +73,7 @@ button:hover { border-color: var(--accent); }
 .input-row button { width: auto; }
 .filter-row { display: grid; gap: 8px; }
 .filter-row.three-up { grid-template-columns: repeat(3, 1fr); }
+.filter-row.four-up { grid-template-columns: repeat(4, 1fr); }
 .control-row { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
 .control-row.single { grid-template-columns: 1fr; }
 .control-row.three-actions { grid-template-columns: 1fr 1fr 1fr; }

@@ -37,14 +37,14 @@
 
         <div class="search-panel">
           <div class="section-head">
-            <h2>Search</h2>
-            <span class="muted small">live filename search</span>
+            <h2>Tree filter</h2>
+            <span class="muted small">live filter + sort for the tree</span>
           </div>
           <label>
             <span>Filename search</span>
             <input id="searchInput" type="text" placeholder="Type a filename; filters apply live" />
           </label>
-          <div class="filter-row three-up">
+          <div class="filter-row four-up">
             <select id="kindFilter">
               <option value="all">all kinds</option>
               <option value="text">text</option>
@@ -66,10 +66,17 @@
               <option value="medium">100 KB–1 MB</option>
               <option value="large">&gt;1 MB</option>
             </select>
+            <select id="sortFilter">
+              <option value="name">sort: name</option>
+              <option value="newest">sort: newest</option>
+              <option value="oldest">sort: oldest</option>
+              <option value="largest">sort: largest</option>
+              <option value="smallest">sort: smallest</option>
+            </select>
           </div>
           <div class="results-panel">
-            <div class="results-head muted small">Search results</div>
-            <div id="searchResults" class="search-results muted small">Start typing to search.</div>
+            <div class="results-head muted small">Tree filter status</div>
+            <div id="searchResults" class="search-results muted small">No active tree filter.</div>
           </div>
         </div>
 
