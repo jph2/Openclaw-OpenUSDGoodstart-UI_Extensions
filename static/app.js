@@ -463,6 +463,12 @@ function renderTree() {
     return;
   }
   renderTreeNodes(state.tree, treeView);
+  const activeLabel = treeView.querySelector('.tree-label.active');
+  if (activeLabel) {
+    requestAnimationFrame(() => {
+      activeLabel.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+    });
+  }
   updateDebugStatus();
 }
 
