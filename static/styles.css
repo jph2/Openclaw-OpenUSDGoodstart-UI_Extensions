@@ -231,6 +231,16 @@ button:hover { border-color: var(--accent); }
   padding: 4px 10px;
   min-height: 28px;
 }
+.resize-stepper {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.resize-stepper button {
+  width: auto;
+  min-width: 32px;
+  padding: 4px 8px;
+}
 .breadcrumbs {
   display: flex;
   flex-wrap: wrap;

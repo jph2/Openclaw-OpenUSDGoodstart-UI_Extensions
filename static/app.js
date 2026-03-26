@@ -88,6 +88,10 @@ const copyLinkBtn = document.getElementById('copyLinkBtn');
 const sidebarResizer = document.getElementById('sidebarResizer');
 const outlineResizer = document.getElementById('outlineResizer');
 const treeHeightResizer = document.getElementById('treeHeightResizer');
+const sidebarNarrowerBtn = document.getElementById('sidebarNarrowerBtn');
+const sidebarWiderBtn = document.getElementById('sidebarWiderBtn');
+const treeSmallerBtn = document.getElementById('treeSmallerBtn');
+const treeLargerBtn = document.getElementById('treeLargerBtn');
 const autosaveCheckbox = document.getElementById('autosaveCheckbox');
 const docStatus = document.getElementById('docStatus');
 const unsavedModal = document.getElementById('unsavedModal');
@@ -1046,14 +1050,19 @@ function attachVerticalResizable(handle, initialVar, min, max, storageKey) {
   });
 }
 
+function setCssSizeVar(name, value, storageKey) {
+  document.documentElement.style.setProperty(name, `${value}px`);
+  if (storageKey) localStorage.setItem(storageKey, String(value));
+}
+
 function setupResizablePanes() {
   const savedSidebar = localStorage.getItem('workbench.sidebarWidth');
   const savedOutline = localStorage.getItem('workbench.outlineWidth');
   const savedTreeHeight = localStorage.getItem('workbench.treeHeight');
   const savedAutosave = localStorage.getItem('workbench.autosave');
-  if (savedSidebar) document.documentElement.style.setProperty('--sidebar-width', `${savedSidebar}px`);
-  if (savedOutline) document.documentElement.style.setProperty('--outline-width', `${savedOutline}px`);
-  if (savedTreeHeight) document.documentElement.style.setProperty('--tree-height', `${savedTreeHeight}px`);
+  if (savedSidebar) setCssSizeVar('--sidebar-width', savedSidebar, null);
+  if (savedOutline) setCssSizeVar('--outline-width', savedOutline, null);
+  if (savedTreeHeight) setCssSizeVar('--tree-height', savedTreeHeight, null);
   state.autosave = savedAutosave === 'true';
   if (autosaveCheckbox) autosaveCheckbox.checked = state.autosave;
   attachResizable(sidebarResizer, '--sidebar-width', 260, 760, 'normal', 'workbench.sidebarWidth');
@@ -1064,8 +1073,7 @@ function setupResizablePanes() {
     sidebarResizer.ondblclick = () => {
       const current = parseInt(getComputedStyle(document.documentElement).getPropertyValue('--sidebar-width'), 10) || 410;
       const next = current >= 520 ? 360 : current + 80;
-      document.documentElement.style.setProperty('--sidebar-width', `${next}px`);
-      localStorage.setItem('workbench.sidebarWidth', String(next));
+      setCssSizeVar('--sidebar-width', next, 'workbench.sidebarWidth');
       updateDebugStatus(`sidebar dblclick resize --sidebar-width=${next}`);
     };
     sidebarResizer.onclick = () => updateDebugStatus('sidebar resizer click detected');
@@ -1075,12 +1083,36 @@ function setupResizablePanes() {
     treeHeightResizer.ondblclick = () => {
       const current = parseInt(getComputedStyle(document.documentElement).getPropertyValue('--tree-height'), 10) || 340;
       const next = current >= 420 ? 260 : current + 80;
-      document.documentElement.style.setProperty('--tree-height', `${next}px`);
-      localStorage.setItem('workbench.treeHeight', String(next));
+      setCssSizeVar('--tree-height', next, 'workbench.treeHeight');
       updateDebugStatus(`tree dblclick resize --tree-height=${next}`);
     };
     treeHeightResizer.onclick = () => updateDebugStatus('tree resizer click detected');
   }
+
+  if (sidebarNarrowerBtn) sidebarNarrowerBtn.onclick = () => {
+    const current = parseInt(getComputedStyle(document.documentElement).getPropertyValue('--sidebar-width'), 10) || 410;
+    const next = Math.max(260, current - 40);
+    setCssSizeVar('--sidebar-width', next, 'workbench.sidebarWidth');
+    updateDebugStatus(`sidebar step resize --sidebar-width=${next}`);
+  };
+  if (sidebarWiderBtn) sidebarWiderBtn.onclick = () => {
+    const current = parseInt(getComputedStyle(document.documentElement).getPropertyValue('--sidebar-width'), 10) || 410;
+    const next = Math.min(760, current + 40);
+    setCssSizeVar('--sidebar-width', next, 'workbench.sidebarWidth');
+    updateDebugStatus(`sidebar step resize --sidebar-width=${next}`);
+  };
+  if (treeSmallerBtn) treeSmallerBtn.onclick = () => {
+    const current = parseInt(getComputedStyle(document.documentElement).getPropertyValue('--tree-height'), 10) || 340;
+    const next = Math.max(160, current - 40);
+    setCssSizeVar('--tree-height', next, 'workbench.treeHeight');
+    updateDebugStatus(`tree step resize --tree-height=${next}`);
+  };
+  if (treeLargerBtn) treeLargerBtn.onclick = () => {
+    const current = parseInt(getComputedStyle(document.documentElement).getPropertyValue('--tree-height'), 10) || 340;
+    const next = Math.min(700, current + 40);
+    setCssSizeVar('--tree-height', next, 'workbench.treeHeight');
+    updateDebugStatus(`tree step resize --tree-height=${next}`);
+  };
 }
 
 function parseInitialState() {
