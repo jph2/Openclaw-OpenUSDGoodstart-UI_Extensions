@@ -35,12 +35,12 @@ body {
 .sidebar {
   background: var(--panel);
   border-right: 1px solid var(--border);
-  padding: 16px;
+  padding: 14px;
   overflow-y: auto;
   overflow-x: hidden;
   display: flex;
   flex-direction: column;
-  gap: 14px;
+  gap: 10px;
 }
 .sidebar-head h1 { margin: 0 0 4px; font-size: 1.4rem; }
 .sidebar-head p { margin: 0; color: var(--muted); }
@@ -65,7 +65,7 @@ input, select, button {
   color: var(--text);
   border: 1px solid var(--border);
   border-radius: 8px;
-  padding: 10px 12px;
+  padding: 8px 10px;
 }
 button { cursor: pointer; }
 button:hover { border-color: var(--accent); }
@@ -76,7 +76,12 @@ button:hover { border-color: var(--accent); }
 .filter-row.four-up { grid-template-columns: repeat(4, 1fr); }
 .control-row { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
 .control-row.single { grid-template-columns: 1fr; }
+.control-row.two-actions { grid-template-columns: 1fr 1fr; }
 .control-row.three-actions { grid-template-columns: 1fr 1fr 1fr; }
+.compact-row button,
+.compact-row .drop-zone {
+  min-height: 42px;
+}
 .section-head, .outline-header {
   display: flex;
   justify-content: space-between;
@@ -90,10 +95,10 @@ button:hover { border-color: var(--accent); }
   background: var(--panel-3);
   border: 1px solid var(--border);
   border-radius: 12px;
-  padding: 12px;
+  padding: 10px;
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 8px;
 }
 .results-panel {
   border: 1px solid rgba(88,166,255,0.18);
@@ -127,10 +132,13 @@ button:hover { border-color: var(--accent); }
 .drop-zone {
   border: 1px dashed rgba(88,166,255,0.45);
   border-radius: 10px;
-  padding: 12px;
+  padding: 10px;
   text-align: center;
   background: rgba(88,166,255,0.06);
   transition: background 120ms ease, border-color 120ms ease, color 120ms ease;
+}
+.upload-drop-row {
+  align-items: stretch;
 }
 .drop-zone.active {
   background: rgba(88,166,255,0.14);
@@ -210,7 +218,8 @@ button:hover { border-color: var(--accent); }
 .breadcrumb-sep { color: var(--muted); align-self: center; font-size: 0.78rem; }
 .sidebar-stack {
   display: grid;
-  grid-template-rows: minmax(160px, var(--tree-height)) 8px minmax(120px, 1fr);
+  grid-template-rows: minmax(180px, var(--tree-height)) 8px minmax(100px, 1fr) auto;
+  gap: 8px;
   min-height: 0;
   flex: 1 1 auto;
 }
@@ -270,6 +279,9 @@ button:hover { border-color: var(--accent); }
 .docs-list-wrap {
   min-height: 0;
   overflow: auto;
+}
+.sidebar-debug {
+  margin-top: 0;
 }
 #docsIndex { list-style: none; padding: 0; margin: 10px 0 0; }
 #docsIndex li { margin-bottom: 6px; }
