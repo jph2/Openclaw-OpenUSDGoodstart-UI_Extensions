@@ -22,8 +22,13 @@
     <div class="app-shell">
       <aside class="sidebar" id="sidebar">
         <div class="sidebar-head">
-          <h1>Workbench</h1>
-          <p>Read-only artifact browser MVP</p>
+          <h1>OpenClaw workbench MVP</h1>
+          <p>Accessing files on the OpenClaw host</p>
+          <div class="sidebar-head-links muted small">
+            <a href="https://github.com/jph2/Openclaw-OpenUSDGoodstart-UI_Extensions" target="_blank" rel="noreferrer">openclaw-openusdgoodstart-ui-extensions</a>
+            <span>•</span>
+            <span>upcoming plugin / extension page</span>
+          </div>
         </div>
         <label>
           <span>Root</span>
@@ -164,16 +169,31 @@
                 <input id="findInput" type="text" placeholder="Find" />
                 <input id="replaceInput" type="text" placeholder="Replace" />
               </div>
-              <div class="control-row three-actions compact-actions">
+              <div class="control-row editor-action-grid compact-actions">
                 <button id="findNextBtn">Find next</button>
                 <button id="replaceBtn">Replace</button>
                 <button id="replaceAllBtn">Replace all</button>
+                <button id="undoBtn">Undo</button>
+                <button id="redoBtn">Redo</button>
+                <div class="shortcut-hint muted small">Shortcuts: Ctrl/Cmd+Z, Ctrl/Cmd+Y, Ctrl/Cmd+Shift+Z</div>
               </div>
             </div>
             <ul id="outline"></ul>
           </aside>
         </section>
       </main>
+    </div>
+
+    <div id="unsavedModal" class="modal-backdrop hidden" aria-hidden="true">
+      <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="unsavedModalTitle">
+        <h2 id="unsavedModalTitle">Unsaved changes</h2>
+        <p id="unsavedModalMessage" class="modal-message">You have unsaved changes.</p>
+        <div class="modal-actions">
+          <button id="modalStayBtn" class="modal-btn">Stay here</button>
+          <button id="modalDiscardBtn" class="modal-btn danger">Discard</button>
+          <button id="modalSaveBtn" class="modal-btn primary">Save</button>
+        </div>
+      </div>
     </div>
   </body>
 </html>

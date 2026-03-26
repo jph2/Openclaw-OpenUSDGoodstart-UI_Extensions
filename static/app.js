@@ -59,6 +59,8 @@ const replaceInput = document.getElementById('replaceInput');
 const findNextBtn = document.getElementById('findNextBtn');
 const replaceBtn = document.getElementById('replaceBtn');
 const replaceAllBtn = document.getElementById('replaceAllBtn');
+const undoBtn = document.getElementById('undoBtn');
+const redoBtn = document.getElementById('redoBtn');
 const rawBtn = document.getElementById('rawBtn');
 const previewBtn = document.getElementById('previewBtn');
 const saveBtn = document.getElementById('saveBtn');
@@ -69,9 +71,15 @@ const outlineResizer = document.getElementById('outlineResizer');
 const treeHeightResizer = document.getElementById('treeHeightResizer');
 const autosaveCheckbox = document.getElementById('autosaveCheckbox');
 const docStatus = document.getElementById('docStatus');
+const unsavedModal = document.getElementById('unsavedModal');
+const unsavedModalMessage = document.getElementById('unsavedModalMessage');
+const modalStayBtn = document.getElementById('modalStayBtn');
+const modalDiscardBtn = document.getElementById('modalDiscardBtn');
+const modalSaveBtn = document.getElementById('modalSaveBtn');
 
 let searchDebounce = null;
 let markdownModulePromise = null;
+let unsavedModalResolver = null;
 
 function escapeHtml(input) {
   return String(input).replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;');
@@ -298,6 +306,8 @@ function updateNavButtons() {
   uploadBtn.disabled = !writable;
   saveBtn.disabled = !writable || !state.currentFile || !doc || !dirty;
   revertBtn.disabled = !state.currentFile || !doc || state.autosave || !dirty;
+  if (undoBtn) undoBtn.disabled = !doc || doc.undoIndex <= 0;
+  if (redoBtn) redoBtn.disabled = !doc || doc.undoIndex >= doc.undoStack.length - 1;
   dropZone.classList.toggle('disabled', !writable);
   dropZone.textContent = writable ? 'Drop file here into current folder' : 'Drag-and-drop disabled in read-only roots';
   updateDocumentStatus();
@@ -353,6 +363,7 @@ function renderTreeNodes(nodes, container) {
     wrapper.className = 'tree-node';
     const row = document.createElement('div');
     row.className = 'tree-row';
+    const nodeIsDirty = node.type === 'file' && currentDoc() && node.path === state.currentFile && isDocumentDirty(currentDoc());
 
     if (node.type === 'dir') {
       const toggle = document.createElement('button');
@@ -395,10 +406,19 @@ function renderTreeNodes(nodes, container) {
 
       const label = document.createElement('button');
       label.className = `tree-label ${state.activePath === node.path ? 'active' : ''}`;
+      const meta = document.createElement('span');
+      meta.className = 'tree-label-meta';
+      if (nodeIsDirty) {
+        const dirtyDot = document.createElement('span');
+        dirtyDot.className = 'dirty-dot';
+        dirtyDot.title = 'Unsaved changes';
+        meta.appendChild(dirtyDot);
+      }
       const text = document.createElement('span');
       text.className = 'tree-label-text';
       text.textContent = `📄 ${node.name}`;
-      label.appendChild(text);
+      meta.appendChild(text);
+      label.appendChild(meta);
       label.onclick = () => {
         if (window.getSelection && String(window.getSelection()).length > 0) return;
         guardedLoadFile(node.path, state.currentMode).catch(showError);
@@ -436,6 +456,25 @@ function renderFolderViewMessage() {
   renderOutline([]);
   renderPreviewControls('text');
   updateDocumentStatus();
+}
+
+function showUnsavedModal(label) {
+  return new Promise((resolve) => {
+    unsavedModalResolver = resolve;
+    unsavedModalMessage.textContent = `You have unsaved changes in ${label}. What should happen before leaving this document?`;
+    unsavedModal.classList.remove('hidden');
+    unsavedModal.setAttribute('aria-hidden', 'false');
+    modalSaveBtn.focus();
+  });
+}
+
+function closeUnsavedModal(result) {
+  if (!unsavedModalResolver) return;
+  const resolve = unsavedModalResolver;
+  unsavedModalResolver = null;
+  unsavedModal.classList.add('hidden');
+  unsavedModal.setAttribute('aria-hidden', 'true');
+  resolve(result);
 }
 
 function createDocumentState({ root, filePath, raw, isMarkdown, kind }) {
@@ -895,14 +934,15 @@ async function ensureCanLeaveCurrentDocument(nextRoot = state.currentRoot, nextP
   }
 
   const label = doc.filePath || '(untitled)';
-  const shouldSave = window.confirm(`Save changes to ${label} before leaving?\n\nOK = Save\nCancel = Stay here`);
-  if (shouldSave) {
+  const decision = await showUnsavedModal(label);
+  if (decision === 'save') {
     await saveDocument(doc);
     return true;
   }
-  const shouldDiscard = window.confirm(`Discard unsaved changes to ${label}?`);
-  if (!shouldDiscard) return false;
-  return true;
+  if (decision === 'discard') {
+    return true;
+  }
+  return false;
 }
 
 async function guardedOpenFolderAt(dir = '', options = {}) {
@@ -1067,6 +1107,14 @@ revertBtn.onclick = () => revertRawFile();
 findNextBtn.onclick = () => findInRaw(true);
 replaceBtn.onclick = () => replaceInRaw(false);
 replaceAllBtn.onclick = () => replaceInRaw(true);
+undoBtn.onclick = () => {
+  const doc = currentDoc();
+  if (doc) restoreUndoState(doc, -1);
+};
+redoBtn.onclick = () => {
+  const doc = currentDoc();
+  if (doc) restoreUndoState(doc, 1);
+};
 copyLinkBtn.onclick = async () => {
   await navigator.clipboard.writeText(location.href);
   copyLinkBtn.textContent = 'Copied';
@@ -1081,6 +1129,20 @@ if (autosaveCheckbox) {
     updateDebugStatus('autosave toggled');
   });
 }
+if (modalStayBtn) modalStayBtn.onclick = () => closeUnsavedModal('stay');
+if (modalDiscardBtn) modalDiscardBtn.onclick = () => closeUnsavedModal('discard');
+if (modalSaveBtn) modalSaveBtn.onclick = () => closeUnsavedModal('save');
+if (unsavedModal) {
+  unsavedModal.addEventListener('click', (event) => {
+    if (event.target === unsavedModal) closeUnsavedModal('stay');
+  });
+}
+window.addEventListener('keydown', (event) => {
+  if (event.key === 'Escape' && unsavedModalResolver) {
+    event.preventDefault();
+    closeUnsavedModal('stay');
+  }
+});
 window.addEventListener('beforeunload', (event) => {
   syncDocumentFromEditor();
   const doc = currentDoc();
