@@ -285,8 +285,29 @@ button:hover { border-color: var(--accent); }
   font-size: 0.92rem;
 }
 .path-summary span { color: var(--muted); word-break: break-all; }
-.toolbar-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+.toolbar-actions { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
 .toolbar-actions button { width: auto; }
+.autosave-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--panel-2);
+}
+.autosave-toggle input {
+  width: auto;
+  margin: 0;
+}
+.autosave-toggle span {
+  margin: 0;
+  color: var(--text);
+}
+.doc-status {
+  padding: 0 4px;
+  white-space: nowrap;
+}
 .hidden { display: none !important; }
 .editor-tools {
   margin-top: 12px;

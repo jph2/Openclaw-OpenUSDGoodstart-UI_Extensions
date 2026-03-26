@@ -9,11 +9,11 @@ const state = {
   activePath: '',
   tree: [],
   imageScale: 1,
-  rawContent: '',
-  savedContent: '',
   history: [],
   historyIndex: -1,
   suppressHistory: false,
+  autosave: false,
+  activeDocument: null,
 };
 
 const ROOT_MAP = {
@@ -67,8 +67,11 @@ const copyLinkBtn = document.getElementById('copyLinkBtn');
 const sidebarResizer = document.getElementById('sidebarResizer');
 const outlineResizer = document.getElementById('outlineResizer');
 const treeHeightResizer = document.getElementById('treeHeightResizer');
+const autosaveCheckbox = document.getElementById('autosaveCheckbox');
+const docStatus = document.getElementById('docStatus');
 
 let searchDebounce = null;
+let markdownModulePromise = null;
 
 function escapeHtml(input) {
   return String(input).replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;');
@@ -98,6 +101,17 @@ function slugifyHeading(text) {
   return text.toLowerCase().trim().replaceAll(/[^a-z0-9\s-]/g, '').replaceAll(/\s+/g, '-');
 }
 
+function extractHeadings(markdown = '') {
+  return markdown
+    .split(/\r?\n/)
+    .map((line) => {
+      const match = /^(#{1,6})\s+(.*)$/.exec(line.trim());
+      if (!match) return null;
+      return { level: match[1].length, text: match[2].trim() };
+    })
+    .filter(Boolean);
+}
+
 function renderOutline(headings = []) {
   outline.innerHTML = '';
   if (!headings.length) {
@@ -113,6 +127,19 @@ function renderOutline(headings = []) {
     li.appendChild(a);
     outline.appendChild(li);
   }
+}
+
+function documentKey(root, filePath) {
+  return `${root}:${filePath}`;
+}
+
+function currentDoc() {
+  const doc = state.activeDocument;
+  return doc && doc.key === documentKey(state.currentRoot, state.currentFile) ? doc : null;
+}
+
+function isDocumentDirty(doc = currentDoc()) {
+  return !!(doc && doc.workingContent !== doc.savedContent);
 }
 
 function setEditorMode(active) {
@@ -170,12 +197,19 @@ function currentRelativePath() {
   return state.currentFile || state.currentFolder || '';
 }
 
+function currentRelativeLabelText() {
+  const doc = currentDoc();
+  const dirtySuffix = isDocumentDirty(doc) ? ' • unsaved' : '';
+  return `${currentRelativePath() || '(root)'}${dirtySuffix}`;
+}
+
 function updateSummary() {
   currentRootLabel.textContent = state.currentRoot || '—';
-  currentRelativeLabel.textContent = currentRelativePath() || '(root)';
+  currentRelativeLabel.textContent = currentRelativeLabelText();
   currentAbsoluteLabel.textContent = currentAbsolutePath() || '—';
   pathInput.value = state.currentFile || state.currentFolder || '';
   absolutePathInput.value = currentAbsolutePath();
+  updateDocumentStatus();
 }
 
 function countTreeItems(nodes = []) {
@@ -188,15 +222,31 @@ function countTreeItems(nodes = []) {
 }
 
 function updateDebugStatus(extra = '') {
+  const doc = currentDoc();
   const lines = [
     `root: ${state.currentRoot}`,
     `folder: ${state.currentFolder || '(root)'}`,
     `treePath: ${state.treePath || '(root)'}`,
     `file: ${state.currentFile || '(none)'}`,
     `treeItems: ${countTreeItems(state.tree || [])}`,
+    `autosave: ${state.autosave ? 'on' : 'off'}`,
+    `dirty: ${doc && isDocumentDirty(doc) ? 'yes' : 'no'}`,
   ];
   if (extra) lines.push(`note: ${extra}`);
   debugStatus.textContent = lines.join(' | ');
+}
+
+function updateDocumentStatus() {
+  const doc = currentDoc();
+  if (!docStatus) return;
+  if (!doc) {
+    docStatus.textContent = state.autosave ? 'Autosave on' : 'Autosave off';
+    return;
+  }
+  const parts = [];
+  parts.push(state.autosave ? 'Autosave on' : 'Autosave off');
+  parts.push(isDocumentDirty(doc) ? 'Unsaved changes' : 'Saved');
+  docStatus.textContent = parts.join(' • ');
 }
 
 function ensureExpandedFor(pathValue = '') {
@@ -237,31 +287,32 @@ function isWritableRoot() {
 }
 
 function updateNavButtons() {
+  const writable = isWritableRoot();
+  const doc = currentDoc();
+  const dirty = isDocumentDirty(doc);
   backBtn.disabled = state.historyIndex <= 0;
   forwardBtn.disabled = state.historyIndex >= state.history.length - 1;
   upBtn.disabled = !(state.currentFolder || state.currentFile);
-  const writable = isWritableRoot();
   newFolderBtn.disabled = !writable;
   newFileBtn.disabled = !writable;
   uploadBtn.disabled = !writable;
-  saveBtn.disabled = !writable || !state.currentFile;
-  revertBtn.disabled = !state.currentFile;
+  saveBtn.disabled = !writable || !state.currentFile || !doc || !dirty;
+  revertBtn.disabled = !state.currentFile || !doc || state.autosave || !dirty;
   dropZone.classList.toggle('disabled', !writable);
   dropZone.textContent = writable ? 'Drop file here into current folder' : 'Drag-and-drop disabled in read-only roots';
+  updateDocumentStatus();
 }
 
 function renderBreadcrumbs() {
   breadcrumbs.innerHTML = '';
   const parts = (state.currentFile ? state.currentFile.split('/').slice(0, -1).join('/') : state.currentFolder || '').split('/').filter(Boolean);
   const chain = [''];
-  for (let i = 0; i < parts.length; i += 1) {
-    chain.push(parts.slice(0, i + 1).join('/'));
-  }
+  for (let i = 0; i < parts.length; i += 1) chain.push(parts.slice(0, i + 1).join('/'));
   const labels = [state.currentRoot, ...parts];
   chain.forEach((pathValue, index) => {
     const btn = document.createElement('button');
     btn.textContent = labels[index] || state.currentRoot;
-    btn.onclick = () => openFolderAt(pathValue).catch(showError);
+    btn.onclick = () => guardedOpenFolderAt(pathValue).catch(showError);
     breadcrumbs.appendChild(btn);
     if (index < chain.length - 1) {
       const sep = document.createElement('span');
@@ -289,7 +340,7 @@ async function loadDocsIndex() {
     a.textContent = doc.name;
     a.onclick = async (event) => {
       event.preventDefault();
-      await openTarget(doc.path, 'workspace');
+      await guardedOpenTarget(doc.path, 'workspace');
     };
     li.appendChild(a);
     docsIndex.appendChild(li);
@@ -321,9 +372,9 @@ function renderTreeNodes(nodes, container) {
       text.className = 'tree-label-text';
       text.textContent = `📁 ${node.name}`;
       label.appendChild(text);
-      label.onclick = (event) => {
+      label.onclick = () => {
         if (window.getSelection && String(window.getSelection()).length > 0) return;
-        openFolderAt(node.path).catch(showError);
+        guardedOpenFolderAt(node.path).catch(showError);
       };
       row.appendChild(label);
       wrapper.appendChild(row);
@@ -350,7 +401,7 @@ function renderTreeNodes(nodes, container) {
       label.appendChild(text);
       label.onclick = () => {
         if (window.getSelection && String(window.getSelection()).length > 0) return;
-        loadFile(node.path, state.currentMode).catch(showError);
+        guardedLoadFile(node.path, state.currentMode).catch(showError);
       };
       row.appendChild(label);
       wrapper.appendChild(row);
@@ -384,6 +435,156 @@ function renderFolderViewMessage() {
   viewer.textContent = state.currentFolder ? 'Folder selected. Choose a file from the tree.' : 'Root loaded. Choose a folder or file from the tree.';
   renderOutline([]);
   renderPreviewControls('text');
+  updateDocumentStatus();
+}
+
+function createDocumentState({ root, filePath, raw, isMarkdown, kind }) {
+  return {
+    key: documentKey(root, filePath),
+    root,
+    filePath,
+    kind,
+    isMarkdown,
+    savedContent: raw,
+    workingContent: raw,
+    undoStack: [raw],
+    undoIndex: 0,
+    lastSelectionStart: 0,
+    lastSelectionEnd: 0,
+  };
+}
+
+function pushUndoSnapshot(doc, value) {
+  if (!doc) return;
+  if (doc.undoStack[doc.undoIndex] === value) return;
+  doc.undoStack = doc.undoStack.slice(0, doc.undoIndex + 1);
+  doc.undoStack.push(value);
+  if (doc.undoStack.length > 300) doc.undoStack.shift();
+  doc.undoIndex = doc.undoStack.length - 1;
+}
+
+function applyDocumentContent(doc, value, options = {}) {
+  doc.workingContent = value;
+  if (!options.skipUndo) pushUndoSnapshot(doc, value);
+  updateSummary();
+  updateNavButtons();
+  updateDebugStatus();
+}
+
+function syncDocumentFromEditor() {
+  const doc = currentDoc();
+  const rawEditor = document.getElementById('rawEditor');
+  if (!doc || !rawEditor) return;
+  doc.workingContent = rawEditor.value;
+  doc.lastSelectionStart = rawEditor.selectionStart;
+  doc.lastSelectionEnd = rawEditor.selectionEnd;
+}
+
+function updateRawEditorUI(rawEditor, value, options = {}) {
+  rawEditor.value = value;
+  const lineNumbers = document.getElementById('lineNumbers');
+  if (lineNumbers) lineNumbers.textContent = renderLineNumbers(value);
+  if (options.restoreSelection) {
+    const doc = currentDoc();
+    if (doc) {
+      rawEditor.setSelectionRange(doc.lastSelectionStart ?? value.length, doc.lastSelectionEnd ?? value.length);
+    }
+  }
+}
+
+function restoreUndoState(doc, step) {
+  const nextIndex = doc.undoIndex + step;
+  if (nextIndex < 0 || nextIndex >= doc.undoStack.length) return;
+  doc.undoIndex = nextIndex;
+  doc.workingContent = doc.undoStack[doc.undoIndex];
+  const rawEditor = document.getElementById('rawEditor');
+  if (rawEditor) {
+    updateRawEditorUI(rawEditor, doc.workingContent);
+    rawEditor.focus();
+    const pos = rawEditor.value.length;
+    rawEditor.setSelectionRange(pos, pos);
+  }
+  updateSummary();
+  updateNavButtons();
+  updateDebugStatus(step < 0 ? 'undo' : 'redo');
+}
+
+function setupRawEditor(doc) {
+  const rawEditor = document.getElementById('rawEditor');
+  const lineNumbers = document.getElementById('lineNumbers');
+  if (!rawEditor || !doc) return;
+  rawEditor.value = doc.workingContent;
+  lineNumbers.textContent = renderLineNumbers(doc.workingContent);
+  if (typeof doc.lastSelectionStart === 'number' && typeof doc.lastSelectionEnd === 'number') {
+    rawEditor.setSelectionRange(doc.lastSelectionStart, doc.lastSelectionEnd);
+  }
+  rawEditor.addEventListener('input', () => {
+    applyDocumentContent(doc, rawEditor.value);
+    lineNumbers.textContent = renderLineNumbers(rawEditor.value);
+    doc.lastSelectionStart = rawEditor.selectionStart;
+    doc.lastSelectionEnd = rawEditor.selectionEnd;
+  });
+  rawEditor.addEventListener('scroll', () => {
+    lineNumbers.scrollTop = rawEditor.scrollTop;
+  });
+  rawEditor.addEventListener('click', () => {
+    doc.lastSelectionStart = rawEditor.selectionStart;
+    doc.lastSelectionEnd = rawEditor.selectionEnd;
+  });
+  rawEditor.addEventListener('keyup', () => {
+    doc.lastSelectionStart = rawEditor.selectionStart;
+    doc.lastSelectionEnd = rawEditor.selectionEnd;
+  });
+  rawEditor.addEventListener('keydown', (event) => {
+    const mod = event.ctrlKey || event.metaKey;
+    if (mod && !event.shiftKey && event.key.toLowerCase() === 'z') {
+      event.preventDefault();
+      restoreUndoState(doc, -1);
+      return;
+    }
+    if ((mod && event.key.toLowerCase() === 'y') || (mod && event.shiftKey && event.key.toLowerCase() === 'z')) {
+      event.preventDefault();
+      restoreUndoState(doc, 1);
+    }
+  });
+}
+
+async function getMarked() {
+  if (!markdownModulePromise) {
+    markdownModulePromise = import('https://cdn.jsdelivr.net/npm/marked@15/lib/marked.esm.js');
+  }
+  return markdownModulePromise;
+}
+
+async function renderTextDocument(doc, mode = state.currentMode) {
+  if (mode === 'preview') {
+    viewer.className = 'viewer';
+    if (doc.isMarkdown) {
+      const { marked } = await getMarked();
+      viewer.innerHTML = `<article class="markdown-body">${marked.parse(doc.workingContent)}</article>`;
+      renderOutline(extractHeadings(doc.workingContent));
+      await renderMermaid();
+    } else {
+      viewer.innerHTML = `<pre><code>${escapeHtml(doc.workingContent)}</code></pre>`;
+      renderOutline([]);
+    }
+    renderPreviewControls('text');
+    updateSummary();
+    updateNavButtons();
+    return;
+  }
+
+  viewer.className = 'viewer';
+  viewer.innerHTML = `
+    <div class="raw-editor-wrap">
+      <pre id="lineNumbers" class="raw-line-numbers"></pre>
+      <textarea id="rawEditor" class="raw-editor"></textarea>
+    </div>`;
+  renderOutline(doc.isMarkdown ? extractHeadings(doc.workingContent) : []);
+  setEditorMode(true);
+  setupRawEditor(doc);
+  updateSummary();
+  updateNavButtons();
 }
 
 async function openFolderAt(dir = '', options = {}) {
@@ -408,49 +609,30 @@ async function loadFile(filePath, mode = state.currentMode, options = {}) {
   state.activePath = filePath;
   state.currentFolder = filePath.split('/').slice(0, -1).join('/');
   ensureExpandedFor(state.currentFolder);
-  const data = await fetchJson(apiUrl('file', { root: state.currentRoot, path: filePath, mode }));
+
+  const data = await fetchJson(apiUrl('file', { root: state.currentRoot, path: filePath, mode: 'raw' }));
 
   if (data.kind === 'text') {
-    state.savedContent = data.raw;
-    state.rawContent = data.raw;
-    if (mode === 'preview' && data.html) {
+    const existingDoc = currentDoc();
+    const doc = existingDoc && existingDoc.key === documentKey(state.currentRoot, filePath)
+      ? existingDoc
+      : createDocumentState({ root: state.currentRoot, filePath, raw: data.raw, isMarkdown: data.isMarkdown, kind: data.kind });
+    state.activeDocument = doc;
+    await renderTextDocument(doc, mode);
+  } else {
+    state.activeDocument = null;
+    if (data.kind === 'image') {
       viewer.className = 'viewer';
-      viewer.innerHTML = `<article class="markdown-body">${data.html}</article>`;
-      renderOutline(data.headings);
-      await renderMermaid();
-      renderPreviewControls('text');
-    } else {
+      setImageScale(0.6);
+      viewer.innerHTML = `<div class="media-frame"><div class="media-image-wrap"><img class="media-image" src="${data.mediaUrl}" alt="${escapeHtml(data.relativePath)}" /></div></div>`;
+      renderOutline([]);
+      renderPreviewControls('image');
+    } else if (data.kind === 'pdf') {
       viewer.className = 'viewer';
-      viewer.innerHTML = `
-        <div class="raw-editor-wrap">
-          <pre id="lineNumbers" class="raw-line-numbers">${renderLineNumbers(data.raw)}</pre>
-          <textarea id="rawEditor" class="raw-editor">${escapeHtml(data.raw)}</textarea>
-        </div>`;
-      renderOutline(data.headings || []);
-      setEditorMode(true);
-      const rawEditor = document.getElementById('rawEditor');
-      const lineNumbers = document.getElementById('lineNumbers');
-      rawEditor.value = data.raw;
-      rawEditor.addEventListener('input', () => {
-        state.rawContent = rawEditor.value;
-        lineNumbers.textContent = renderLineNumbers(rawEditor.value);
-      });
-      rawEditor.addEventListener('scroll', () => {
-        lineNumbers.scrollTop = rawEditor.scrollTop;
-      });
-      updateNavButtons();
+      viewer.innerHTML = `<div class="media-frame"><iframe class="media-pdf" src="${data.mediaUrl}"></iframe></div>`;
+      renderOutline([]);
+      renderPreviewControls('pdf');
     }
-  } else if (data.kind === 'image') {
-    viewer.className = 'viewer';
-    setImageScale(0.6);
-    viewer.innerHTML = `<div class="media-frame"><div class="media-image-wrap"><img class="media-image" src="${data.mediaUrl}" alt="${escapeHtml(data.relativePath)}" /></div></div>`;
-    renderOutline([]);
-    renderPreviewControls('image');
-  } else if (data.kind === 'pdf') {
-    viewer.className = 'viewer';
-    viewer.innerHTML = `<div class="media-frame"><iframe class="media-pdf" src="${data.mediaUrl}"></iframe></div>`;
-    renderOutline([]);
-    renderPreviewControls('pdf');
   }
 
   updateSummary();
@@ -522,8 +704,8 @@ async function runSearch() {
     const btn = document.createElement('button');
     btn.innerHTML = `${result.type === 'dir' ? '📁' : '📄'} ${escapeHtml(result.path)}<div class="search-meta">${escapeHtml(result.kind)} • ${formatBytes(result.size)} • ${formatDate(result.updatedAt)}</div>`;
     btn.onclick = async () => {
-      if (result.type === 'dir') await openFolderAt(result.path);
-      else await openTarget(result.path, state.currentRoot);
+      if (result.type === 'dir') await guardedOpenFolderAt(result.path);
+      else await guardedOpenTarget(result.path, state.currentRoot);
     };
     li.appendChild(btn);
     ul.appendChild(li);
@@ -618,9 +800,12 @@ function setupResizablePanes() {
   const savedSidebar = localStorage.getItem('workbench.sidebarWidth');
   const savedOutline = localStorage.getItem('workbench.outlineWidth');
   const savedTreeHeight = localStorage.getItem('workbench.treeHeight');
+  const savedAutosave = localStorage.getItem('workbench.autosave');
   if (savedSidebar) document.documentElement.style.setProperty('--sidebar-width', `${savedSidebar}px`);
   if (savedOutline) document.documentElement.style.setProperty('--outline-width', `${savedOutline}px`);
   if (savedTreeHeight) document.documentElement.style.setProperty('--tree-height', `${savedTreeHeight}px`);
+  state.autosave = savedAutosave === 'true';
+  if (autosaveCheckbox) autosaveCheckbox.checked = state.autosave;
   attachResizable(sidebarResizer, '--sidebar-width', 260, 760, 'normal', 'workbench.sidebarWidth');
   attachResizable(outlineResizer, '--outline-width', 180, 500, 'inverse', 'workbench.outlineWidth');
   attachVerticalResizable(treeHeightResizer, '--tree-height', 160, 700, 'workbench.treeHeight');
@@ -637,12 +822,13 @@ function parseInitialState() {
 async function navigateHistory(delta) {
   const nextIndex = state.historyIndex + delta;
   if (nextIndex < 0 || nextIndex >= state.history.length) return;
-  state.historyIndex = nextIndex;
   const entry = state.history[nextIndex];
+  const allowed = await ensureCanLeaveCurrentDocument(entry.root, entry.path || '');
+  if (!allowed) return;
+  state.historyIndex = nextIndex;
   state.suppressHistory = true;
   try {
-    if (entry.mode === 'folder') await openTarget(entry.path, entry.root, { skipHistory: true });
-    else await openTarget(entry.path, entry.root, { skipHistory: true });
+    await openTarget(entry.path, entry.root, { skipHistory: true });
   } finally {
     state.suppressHistory = false;
     updateNavButtons();
@@ -653,7 +839,7 @@ async function navigateUp() {
   const source = state.currentFile ? state.currentFile.split('/').slice(0, -1).join('/') : state.currentFolder;
   if (!source) return;
   const parent = source.split('/').slice(0, -1).join('/');
-  await openFolderAt(parent);
+  await guardedOpenFolderAt(parent);
 }
 
 async function postJson(pathname, payload) {
@@ -667,23 +853,82 @@ async function postJson(pathname, payload) {
   return data;
 }
 
-async function saveRawFile() {
-  if (!state.currentFile) return;
-  const rawEditor = document.getElementById('rawEditor');
-  const content = rawEditor ? rawEditor.value : state.rawContent;
-  await postJson('save', { root: state.currentRoot, path: state.currentFile, content });
-  state.savedContent = content;
-  state.rawContent = content;
+async function saveDocument(doc = currentDoc(), options = {}) {
+  if (!doc) return false;
+  if (!isWritableRoot()) throw new Error('Current root is read-only');
+  if (!doc.filePath) return false;
+  await postJson('save', { root: doc.root, path: doc.filePath, content: doc.workingContent });
+  doc.savedContent = doc.workingContent;
+  if (options.resetUndoToSaved) {
+    doc.undoStack = [doc.savedContent];
+    doc.undoIndex = 0;
+  }
+  updateSummary();
+  updateNavButtons();
   updateDebugStatus('file saved');
+  return true;
 }
 
 function revertRawFile() {
+  const doc = currentDoc();
+  if (!doc || state.autosave) return;
+  doc.workingContent = doc.savedContent;
+  doc.undoStack = [doc.savedContent];
+  doc.undoIndex = 0;
   const rawEditor = document.getElementById('rawEditor');
-  if (!rawEditor) return;
-  rawEditor.value = state.savedContent;
-  state.rawContent = state.savedContent;
-  const lineNumbers = document.getElementById('lineNumbers');
-  if (lineNumbers) lineNumbers.textContent = renderLineNumbers(state.savedContent);
+  if (rawEditor) updateRawEditorUI(rawEditor, doc.savedContent);
+  updateSummary();
+  updateNavButtons();
+  updateDebugStatus('reverted to saved');
+}
+
+async function ensureCanLeaveCurrentDocument(nextRoot = state.currentRoot, nextPath = '') {
+  syncDocumentFromEditor();
+  const doc = currentDoc();
+  if (!doc || !isDocumentDirty(doc)) return true;
+  const sameTarget = doc.root === nextRoot && doc.filePath === nextPath;
+  if (sameTarget) return true;
+
+  if (state.autosave) {
+    await saveDocument(doc);
+    return true;
+  }
+
+  const label = doc.filePath || '(untitled)';
+  const shouldSave = window.confirm(`Save changes to ${label} before leaving?\n\nOK = Save\nCancel = Stay here`);
+  if (shouldSave) {
+    await saveDocument(doc);
+    return true;
+  }
+  const shouldDiscard = window.confirm(`Discard unsaved changes to ${label}?`);
+  if (!shouldDiscard) return false;
+  return true;
+}
+
+async function guardedOpenFolderAt(dir = '', options = {}) {
+  const allowed = await ensureCanLeaveCurrentDocument(state.currentRoot, '');
+  if (!allowed) return;
+  await openFolderAt(dir, options);
+}
+
+async function guardedLoadFile(filePath, mode = state.currentMode, options = {}) {
+  const allowed = await ensureCanLeaveCurrentDocument(state.currentRoot, filePath);
+  if (!allowed) return;
+  await loadFile(filePath, mode, options);
+}
+
+async function guardedOpenTarget(targetPath, preferredRoot = state.currentRoot, options = {}) {
+  let root = preferredRoot;
+  let relative = targetPath?.trim?.() || '';
+  if (relative.startsWith('/')) {
+    const inferred = inferRootFromAbsolute(relative);
+    if (!inferred) throw new Error('Absolute path does not match an approved root');
+    root = inferred.root;
+    relative = inferred.relative;
+  }
+  const allowed = await ensureCanLeaveCurrentDocument(root, /\.[a-zA-Z0-9]{1,8}$/.test(relative) ? relative : '');
+  if (!allowed) return;
+  await openTarget(targetPath, preferredRoot, options);
 }
 
 function findInRaw(next = true) {
@@ -701,8 +946,9 @@ function findInRaw(next = true) {
 }
 
 function replaceInRaw(all = false) {
+  const doc = currentDoc();
   const rawEditor = document.getElementById('rawEditor');
-  if (!rawEditor) return;
+  if (!rawEditor || !doc) return;
   const query = findInput.value;
   const replacement = replaceInput.value;
   if (!query) return;
@@ -715,7 +961,7 @@ function replaceInRaw(all = false) {
     rawEditor.value = before + replacement + after;
     rawEditor.setSelectionRange(pos, pos + replacement.length);
   }
-  state.rawContent = rawEditor.value;
+  applyDocumentContent(doc, rawEditor.value);
   const lineNumbers = document.getElementById('lineNumbers');
   if (lineNumbers) lineNumbers.textContent = renderLineNumbers(rawEditor.value);
 }
@@ -725,7 +971,7 @@ async function createFolder() {
   if (!name) return;
   const dir = currentTargetDir();
   await postJson('mkdir', { root: state.currentRoot, dir, name });
-  await openFolderAt(dir || '');
+  await guardedOpenFolderAt(dir || '');
 }
 
 async function createFile() {
@@ -734,7 +980,7 @@ async function createFile() {
   const dir = currentTargetDir();
   const content = /\.md$/i.test(name) ? '# New file\n' : '';
   const result = await postJson('mkfile', { root: state.currentRoot, dir, name, content });
-  await openTarget(result.path, state.currentRoot);
+  await guardedOpenTarget(result.path, state.currentRoot);
 }
 
 async function uploadSelectedFile(file) {
@@ -744,12 +990,10 @@ async function uploadSelectedFile(file) {
   let binary = '';
   const bytes = new Uint8Array(buffer);
   const chunk = 0x8000;
-  for (let i = 0; i < bytes.length; i += chunk) {
-    binary += String.fromCharCode(...bytes.subarray(i, i + chunk));
-  }
+  for (let i = 0; i < bytes.length; i += chunk) binary += String.fromCharCode(...bytes.subarray(i, i + chunk));
   const base64 = btoa(binary);
   const result = await postJson('upload', { root: state.currentRoot, dir, name: file.name, base64 });
-  await openTarget(result.path, state.currentRoot);
+  await guardedOpenTarget(result.path, state.currentRoot);
 }
 
 function showError(error) {
@@ -758,14 +1002,21 @@ function showError(error) {
   updateDebugStatus(`error: ${error.message}`);
 }
 
-rootSelect.onchange = () => {
-  state.currentRoot = rootSelect.value;
+rootSelect.onchange = async () => {
+  const nextRoot = rootSelect.value;
+  const allowed = await ensureCanLeaveCurrentDocument(nextRoot, '');
+  if (!allowed) {
+    rootSelect.value = state.currentRoot;
+    return;
+  }
+  state.currentRoot = nextRoot;
   state.currentFolder = '';
   state.currentFile = '';
   state.activePath = '';
   state.tree = [];
   state.treePath = '';
   state.expandedDirs = new Set(['']);
+  state.activeDocument = null;
   searchResults.textContent = 'Start typing to search.';
   openFolderAt('').catch(showError);
 };
@@ -774,9 +1025,9 @@ searchInput.addEventListener('input', () => scheduleSearch());
 kindFilter.onchange = () => scheduleSearch();
 ageFilter.onchange = () => scheduleSearch();
 sizeFilter.onchange = () => scheduleSearch();
-openPathBtn.onclick = () => openTarget(pathInput.value.trim(), state.currentRoot).catch(showError);
-openAbsoluteBtn.onclick = () => openTarget(absolutePathInput.value.trim()).catch(showError);
-openFolderBtn.onclick = () => openFolderAt(pathInput.value.trim()).catch(showError);
+openPathBtn.onclick = () => guardedOpenTarget(pathInput.value.trim(), state.currentRoot).catch(showError);
+openAbsoluteBtn.onclick = () => guardedOpenTarget(absolutePathInput.value.trim()).catch(showError);
+openFolderBtn.onclick = () => guardedOpenFolderAt(pathInput.value.trim()).catch(showError);
 newFolderBtn.onclick = () => createFolder().catch(showError);
 newFileBtn.onclick = () => createFile().catch(showError);
 uploadBtn.onclick = () => uploadInput.click();
@@ -797,23 +1048,21 @@ dropZone.addEventListener('drop', (event) => {
   if (!isWritableRoot()) return;
   event.preventDefault();
   const file = event.dataTransfer?.files?.[0];
-  if (file) {
-    uploadSelectedFile(file).catch(showError);
-  }
+  if (file) uploadSelectedFile(file).catch(showError);
 });
 refreshTreeBtn.onclick = () => loadTree(state.currentFolder || '').catch(showError);
 backBtn.onclick = () => navigateHistory(-1).catch(showError);
 forwardBtn.onclick = () => navigateHistory(1).catch(showError);
 upBtn.onclick = () => navigateUp().catch(showError);
 pathInput.addEventListener('keydown', (event) => {
-  if (event.key === 'Enter') openTarget(pathInput.value.trim(), state.currentRoot).catch(showError);
+  if (event.key === 'Enter') guardedOpenTarget(pathInput.value.trim(), state.currentRoot).catch(showError);
 });
 absolutePathInput.addEventListener('keydown', (event) => {
-  if (event.key === 'Enter') openTarget(absolutePathInput.value.trim()).catch(showError);
+  if (event.key === 'Enter') guardedOpenTarget(absolutePathInput.value.trim()).catch(showError);
 });
 rawBtn.onclick = () => { if (state.currentFile) loadFile(state.currentFile, 'raw').catch(showError); };
 previewBtn.onclick = () => { if (state.currentFile) loadFile(state.currentFile, 'preview').catch(showError); };
-saveBtn.onclick = () => saveRawFile().catch(showError);
+saveBtn.onclick = () => saveDocument().catch(showError);
 revertBtn.onclick = () => revertRawFile();
 findNextBtn.onclick = () => findInRaw(true);
 replaceBtn.onclick = () => replaceInRaw(false);
@@ -823,13 +1072,28 @@ copyLinkBtn.onclick = async () => {
   copyLinkBtn.textContent = 'Copied';
   setTimeout(() => { copyLinkBtn.textContent = 'Copy link'; }, 1200);
 };
+if (autosaveCheckbox) {
+  autosaveCheckbox.addEventListener('change', () => {
+    state.autosave = autosaveCheckbox.checked;
+    localStorage.setItem('workbench.autosave', String(state.autosave));
+    updateNavButtons();
+    updateSummary();
+    updateDebugStatus('autosave toggled');
+  });
+}
+window.addEventListener('beforeunload', (event) => {
+  syncDocumentFromEditor();
+  const doc = currentDoc();
+  if (doc && isDocumentDirty(doc) && !state.autosave) {
+    event.preventDefault();
+    event.returnValue = '';
+  }
+});
 
 async function init() {
   parseInitialState();
   await loadRoots();
-  if (!state.roots.find((r) => r.key === state.currentRoot)) {
-    state.currentRoot = state.roots[0]?.key || 'workspace';
-  }
+  if (!state.roots.find((r) => r.key === state.currentRoot)) state.currentRoot = state.roots[0]?.key || 'workspace';
   rootSelect.value = state.currentRoot;
   await loadDocsIndex();
   setupResizablePanes();
