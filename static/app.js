@@ -968,9 +968,9 @@ function attachResizable(handle, initialVar, min, max, direction = 'normal', sto
     const startX = event.clientX;
     const startValue = parseInt(getComputedStyle(document.documentElement).getPropertyValue(initialVar), 10) || min;
     const pointerId = event.pointerId;
-    handle.setPointerCapture(pointerId);
     document.body.style.cursor = 'col-resize';
     document.body.style.userSelect = 'none';
+    updateDebugStatus(`resize start ${initialVar}=${startValue}`);
 
     const onMove = (moveEvent) => {
       if (moveEvent.pointerId !== pointerId) return;
@@ -979,21 +979,23 @@ function attachResizable(handle, initialVar, min, max, direction = 'normal', sto
       const value = Math.max(min, Math.min(max, raw));
       document.documentElement.style.setProperty(initialVar, `${value}px`);
       if (storageKey) localStorage.setItem(storageKey, String(value));
+      updateDebugStatus(`resizing ${initialVar}=${value}`);
     };
 
     const onUp = (upEvent) => {
       if (upEvent.pointerId !== pointerId) return;
-      handle.releasePointerCapture(pointerId);
-      handle.removeEventListener('pointermove', onMove);
-      handle.removeEventListener('pointerup', onUp);
-      handle.removeEventListener('pointercancel', onUp);
+      window.removeEventListener('pointermove', onMove);
+      window.removeEventListener('pointerup', onUp);
+      window.removeEventListener('pointercancel', onUp);
       document.body.style.cursor = '';
       document.body.style.userSelect = '';
+      const finalValue = parseInt(getComputedStyle(document.documentElement).getPropertyValue(initialVar), 10) || startValue;
+      updateDebugStatus(`resize end ${initialVar}=${finalValue}`);
     };
 
-    handle.addEventListener('pointermove', onMove);
-    handle.addEventListener('pointerup', onUp);
-    handle.addEventListener('pointercancel', onUp);
+    window.addEventListener('pointermove', onMove);
+    window.addEventListener('pointerup', onUp);
+    window.addEventListener('pointercancel', onUp);
   });
 }
 
@@ -1004,9 +1006,9 @@ function attachVerticalResizable(handle, initialVar, min, max, storageKey) {
     const startY = event.clientY;
     const startValue = parseInt(getComputedStyle(document.documentElement).getPropertyValue(initialVar), 10) || min;
     const pointerId = event.pointerId;
-    handle.setPointerCapture(pointerId);
     document.body.style.cursor = 'row-resize';
     document.body.style.userSelect = 'none';
+    updateDebugStatus(`resize start ${initialVar}=${startValue}`);
 
     const onMove = (moveEvent) => {
       if (moveEvent.pointerId !== pointerId) return;
@@ -1014,21 +1016,23 @@ function attachVerticalResizable(handle, initialVar, min, max, storageKey) {
       const value = Math.max(min, Math.min(max, startValue + delta));
       document.documentElement.style.setProperty(initialVar, `${value}px`);
       if (storageKey) localStorage.setItem(storageKey, String(value));
+      updateDebugStatus(`resizing ${initialVar}=${value}`);
     };
 
     const onUp = (upEvent) => {
       if (upEvent.pointerId !== pointerId) return;
-      handle.releasePointerCapture(pointerId);
-      handle.removeEventListener('pointermove', onMove);
-      handle.removeEventListener('pointerup', onUp);
-      handle.removeEventListener('pointercancel', onUp);
+      window.removeEventListener('pointermove', onMove);
+      window.removeEventListener('pointerup', onUp);
+      window.removeEventListener('pointercancel', onUp);
       document.body.style.cursor = '';
       document.body.style.userSelect = '';
+      const finalValue = parseInt(getComputedStyle(document.documentElement).getPropertyValue(initialVar), 10) || startValue;
+      updateDebugStatus(`resize end ${initialVar}=${finalValue}`);
     };
 
-    handle.addEventListener('pointermove', onMove);
-    handle.addEventListener('pointerup', onUp);
-    handle.addEventListener('pointercancel', onUp);
+    window.addEventListener('pointermove', onMove);
+    window.addEventListener('pointerup', onUp);
+    window.addEventListener('pointercancel', onUp);
   });
 }
 
