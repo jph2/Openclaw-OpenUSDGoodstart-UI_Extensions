@@ -1059,6 +1059,28 @@ function setupResizablePanes() {
   attachResizable(sidebarResizer, '--sidebar-width', 260, 760, 'normal', 'workbench.sidebarWidth');
   attachResizable(outlineResizer, '--outline-width', 180, 500, 'inverse', 'workbench.outlineWidth');
   attachVerticalResizable(treeHeightResizer, '--tree-height', 160, 700, 'workbench.treeHeight');
+
+  if (sidebarResizer) {
+    sidebarResizer.ondblclick = () => {
+      const current = parseInt(getComputedStyle(document.documentElement).getPropertyValue('--sidebar-width'), 10) || 410;
+      const next = current >= 520 ? 360 : current + 80;
+      document.documentElement.style.setProperty('--sidebar-width', `${next}px`);
+      localStorage.setItem('workbench.sidebarWidth', String(next));
+      updateDebugStatus(`sidebar dblclick resize --sidebar-width=${next}`);
+    };
+    sidebarResizer.onclick = () => updateDebugStatus('sidebar resizer click detected');
+  }
+
+  if (treeHeightResizer) {
+    treeHeightResizer.ondblclick = () => {
+      const current = parseInt(getComputedStyle(document.documentElement).getPropertyValue('--tree-height'), 10) || 340;
+      const next = current >= 420 ? 260 : current + 80;
+      document.documentElement.style.setProperty('--tree-height', `${next}px`);
+      localStorage.setItem('workbench.treeHeight', String(next));
+      updateDebugStatus(`tree dblclick resize --tree-height=${next}`);
+    };
+    treeHeightResizer.onclick = () => updateDebugStatus('tree resizer click detected');
+  }
 }
 
 function parseInitialState() {
