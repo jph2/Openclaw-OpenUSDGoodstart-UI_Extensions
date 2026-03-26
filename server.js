@@ -274,29 +274,26 @@ router.get('/search', async (req, res) => {
     const root = String(req.query.root || 'workspace');
     const maxResults = Math.max(1, Math.min(1000, Number(req.query.maxResults || 200)));
     const kindFilter = String(req.query.kind || 'all');
-    const ageFilter = String(req.query.age || 'all');
-    const sizeFilter = String(req.query.size || 'all');
+    const ageMinDays = req.query.ageMinDays === undefined || req.query.ageMinDays === '' ? null : Number(req.query.ageMinDays);
+    const ageMaxDays = req.query.ageMaxDays === undefined || req.query.ageMaxDays === '' ? null : Number(req.query.ageMaxDays);
+    const sizeMinKb = req.query.sizeMinKb === undefined || req.query.sizeMinKb === '' ? null : Number(req.query.sizeMinKb);
+    const sizeMaxKb = req.query.sizeMaxKb === undefined || req.query.sizeMaxKb === '' ? null : Number(req.query.sizeMaxKb);
     const sort = String(req.query.sort || 'name');
     const now = Date.now();
     const rootPath = assertRoot(root);
     const results = [];
 
     function ageMatch(updatedAt) {
-      if (ageFilter === 'all') return true;
-      const ageMs = now - updatedAt;
-      if (ageFilter === '1d') return ageMs <= 86400000;
-      if (ageFilter === '7d') return ageMs <= 7 * 86400000;
-      if (ageFilter === '30d') return ageMs <= 30 * 86400000;
-      if (ageFilter === 'older') return ageMs > 30 * 86400000;
+      const ageDays = (now - updatedAt) / 86400000;
+      if (Number.isFinite(ageMinDays) && ageDays < ageMinDays) return false;
+      if (Number.isFinite(ageMaxDays) && ageDays > ageMaxDays) return false;
       return true;
     }
 
     function sizeMatch(size) {
-      if (sizeFilter === 'all') return true;
-      if (sizeFilter === 'tiny') return size < 10 * 1024;
-      if (sizeFilter === 'small') return size >= 10 * 1024 && size < 100 * 1024;
-      if (sizeFilter === 'medium') return size >= 100 * 1024 && size < 1024 * 1024;
-      if (sizeFilter === 'large') return size >= 1024 * 1024;
+      const sizeKb = size / 1024;
+      if (Number.isFinite(sizeMinKb) && sizeKb < sizeMinKb) return false;
+      if (Number.isFinite(sizeMaxKb) && sizeKb > sizeMaxKb) return false;
       return true;
     }
 
@@ -344,7 +341,7 @@ router.get('/search', async (req, res) => {
       if (aExact !== bExact) return aExact - bExact;
       return a.name.localeCompare(b.name);
     });
-    res.json({ root, query: q, filters: { kind: kindFilter, age: ageFilter, size: sizeFilter, sort }, results });
+    res.json({ root, query: q, filters: { kind: kindFilter, ageMinDays, ageMaxDays, sizeMinKb, sizeMaxKb, sort }, results });
   } catch (error) {
     res.status(400).json({ error: error.message });
   }

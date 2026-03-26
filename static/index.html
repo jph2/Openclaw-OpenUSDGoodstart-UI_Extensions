@@ -52,20 +52,8 @@
               <option value="pdf">pdf</option>
               <option value="dir">folder</option>
             </select>
-            <select id="ageFilter">
-              <option value="all">all ages</option>
-              <option value="1d">1 day</option>
-              <option value="7d">7 days</option>
-              <option value="30d">30 days</option>
-              <option value="older">older</option>
-            </select>
-            <select id="sizeFilter">
-              <option value="all">all sizes</option>
-              <option value="tiny">&lt;10 KB</option>
-              <option value="small">10–100 KB</option>
-              <option value="medium">100 KB–1 MB</option>
-              <option value="large">&gt;1 MB</option>
-            </select>
+            <input id="ageMinInput" type="number" min="0" step="0.1" placeholder="age from (days)" />
+            <input id="ageMaxInput" type="number" min="0" step="0.1" placeholder="age to (days)" />
             <select id="sortFilter">
               <option value="name">sort: name</option>
               <option value="newest">sort: newest</option>
@@ -73,6 +61,12 @@
               <option value="largest">sort: largest</option>
               <option value="smallest">sort: smallest</option>
             </select>
+          </div>
+          <div class="filter-row four-up">
+            <input id="sizeMinInput" type="number" min="0" step="1" placeholder="size from (KB)" />
+            <input id="sizeMaxInput" type="number" min="0" step="1" placeholder="size to (KB)" />
+            <button id="clearFilterBtn" type="button">Clear filters</button>
+            <div></div>
           </div>
           <div class="results-panel">
             <div class="results-head muted small">Tree filter status</div>

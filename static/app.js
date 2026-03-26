@@ -19,8 +19,10 @@ const state = {
   treeFilter: {
     query: '',
     kind: 'all',
-    age: 'all',
-    size: 'all',
+    ageMin: '',
+    ageMax: '',
+    sizeMin: '',
+    sizeMax: '',
     sort: 'name',
     matches: null,
     totalMatches: 0,
@@ -37,9 +39,12 @@ const ROOT_MAP = {
 const rootSelect = document.getElementById('rootSelect');
 const searchInput = document.getElementById('searchInput');
 const kindFilter = document.getElementById('kindFilter');
-const ageFilter = document.getElementById('ageFilter');
-const sizeFilter = document.getElementById('sizeFilter');
+const ageMinInput = document.getElementById('ageMinInput');
+const ageMaxInput = document.getElementById('ageMaxInput');
+const sizeMinInput = document.getElementById('sizeMinInput');
+const sizeMaxInput = document.getElementById('sizeMaxInput');
 const sortFilter = document.getElementById('sortFilter');
+const clearFilterBtn = document.getElementById('clearFilterBtn');
 const searchResults = document.getElementById('searchResults');
 const pathInput = document.getElementById('pathInput');
 const absolutePathInput = document.getElementById('absolutePathInput');
@@ -186,8 +191,14 @@ function dirtyLabelForFile(pathValue) {
 }
 
 function isTreeFilterActive() {
-  const { query, kind, age, size } = state.treeFilter;
-  return !!(query || kind !== 'all' || age !== 'all' || size !== 'all');
+  const { query, kind, ageMin, ageMax, sizeMin, sizeMax } = state.treeFilter;
+  return !!(query || kind !== 'all' || ageMin !== '' || ageMax !== '' || sizeMin !== '' || sizeMax !== '');
+}
+
+function normalizeRangeValue(value) {
+  if (value === '' || value === null || value === undefined) return '';
+  const num = Number(value);
+  return Number.isFinite(num) && num >= 0 ? String(num) : '';
 }
 
 function sortNodes(nodes = []) {
@@ -845,9 +856,16 @@ function formatDate(ts) {
 async function runSearch(options = {}) {
   state.treeFilter.query = searchInput.value.trim();
   state.treeFilter.kind = kindFilter.value;
-  state.treeFilter.age = ageFilter.value;
-  state.treeFilter.size = sizeFilter.value;
+  state.treeFilter.ageMin = normalizeRangeValue(ageMinInput?.value);
+  state.treeFilter.ageMax = normalizeRangeValue(ageMaxInput?.value);
+  state.treeFilter.sizeMin = normalizeRangeValue(sizeMinInput?.value);
+  state.treeFilter.sizeMax = normalizeRangeValue(sizeMaxInput?.value);
   state.treeFilter.sort = sortFilter?.value || 'name';
+
+  if (ageMinInput) ageMinInput.value = state.treeFilter.ageMin;
+  if (ageMaxInput) ageMaxInput.value = state.treeFilter.ageMax;
+  if (sizeMinInput) sizeMinInput.value = state.treeFilter.sizeMin;
+  if (sizeMaxInput) sizeMaxInput.value = state.treeFilter.sizeMax;
 
   const active = isTreeFilterActive();
   if (!active) {
@@ -863,8 +881,10 @@ async function runSearch(options = {}) {
     q: state.treeFilter.query,
     maxResults: 500,
     kind: state.treeFilter.kind,
-    age: state.treeFilter.age,
-    size: state.treeFilter.size,
+    ageMinDays: state.treeFilter.ageMin,
+    ageMaxDays: state.treeFilter.ageMax,
+    sizeMinKb: state.treeFilter.sizeMin,
+    sizeMaxKb: state.treeFilter.sizeMax,
     sort: state.treeFilter.sort,
   }));
 
@@ -883,8 +903,8 @@ async function runSearch(options = {}) {
   const bits = [];
   if (state.treeFilter.query) bits.push(`name contains “${state.treeFilter.query}”`);
   if (state.treeFilter.kind !== 'all') bits.push(`kind: ${state.treeFilter.kind}`);
-  if (state.treeFilter.age !== 'all') bits.push(`age: ${state.treeFilter.age}`);
-  if (state.treeFilter.size !== 'all') bits.push(`size: ${state.treeFilter.size}`);
+  if (state.treeFilter.ageMin !== '' || state.treeFilter.ageMax !== '') bits.push(`age: ${state.treeFilter.ageMin || '0'}–${state.treeFilter.ageMax || '∞'} days`);
+  if (state.treeFilter.sizeMin !== '' || state.treeFilter.sizeMax !== '') bits.push(`size: ${state.treeFilter.sizeMin || '0'}–${state.treeFilter.sizeMax || '∞'} KB`);
   bits.push(`sort: ${state.treeFilter.sort}`);
   updateFilterStatus(`${data.results.length} matching item${data.results.length === 1 ? '' : 's'} • ${bits.join(' • ')}`);
   if (!options.silent) renderTree();
@@ -1204,9 +1224,21 @@ rootSelect.onchange = async () => {
 
 searchInput.addEventListener('input', () => scheduleSearch());
 kindFilter.onchange = () => scheduleSearch();
-ageFilter.onchange = () => scheduleSearch();
-sizeFilter.onchange = () => scheduleSearch();
+if (ageMinInput) ageMinInput.addEventListener('input', () => scheduleSearch());
+if (ageMaxInput) ageMaxInput.addEventListener('input', () => scheduleSearch());
+if (sizeMinInput) sizeMinInput.addEventListener('input', () => scheduleSearch());
+if (sizeMaxInput) sizeMaxInput.addEventListener('input', () => scheduleSearch());
 if (sortFilter) sortFilter.onchange = () => scheduleSearch();
+if (clearFilterBtn) clearFilterBtn.onclick = () => {
+  searchInput.value = '';
+  kindFilter.value = 'all';
+  if (ageMinInput) ageMinInput.value = '';
+  if (ageMaxInput) ageMaxInput.value = '';
+  if (sizeMinInput) sizeMinInput.value = '';
+  if (sizeMaxInput) sizeMaxInput.value = '';
+  if (sortFilter) sortFilter.value = 'name';
+  scheduleSearch();
+};
 openPathBtn.onclick = () => guardedOpenTarget(pathInput.value.trim(), state.currentRoot).catch(showError);
 openAbsoluteBtn.onclick = () => guardedOpenTarget(absolutePathInput.value.trim()).catch(showError);
 openFolderBtn.onclick = () => guardedOpenFolderAt(pathInput.value.trim()).catch(showError);
