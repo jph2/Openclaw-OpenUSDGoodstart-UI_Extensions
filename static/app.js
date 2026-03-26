@@ -963,18 +963,16 @@ function scheduleSearch() {
 
 function attachResizable(handle, initialVar, min, max, direction = 'normal', storageKey) {
   if (!handle) return;
-  handle.addEventListener('pointerdown', (event) => {
-    event.preventDefault();
-    const startX = event.clientX;
+
+  const startResize = (startX, moveType, upType) => {
     const startValue = parseInt(getComputedStyle(document.documentElement).getPropertyValue(initialVar), 10) || min;
-    const pointerId = event.pointerId;
     document.body.style.cursor = 'col-resize';
     document.body.style.userSelect = 'none';
     updateDebugStatus(`resize start ${initialVar}=${startValue}`);
 
     const onMove = (moveEvent) => {
-      if (moveEvent.pointerId !== pointerId) return;
-      const delta = moveEvent.clientX - startX;
+      const currentX = moveEvent.clientX ?? moveEvent.pageX;
+      const delta = currentX - startX;
       const raw = direction === 'inverse' ? startValue - delta : startValue + delta;
       const value = Math.max(min, Math.min(max, raw));
       document.documentElement.style.setProperty(initialVar, `${value}px`);
@@ -982,57 +980,69 @@ function attachResizable(handle, initialVar, min, max, direction = 'normal', sto
       updateDebugStatus(`resizing ${initialVar}=${value}`);
     };
 
-    const onUp = (upEvent) => {
-      if (upEvent.pointerId !== pointerId) return;
-      window.removeEventListener('pointermove', onMove);
-      window.removeEventListener('pointerup', onUp);
-      window.removeEventListener('pointercancel', onUp);
+    const onUp = () => {
+      window.removeEventListener(moveType, onMove);
+      window.removeEventListener(upType, onUp);
       document.body.style.cursor = '';
       document.body.style.userSelect = '';
       const finalValue = parseInt(getComputedStyle(document.documentElement).getPropertyValue(initialVar), 10) || startValue;
       updateDebugStatus(`resize end ${initialVar}=${finalValue}`);
     };
 
-    window.addEventListener('pointermove', onMove);
-    window.addEventListener('pointerup', onUp);
-    window.addEventListener('pointercancel', onUp);
+    window.addEventListener(moveType, onMove);
+    window.addEventListener(upType, onUp);
+  };
+
+  handle.addEventListener('pointerdown', (event) => {
+    event.preventDefault();
+    startResize(event.clientX, 'pointermove', 'pointerup');
+  });
+  handle.addEventListener('mousedown', (event) => {
+    event.preventDefault();
+    updateDebugStatus(`mousedown ${initialVar}`);
+    startResize(event.clientX, 'mousemove', 'mouseup');
   });
 }
 
 function attachVerticalResizable(handle, initialVar, min, max, storageKey) {
   if (!handle) return;
-  handle.addEventListener('pointerdown', (event) => {
-    event.preventDefault();
-    const startY = event.clientY;
+
+  const startResize = (startY, moveType, upType) => {
     const startValue = parseInt(getComputedStyle(document.documentElement).getPropertyValue(initialVar), 10) || min;
-    const pointerId = event.pointerId;
     document.body.style.cursor = 'row-resize';
     document.body.style.userSelect = 'none';
     updateDebugStatus(`resize start ${initialVar}=${startValue}`);
 
     const onMove = (moveEvent) => {
-      if (moveEvent.pointerId !== pointerId) return;
-      const delta = moveEvent.clientY - startY;
+      const currentY = moveEvent.clientY ?? moveEvent.pageY;
+      const delta = currentY - startY;
       const value = Math.max(min, Math.min(max, startValue + delta));
       document.documentElement.style.setProperty(initialVar, `${value}px`);
       if (storageKey) localStorage.setItem(storageKey, String(value));
       updateDebugStatus(`resizing ${initialVar}=${value}`);
     };
 
-    const onUp = (upEvent) => {
-      if (upEvent.pointerId !== pointerId) return;
-      window.removeEventListener('pointermove', onMove);
-      window.removeEventListener('pointerup', onUp);
-      window.removeEventListener('pointercancel', onUp);
+    const onUp = () => {
+      window.removeEventListener(moveType, onMove);
+      window.removeEventListener(upType, onUp);
       document.body.style.cursor = '';
       document.body.style.userSelect = '';
       const finalValue = parseInt(getComputedStyle(document.documentElement).getPropertyValue(initialVar), 10) || startValue;
       updateDebugStatus(`resize end ${initialVar}=${finalValue}`);
     };
 
-    window.addEventListener('pointermove', onMove);
-    window.addEventListener('pointerup', onUp);
-    window.addEventListener('pointercancel', onUp);
+    window.addEventListener(moveType, onMove);
+    window.addEventListener(upType, onUp);
+  };
+
+  handle.addEventListener('pointerdown', (event) => {
+    event.preventDefault();
+    startResize(event.clientY, 'pointermove', 'pointerup');
+  });
+  handle.addEventListener('mousedown', (event) => {
+    event.preventDefault();
+    updateDebugStatus(`mousedown ${initialVar}`);
+    startResize(event.clientY, 'mousemove', 'mouseup');
   });
 }
 

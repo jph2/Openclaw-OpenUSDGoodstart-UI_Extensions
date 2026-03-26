@@ -340,6 +340,7 @@ button:hover { border-color: var(--accent); }
 .pane-resizer {
   position: relative;
   z-index: 10;
+  pointer-events: auto;
   user-select: none;
   -webkit-user-select: none;
   touch-action: none;
