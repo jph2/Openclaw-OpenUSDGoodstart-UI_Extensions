@@ -293,7 +293,7 @@ router.get('/file', async (req, res) => {
 router.get('/docs-index', async (req, res) => {
   try {
     const root = 'workspace';
-    const docsDir = path.join(ROOTS[root], 'docs');
+    const docsDir = path.join(assertRoot(root), 'docs');
     const entries = await fs.readdir(docsDir, { withFileTypes: true });
     const docs = [];
     for (const entry of entries) {
