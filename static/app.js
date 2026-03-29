@@ -24,6 +24,7 @@ const state = {
   syncScroll: true,
   scrollSyncLock: false,
   lastScrollRatio: { left: 0, right: 0 },
+  lastActiveScrollSide: 'left',
   treeFilter: {
     query: '',
     kind: 'all',
@@ -312,8 +313,12 @@ function renderPaneTabState() {
     right: { raw: rightTabRaw, preview: rightTabPreview, outline: rightTabOutline },
   };
   for (const side of ['left', 'right']) {
+    const otherSide = side === 'left' ? 'right' : 'left';
     for (const tab of ['raw', 'preview', 'outline']) {
-      map[side][tab]?.classList.toggle('active', state.paneTabs[side] === tab);
+      const button = map[side][tab];
+      if (!button) continue;
+      button.classList.toggle('active', state.paneTabs[side] === tab);
+      button.disabled = state.paneTabs[otherSide] === tab;
     }
   }
 }
@@ -810,6 +815,7 @@ function setupRawEditor(doc, side) {
   });
   rawEditor.addEventListener('scroll', () => {
     if (lineNumbers) lineNumbers.scrollTop = rawEditor.scrollTop;
+    state.lastActiveScrollSide = side;
     state.lastScrollRatio[side] = getScrollRatio(rawEditor);
     syncPaneScroll(side, 'raw');
   });
@@ -880,6 +886,14 @@ function getScrollRatio(target) {
   return target.scrollTop / maxScroll;
 }
 
+function getLockedPanePair() {
+  const leftMode = state.paneTabs.left;
+  const rightMode = state.paneTabs.right;
+  if (leftMode === 'raw' && rightMode === 'preview') return { rawSide: 'left', previewSide: 'right' };
+  if (leftMode === 'preview' && rightMode === 'raw') return { rawSide: 'right', previewSide: 'left' };
+  return null;
+}
+
 function applyScrollRatio(target, ratio) {
   if (!target) return;
   const maxScroll = Math.max(0, target.scrollHeight - target.clientHeight);
@@ -888,32 +902,35 @@ function applyScrollRatio(target, ratio) {
 
 function syncPaneScroll(fromSide, fromMode) {
   if (!state.syncScroll || state.scrollSyncLock) return;
-  const otherSide = fromSide === 'left' ? 'right' : 'left';
-  const otherMode = state.paneTabs[otherSide];
-  if (!((fromMode === 'raw' && otherMode === 'preview') || (fromMode === 'preview' && otherMode === 'raw'))) return;
+  const pair = getLockedPanePair();
+  if (!pair) return;
   const source = getScrollSource(fromSide);
-  const target = getScrollSource(otherSide);
+  const targetSide = fromSide === 'left' ? 'right' : 'left';
+  const target = getScrollSource(targetSide);
   if (!source || !target) return;
+  if (!((fromMode === 'raw' && targetSide === pair.previewSide) || (fromMode === 'preview' && targetSide === pair.rawSide))) return;
   const ratio = getScrollRatio(source);
-  state.lastScrollRatio[fromSide] = ratio;
-  state.lastScrollRatio[otherSide] = ratio;
+  state.lastActiveScrollSide = fromSide;
+  state.lastScrollRatio.left = ratio;
+  state.lastScrollRatio.right = ratio;
   state.scrollSyncLock = true;
   applyScrollRatio(target, ratio);
-  setTimeout(() => { state.scrollSyncLock = false; }, 0);
+  requestAnimationFrame(() => { state.scrollSyncLock = false; });
 }
 
 function alignPanesFromSavedRatio(preferredSide = null) {
   if (!state.syncScroll) return;
-  const leftMode = state.paneTabs.left;
-  const rightMode = state.paneTabs.right;
-  const lockable = (leftMode === 'raw' && rightMode === 'preview') || (leftMode === 'preview' && rightMode === 'raw');
-  if (!lockable) return;
-  const sourceSide = preferredSide || (leftMode === 'raw' ? 'left' : 'right');
+  const pair = getLockedPanePair();
+  if (!pair) return;
+  const sourceSide = preferredSide || state.lastActiveScrollSide || pair.rawSide;
   const targetSide = sourceSide === 'left' ? 'right' : 'left';
-  const ratio = state.lastScrollRatio[sourceSide] ?? state.lastScrollRatio[targetSide] ?? 0;
-  const source = getScrollSource(sourceSide);
-  const target = getScrollSource(targetSide);
+  const source = getScrollSource(sourceSide) || getScrollSource(pair.rawSide) || getScrollSource(pair.previewSide);
+  const target = getScrollSource(targetSide) || getScrollSource(pair.previewSide) || getScrollSource(pair.rawSide);
   if (!source || !target) return;
+  const liveRatio = getScrollRatio(source);
+  const ratio = Number.isFinite(liveRatio) ? liveRatio : (state.lastScrollRatio[sourceSide] ?? state.lastScrollRatio[targetSide] ?? 0);
+  state.lastScrollRatio.left = ratio;
+  state.lastScrollRatio.right = ratio;
   state.scrollSyncLock = true;
   applyScrollRatio(source, ratio);
   applyScrollRatio(target, ratio);
@@ -950,10 +967,12 @@ async function renderCurrentFile() {
   if (state.paneTabs.left === 'raw') setupRawEditor(doc, 'left');
   if (state.paneTabs.right === 'raw') setupRawEditor(doc, 'right');
   if (state.paneTabs.left === 'preview') viewer.onscroll = () => {
+    state.lastActiveScrollSide = 'left';
     state.lastScrollRatio.left = getScrollRatio(viewer);
     syncPaneScroll('left', 'preview');
   };
   if (state.paneTabs.right === 'preview') secondaryViewer.onscroll = () => {
+    state.lastActiveScrollSide = 'right';
     state.lastScrollRatio.right = getScrollRatio(secondaryViewer);
     syncPaneScroll('right', 'preview');
   };
@@ -1627,8 +1646,19 @@ absolutePathInput.addEventListener('keydown', (event) => {
   if (event.key === 'Enter') guardedOpenTarget(absolutePathInput.value.trim()).catch(showError);
 });
 
+function nextAvailableTab(excludedTab) {
+  for (const candidate of ['raw', 'preview', 'outline']) {
+    if (candidate !== excludedTab) return candidate;
+  }
+  return 'preview';
+}
+
 function setPaneTab(side, tab) {
+  const otherSide = side === 'left' ? 'right' : 'left';
   state.paneTabs[side] = tab;
+  if (state.paneTabs[otherSide] === tab) {
+    state.paneTabs[otherSide] = nextAvailableTab(tab);
+  }
   state.currentMode = state.paneTabs.left;
   if (currentDoc()) {
     renderCurrentFile().then(() => alignPanesFromSavedRatio(side)).catch(showError);
