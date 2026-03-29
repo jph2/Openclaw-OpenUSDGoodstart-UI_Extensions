@@ -1273,19 +1273,19 @@ function setupResizablePanes() {
   const savedAutosave = localStorage.getItem('workbench.autosave');
   if (savedSidebar) setCssSizeVar('--sidebar-width', savedSidebar, null);
   if (savedPreview) {
-    const clampedPreview = Math.max(320, Math.min(Math.floor(viewportWidth * 0.62), Number(savedPreview)));
+    const clampedPreview = Math.max(15, Math.min(Math.floor(viewportWidth * 0.8), Number(savedPreview)));
     setCssSizeVar('--preview-width', clampedPreview, null);
   }
   if (savedOutline) {
-    const clampedOutline = Math.max(140, Math.min(320, Number(savedOutline)));
+    const clampedOutline = Math.max(15, Math.min(320, Number(savedOutline)));
     setCssSizeVar('--outline-width', clampedOutline, null);
   }
   if (savedTreeHeight) setCssSizeVar('--tree-height', savedTreeHeight, null);
   state.autosave = savedAutosave === 'true';
   if (autosaveCheckbox) autosaveCheckbox.checked = state.autosave;
   attachResizable(sidebarResizer, '--sidebar-width', 260, 760, 'normal', 'workbench.sidebarWidth');
-  attachResizable(previewResizer, '--preview-width', 320, Math.floor(viewportWidth * 0.62), 'inverse', 'workbench.previewWidth');
-  attachResizable(outlineResizer, '--outline-width', 140, 320, 'inverse', 'workbench.outlineWidth');
+  attachResizable(previewResizer, '--preview-width', 15, Math.floor(viewportWidth * 0.8), 'inverse', 'workbench.previewWidth');
+  attachResizable(outlineResizer, '--outline-width', 15, 320, 'inverse', 'workbench.outlineWidth');
   attachVerticalResizable(treeHeightResizer, '--tree-height', 160, 700, 'workbench.treeHeight');
 
   if (sidebarResizer) {

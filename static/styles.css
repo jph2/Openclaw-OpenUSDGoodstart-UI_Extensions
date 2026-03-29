@@ -12,6 +12,7 @@
   --sidebar-width: 410px;
   --preview-width: 44vw;
   --outline-width: 220px;
+  --pane-min-width: 15px;
   --image-scale: 1;
   --tree-height: 340px;
 }
@@ -485,7 +486,7 @@ button:hover { border-color: var(--accent); }
 }
 .content-grid {
   display: grid;
-  grid-template-columns: minmax(260px, 1fr) 8px minmax(320px, var(--preview-width)) 8px minmax(140px, var(--outline-width));
+  grid-template-columns: minmax(var(--pane-min-width), 1fr) 8px minmax(var(--pane-min-width), var(--preview-width)) 8px minmax(var(--pane-min-width), var(--outline-width));
   min-height: 0;
   height: calc(100vh - 126px);
 }
