@@ -168,13 +168,24 @@
         </header>
 
         <section class="content-grid">
-          <section id="viewer" class="viewer empty-state">
-            Select a file from the left.
+          <section class="pane-shell" id="leftPaneShell">
+            <div class="pane-tabs">
+              <button id="leftTabRaw" class="pane-tab">Raw</button>
+              <button id="leftTabPreview" class="pane-tab">Preview</button>
+              <button id="leftTabOutline" class="pane-tab">Outline</button>
+            </div>
+            <section id="viewer" class="viewer empty-state">
+              Select a file from the left.
+            </section>
           </section>
           <div id="outlineResizer" class="pane-resizer vertical" aria-hidden="true"></div>
-          <aside class="outline-panel" id="outlinePanel">
-            <div class="outline-header">
-              <h2>Outline / Preview tools</h2>
+          <aside class="pane-shell right-pane-shell" id="outlinePanel">
+            <div class="pane-tabs pane-tabs-right">
+              <button id="rightTabRaw" class="pane-tab">Raw</button>
+              <button id="rightTabPreview" class="pane-tab">Preview</button>
+              <button id="rightTabOutline" class="pane-tab">Outline</button>
+            </div>
+            <div class="pane-meta-bar">
               <div id="previewControls" class="preview-controls"></div>
             </div>
             <div id="editorTools" class="editor-tools hidden">
@@ -191,7 +202,7 @@
                 <div class="shortcut-hint muted small">Shortcuts: Ctrl/Cmd+S, Ctrl/Cmd+Z, Ctrl/Cmd+Y, Ctrl/Cmd+Shift+Z</div>
               </div>
             </div>
-            <ul id="outline"></ul>
+            <section id="secondaryViewer" class="viewer empty-state">Select a file from the left.</section>
           </aside>
         </section>
       </main>

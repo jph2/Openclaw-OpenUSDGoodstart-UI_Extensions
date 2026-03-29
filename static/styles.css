@@ -423,7 +423,8 @@ button:hover { border-color: var(--accent); }
 }
 .hidden { display: none !important; }
 .editor-tools {
-  margin-top: 12px;
+  margin: 0;
+  padding: 10px 16px 0;
   display: flex;
   flex-direction: column;
   gap: 8px;
@@ -447,17 +448,45 @@ button:hover { border-color: var(--accent); }
   min-height: 0;
   height: calc(100vh - 126px);
 }
+.pane-shell {
+  display: grid;
+  grid-template-rows: auto auto minmax(0, 1fr);
+  min-width: 0;
+  min-height: 0;
+  background: #11161d;
+}
+.right-pane-shell {
+  border-left: 1px solid var(--border);
+}
+.pane-tabs {
+  display: flex;
+  gap: 8px;
+  padding: 12px 16px 0;
+  background: #11161d;
+  border-bottom: 1px solid rgba(255,255,255,0.04);
+}
+.pane-tabs-right {
+  justify-content: flex-start;
+}
+.pane-tab {
+  width: auto;
+  min-width: 84px;
+  padding: 8px 14px;
+}
+.pane-tab.active {
+  border-color: var(--accent);
+  background: rgba(88,166,255,0.16);
+  color: var(--text);
+}
+.pane-meta-bar {
+  padding: 10px 16px 0;
+  min-height: 12px;
+}
 .viewer {
-  padding: 24px;
+  padding: 16px 20px 20px;
   overflow: auto;
   min-width: 0;
   height: 100%;
-}
-.outline-panel {
-  border-left: 1px solid var(--border);
-  padding: 20px 16px;
-  background: #11161d;
-  overflow: auto;
 }
 .preview-controls {
   display: flex;
@@ -465,10 +494,10 @@ button:hover { border-color: var(--accent); }
   gap: 6px;
 }
 .preview-controls button { width: auto; padding: 6px 10px; }
-#outline { list-style: none; padding: 0; margin: 10px 0 0; }
-#outline li { margin-bottom: 8px; }
-#outline a { color: var(--muted); text-decoration: none; display: block; }
-#outline a:hover { color: var(--accent); }
+.outline-list { list-style: none; padding: 0; margin: 0; }
+.outline-list li { margin-bottom: 8px; }
+.outline-list a { color: var(--muted); text-decoration: none; display: block; }
+.outline-list a:hover { color: var(--accent); }
 .empty-state { display: grid; place-items: center; color: var(--muted); }
 .raw-editor-wrap {
   display: grid;
@@ -604,7 +633,7 @@ code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
 }
 @media (max-width: 1100px) {
   .content-grid { grid-template-columns: 1fr; height: auto; }
-  .pane-resizer.vertical, .outline-panel { display: none; }
+  .pane-resizer.vertical, .right-pane-shell { display: none; }
 }
 @media (max-width: 900px) {
   .app-shell { grid-template-columns: 1fr; height: auto; }

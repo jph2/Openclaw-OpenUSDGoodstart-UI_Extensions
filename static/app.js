@@ -17,6 +17,12 @@ const state = {
   activeDocumentKey: null,
   documents: new Map(),
   lastFocusedElement: null,
+  paneTabs: {
+    left: 'raw',
+    right: 'preview',
+  },
+  syncScroll: true,
+  scrollSyncLock: false,
   treeFilter: {
     query: '',
     kind: 'all',
@@ -68,11 +74,17 @@ const debugStatus = document.getElementById('debugStatus');
 const treeView = document.getElementById('treeView');
 const docsIndex = document.getElementById('docsIndex');
 const viewer = document.getElementById('viewer');
+const secondaryViewer = document.getElementById('secondaryViewer');
 const currentRootLabel = document.getElementById('currentRootLabel');
 const currentRelativeLabel = document.getElementById('currentRelativeLabel');
 const currentAbsoluteLabel = document.getElementById('currentAbsoluteLabel');
-const outline = document.getElementById('outline');
 const previewControls = document.getElementById('previewControls');
+const leftTabRaw = document.getElementById('leftTabRaw');
+const leftTabPreview = document.getElementById('leftTabPreview');
+const leftTabOutline = document.getElementById('leftTabOutline');
+const rightTabRaw = document.getElementById('rightTabRaw');
+const rightTabPreview = document.getElementById('rightTabPreview');
+const rightTabOutline = document.getElementById('rightTabOutline');
 const editorTools = document.getElementById('editorTools');
 const findInput = document.getElementById('findInput');
 const replaceInput = document.getElementById('replaceInput');
@@ -177,21 +189,13 @@ function extractHeadings(markdown = '') {
     .filter(Boolean);
 }
 
-function renderOutline(headings = []) {
-  outline.innerHTML = '';
-  if (!headings.length) {
-    outline.innerHTML = '<li class="muted">No headings</li>';
-    return;
-  }
-  for (const heading of headings) {
-    const li = document.createElement('li');
-    li.style.marginLeft = `${(heading.level - 1) * 12}px`;
-    const a = document.createElement('a');
-    a.href = `#${slugifyHeading(heading.text)}`;
-    a.textContent = heading.text;
-    li.appendChild(a);
-    outline.appendChild(li);
-  }
+function renderOutlineHtml(headings = []) {
+  if (!headings.length) return '<div class="muted">No headings</div>';
+  const items = headings.map((heading) => {
+    const indent = (heading.level - 1) * 12;
+    return `<li style="margin-left:${indent}px"><a href="#${slugifyHeading(heading.text)}">${escapeHtml(heading.text)}</a></li>`;
+  }).join('');
+  return `<ul class="outline-list">${items}</ul>`;
 }
 
 function documentKey(root, filePath) {
@@ -293,6 +297,28 @@ function setEditorMode(active) {
   editorTools.classList.toggle('hidden', !active);
 }
 
+function activeRawPane() {
+  if (state.paneTabs.left === 'raw') return 'left';
+  if (state.paneTabs.right === 'raw') return 'right';
+  return null;
+}
+
+function getPaneContainer(side) {
+  return side === 'left' ? viewer : secondaryViewer;
+}
+
+function renderPaneTabState() {
+  const map = {
+    left: { raw: leftTabRaw, preview: leftTabPreview, outline: leftTabOutline },
+    right: { raw: rightTabRaw, preview: rightTabPreview, outline: rightTabOutline },
+  };
+  for (const side of ['left', 'right']) {
+    for (const tab of ['raw', 'preview', 'outline']) {
+      map[side][tab]?.classList.toggle('active', state.paneTabs[side] === tab);
+    }
+  }
+}
+
 function renderLineNumbers(text) {
   const lines = text.split('\n').length;
   return Array.from({ length: lines }, (_, i) => i + 1).join('\n');
@@ -301,6 +327,13 @@ function renderLineNumbers(text) {
 function renderPreviewControls(kind = 'text') {
   previewControls.innerHTML = '';
   setEditorMode(false);
+  const syncBtn = document.createElement('button');
+  syncBtn.textContent = `Scroll lock: ${state.syncScroll ? 'on' : 'off'}`;
+  syncBtn.onclick = () => {
+    state.syncScroll = !state.syncScroll;
+    renderCurrentFile().catch(showError);
+  };
+  previewControls.appendChild(syncBtn);
   if (kind !== 'image') return;
   const controls = [
     ['Fit', () => setImageScale(0.6)],
@@ -621,11 +654,14 @@ async function loadTree(rootPath = '') {
 }
 
 function renderFolderViewMessage() {
+  const message = state.currentFolder ? 'Folder selected. Choose a file from the tree.' : 'Root loaded. Choose a folder or file from the tree.';
   viewer.className = 'viewer empty-state';
-  viewer.textContent = state.currentFolder ? 'Folder selected. Choose a file from the tree.' : 'Root loaded. Choose a folder or file from the tree.';
-  renderOutline([]);
+  secondaryViewer.className = 'viewer empty-state';
+  viewer.textContent = message;
+  secondaryViewer.textContent = message;
   renderPreviewControls('text');
   updateDocumentStatus();
+  renderPaneTabState();
 }
 
 function getFocusableElements() {
@@ -704,9 +740,17 @@ function applyDocumentContent(doc, value, options = {}) {
   scheduleAutosave(doc);
 }
 
+function getRawEditor(side = activeRawPane()) {
+  return side ? getPaneContainer(side)?.querySelector('[data-role="raw-editor"]') : null;
+}
+
+function getLineNumbers(side = activeRawPane()) {
+  return side ? getPaneContainer(side)?.querySelector('[data-role="line-numbers"]') : null;
+}
+
 function syncDocumentFromEditor() {
   const doc = currentDoc();
-  const rawEditor = document.getElementById('rawEditor');
+  const rawEditor = getRawEditor();
   if (!doc || !rawEditor) return;
   doc.workingContent = rawEditor.value;
   doc.lastSelectionStart = rawEditor.selectionStart;
@@ -716,7 +760,7 @@ function syncDocumentFromEditor() {
 
 function updateRawEditorUI(rawEditor, value, options = {}) {
   rawEditor.value = value;
-  const lineNumbers = document.getElementById('lineNumbers');
+  const lineNumbers = rawEditor.closest('.raw-editor-wrap')?.querySelector('[data-role="line-numbers"]');
   if (lineNumbers) lineNumbers.textContent = renderLineNumbers(value);
   if (options.restoreSelection) {
     const doc = currentDoc();
@@ -730,13 +774,14 @@ function restoreUndoState(doc, step) {
   doc.undoIndex = nextIndex;
   doc.workingContent = doc.undoStack[doc.undoIndex];
   state.documents.set(doc.key, doc);
-  const rawEditor = document.getElementById('rawEditor');
+  const rawEditor = getRawEditor();
   if (rawEditor) {
     updateRawEditorUI(rawEditor, doc.workingContent);
     rawEditor.focus();
     const pos = rawEditor.value.length;
     rawEditor.setSelectionRange(pos, pos);
   }
+  renderCurrentFile();
   updateSummary();
   updateNavButtons();
   renderTree();
@@ -744,23 +789,25 @@ function restoreUndoState(doc, step) {
   updateDebugStatus(step < 0 ? 'undo' : 'redo');
 }
 
-function setupRawEditor(doc) {
-  const rawEditor = document.getElementById('rawEditor');
-  const lineNumbers = document.getElementById('lineNumbers');
+function setupRawEditor(doc, side) {
+  const rawEditor = getRawEditor(side);
+  const lineNumbers = getLineNumbers(side);
   if (!rawEditor || !doc) return;
   rawEditor.value = doc.workingContent;
-  lineNumbers.textContent = renderLineNumbers(doc.workingContent);
+  if (lineNumbers) lineNumbers.textContent = renderLineNumbers(doc.workingContent);
   if (typeof doc.lastSelectionStart === 'number' && typeof doc.lastSelectionEnd === 'number') {
     rawEditor.setSelectionRange(doc.lastSelectionStart, doc.lastSelectionEnd);
   }
   rawEditor.addEventListener('input', () => {
     applyDocumentContent(doc, rawEditor.value);
-    lineNumbers.textContent = renderLineNumbers(rawEditor.value);
+    if (lineNumbers) lineNumbers.textContent = renderLineNumbers(rawEditor.value);
     doc.lastSelectionStart = rawEditor.selectionStart;
     doc.lastSelectionEnd = rawEditor.selectionEnd;
+    refreshPassivePanes(doc, side).catch(showError);
   });
   rawEditor.addEventListener('scroll', () => {
-    lineNumbers.scrollTop = rawEditor.scrollTop;
+    if (lineNumbers) lineNumbers.scrollTop = rawEditor.scrollTop;
+    syncPaneScroll(side, 'raw');
   });
   rawEditor.addEventListener('click', () => {
     doc.lastSelectionStart = rawEditor.selectionStart;
@@ -789,35 +836,100 @@ async function getMarked() {
   return markdownModulePromise;
 }
 
-async function renderTextDocument(doc, mode = state.currentMode) {
-  if (mode === 'preview') {
-    viewer.className = 'viewer';
-    if (doc.isMarkdown) {
-      const { marked } = await getMarked();
-      viewer.innerHTML = `<article class="markdown-body">${marked.parse(doc.workingContent)}</article>`;
-      renderOutline(extractHeadings(doc.workingContent));
-      await renderMermaid();
-    } else {
-      viewer.innerHTML = `<pre><code>${escapeHtml(doc.workingContent)}</code></pre>`;
-      renderOutline([]);
-    }
-    renderPreviewControls('text');
-    updateSummary();
-    updateNavButtons();
-    return;
-  }
+function renderOutlinePane(target, doc) {
+  target.className = 'viewer';
+  target.innerHTML = renderOutlineHtml(doc.isMarkdown ? extractHeadings(doc.workingContent) : []);
+}
 
-  viewer.className = 'viewer';
-  viewer.innerHTML = `
+function renderRawPane(target) {
+  target.className = 'viewer';
+  target.innerHTML = `
     <div class="raw-editor-wrap">
-      <pre id="lineNumbers" class="raw-line-numbers"></pre>
-      <textarea id="rawEditor" class="raw-editor"></textarea>
+      <pre data-role="line-numbers" class="raw-line-numbers"></pre>
+      <textarea data-role="raw-editor" class="raw-editor"></textarea>
     </div>`;
-  renderOutline(doc.isMarkdown ? extractHeadings(doc.workingContent) : []);
-  setEditorMode(true);
-  setupRawEditor(doc);
+}
+
+async function renderPreviewPane(target, doc) {
+  target.className = 'viewer';
+  if (doc.isMarkdown) {
+    const { marked } = await getMarked();
+    target.innerHTML = `<article class="markdown-body">${marked.parse(doc.workingContent)}</article>`;
+    await renderMermaid(target);
+  } else {
+    target.innerHTML = `<pre><code>${escapeHtml(doc.workingContent)}</code></pre>`;
+  }
+}
+
+function getScrollSource(side) {
+  const mode = state.paneTabs[side];
+  const pane = getPaneContainer(side);
+  if (!pane) return null;
+  if (mode === 'raw') return pane.querySelector('[data-role="raw-editor"]');
+  if (mode === 'preview') return pane;
+  return null;
+}
+
+function applyScrollRatio(target, ratio) {
+  if (!target) return;
+  const maxScroll = Math.max(0, target.scrollHeight - target.clientHeight);
+  target.scrollTop = maxScroll * ratio;
+}
+
+function syncPaneScroll(fromSide, fromMode) {
+  if (!state.syncScroll || state.scrollSyncLock) return;
+  const otherSide = fromSide === 'left' ? 'right' : 'left';
+  const otherMode = state.paneTabs[otherSide];
+  if (!((fromMode === 'raw' && otherMode === 'preview') || (fromMode === 'preview' && otherMode === 'raw'))) return;
+  const source = getScrollSource(fromSide);
+  const target = getScrollSource(otherSide);
+  if (!source || !target) return;
+  const maxScroll = Math.max(1, source.scrollHeight - source.clientHeight);
+  const ratio = source.scrollTop / maxScroll;
+  state.scrollSyncLock = true;
+  applyScrollRatio(target, ratio);
+  setTimeout(() => { state.scrollSyncLock = false; }, 0);
+}
+
+async function refreshPassivePanes(doc, sourceSide = null) {
+  for (const side of ['left', 'right']) {
+    if (side === sourceSide && state.paneTabs[side] === 'raw') continue;
+    const pane = getPaneContainer(side);
+    const mode = state.paneTabs[side];
+    pane.onscroll = null;
+    if (mode === 'preview') {
+      await renderPreviewPane(pane, doc);
+      pane.onscroll = () => syncPaneScroll(side, 'preview');
+    } else if (mode === 'outline') {
+      renderOutlinePane(pane, doc);
+    }
+  }
+}
+
+async function renderCurrentFile() {
+  const doc = currentDoc();
+  if (!doc) return;
+  renderPaneTabState();
+  for (const side of ['left', 'right']) {
+    const pane = getPaneContainer(side);
+    const mode = state.paneTabs[side];
+    pane.onscroll = null;
+    if (mode === 'raw') renderRawPane(pane);
+    else if (mode === 'preview') await renderPreviewPane(pane, doc);
+    else renderOutlinePane(pane, doc);
+  }
+  if (state.paneTabs.left === 'raw') setupRawEditor(doc, 'left');
+  if (state.paneTabs.right === 'raw') setupRawEditor(doc, 'right');
+  if (state.paneTabs.left === 'preview') viewer.onscroll = () => syncPaneScroll('left', 'preview');
+  if (state.paneTabs.right === 'preview') secondaryViewer.onscroll = () => syncPaneScroll('right', 'preview');
+  renderPreviewControls('text');
+  setEditorMode(state.paneTabs.left === 'raw' || state.paneTabs.right === 'raw');
   updateSummary();
   updateNavButtons();
+}
+
+async function renderTextDocument(doc) {
+  await renderCurrentFile();
 }
 
 async function openFolderAt(dir = '', options = {}) {
@@ -866,21 +978,19 @@ async function loadFile(filePath, mode = state.currentMode, options = {}) {
       }
     }
     setCurrentDocument(doc);
-    await renderTextDocument(doc, mode);
+    await renderTextDocument(doc);
   } else {
     setCurrentDocument(null);
-    if (data.kind === 'image') {
-      viewer.className = 'viewer';
-      setImageScale(0.6);
-      viewer.innerHTML = `<div class="media-frame"><div class="media-image-wrap"><img class="media-image" src="${data.mediaUrl}" alt="${escapeHtml(data.relativePath)}" /></div></div>`;
-      renderOutline([]);
-      renderPreviewControls('image');
-    } else if (data.kind === 'pdf') {
-      viewer.className = 'viewer';
-      viewer.innerHTML = `<div class="media-frame"><iframe class="media-pdf" src="${data.mediaUrl}"></iframe></div>`;
-      renderOutline([]);
-      renderPreviewControls('pdf');
-    }
+    const mediaHtml = data.kind === 'image'
+      ? `<div class="media-frame"><div class="media-image-wrap"><img class="media-image" src="${data.mediaUrl}" alt="${escapeHtml(data.relativePath)}" /></div></div>`
+      : `<div class="media-frame"><iframe class="media-pdf" src="${data.mediaUrl}"></iframe></div>`;
+    viewer.className = 'viewer';
+    secondaryViewer.className = 'viewer';
+    if (data.kind === 'image') setImageScale(0.6);
+    viewer.innerHTML = mediaHtml;
+    secondaryViewer.innerHTML = mediaHtml;
+    renderPreviewControls(data.kind);
+    renderPaneTabState();
   }
 
   updateSummary();
@@ -892,8 +1002,8 @@ async function loadFile(filePath, mode = state.currentMode, options = {}) {
   if (!options.skipHistory) pushHistory({ root: state.currentRoot, path: filePath, mode });
 }
 
-async function renderMermaid() {
-  const blocks = Array.from(viewer.querySelectorAll('pre > code.language-mermaid, pre > code.lang-mermaid'));
+async function renderMermaid(container = viewer) {
+  const blocks = Array.from(container.querySelectorAll('pre > code.language-mermaid, pre > code.lang-mermaid'));
   if (!blocks.length) return;
   const mermaid = await import('https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs');
   mermaid.default.initialize({ startOnLoad: false, theme: 'dark' });
@@ -1268,8 +1378,9 @@ function revertRawFile() {
   doc.saveState = 'saved';
   doc.lastError = null;
   state.documents.set(doc.key, doc);
-  const rawEditor = document.getElementById('rawEditor');
+  const rawEditor = getRawEditor();
   if (rawEditor) updateRawEditorUI(rawEditor, doc.savedContent);
+  renderCurrentFile().catch(showError);
   updateSummary();
   updateNavButtons();
   renderTree();
@@ -1326,7 +1437,7 @@ async function guardedOpenTarget(targetPath, preferredRoot = state.currentRoot, 
 }
 
 function findInRaw(next = true) {
-  const rawEditor = document.getElementById('rawEditor');
+  const rawEditor = getRawEditor();
   if (!rawEditor) return;
   const query = findInput.value;
   if (!query) return;
@@ -1341,7 +1452,7 @@ function findInRaw(next = true) {
 
 function replaceInRaw(all = false) {
   const doc = currentDoc();
-  const rawEditor = document.getElementById('rawEditor');
+  const rawEditor = getRawEditor();
   if (!rawEditor || !doc) return;
   const query = findInput.value;
   const replacement = replaceInput.value;
@@ -1356,8 +1467,9 @@ function replaceInRaw(all = false) {
     rawEditor.setSelectionRange(pos, pos + replacement.length);
   }
   applyDocumentContent(doc, rawEditor.value);
-  const lineNumbers = document.getElementById('lineNumbers');
+  const lineNumbers = getLineNumbers();
   if (lineNumbers) lineNumbers.textContent = renderLineNumbers(rawEditor.value);
+  refreshPassivePanes(doc, activeRawPane()).catch(showError);
 }
 
 async function createFolder() {
@@ -1392,7 +1504,10 @@ async function uploadSelectedFile(file) {
 
 function showError(error) {
   viewer.className = 'viewer';
-  viewer.innerHTML = `<pre><code>${escapeHtml(error.message)}</code></pre>`;
+  secondaryViewer.className = 'viewer';
+  const html = `<pre><code>${escapeHtml(error.message)}</code></pre>`;
+  viewer.innerHTML = html;
+  secondaryViewer.innerHTML = html;
   updateDebugStatus(`error: ${error.message}`);
 }
 
@@ -1469,8 +1584,31 @@ pathInput.addEventListener('keydown', (event) => {
 absolutePathInput.addEventListener('keydown', (event) => {
   if (event.key === 'Enter') guardedOpenTarget(absolutePathInput.value.trim()).catch(showError);
 });
-rawBtn.onclick = () => { if (state.currentFile) loadFile(state.currentFile, 'raw').catch(showError); };
-previewBtn.onclick = () => { if (state.currentFile) loadFile(state.currentFile, 'preview').catch(showError); };
+
+function setPaneTab(side, tab) {
+  state.paneTabs[side] = tab;
+  state.currentMode = state.paneTabs.left;
+  if (currentDoc()) renderCurrentFile().catch(showError);
+  else renderPaneTabState();
+}
+
+leftTabRaw.onclick = () => setPaneTab('left', 'raw');
+leftTabPreview.onclick = () => setPaneTab('left', 'preview');
+leftTabOutline.onclick = () => setPaneTab('left', 'outline');
+rightTabRaw.onclick = () => setPaneTab('right', 'raw');
+rightTabPreview.onclick = () => setPaneTab('right', 'preview');
+rightTabOutline.onclick = () => setPaneTab('right', 'outline');
+
+rawBtn.onclick = () => {
+  state.paneTabs.left = 'raw';
+  state.paneTabs.right = 'preview';
+  if (currentDoc()) renderCurrentFile().catch(showError);
+};
+previewBtn.onclick = () => {
+  state.paneTabs.left = 'preview';
+  state.paneTabs.right = 'outline';
+  if (currentDoc()) renderCurrentFile().catch(showError);
+};
 saveBtn.onclick = () => saveDocument(currentDoc(), { trigger: 'manual' }).catch(showError);
 revertBtn.onclick = () => revertRawFile();
 findNextBtn.onclick = () => findInRaw(true);
