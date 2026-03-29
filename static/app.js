@@ -334,6 +334,10 @@ function renderPreviewControls(kind = 'text') {
     renderPreviewControls(kind);
   };
   previewControls.appendChild(syncBtn);
+  const alignBtn = document.createElement('button');
+  alignBtn.textContent = 'Align now';
+  alignBtn.onclick = () => alignPanesFromSavedRatio();
+  previewControls.appendChild(alignBtn);
   if (kind !== 'image') return;
   const controls = [
     ['Fit', () => setImageScale(0.6)],
@@ -1188,6 +1192,7 @@ function attachResizable(handle, initialVar, min, max, direction = 'normal', sto
       const value = Math.max(min, Math.min(max, raw));
       document.documentElement.style.setProperty(initialVar, `${value}px`);
       if (storageKey) localStorage.setItem(storageKey, String(value));
+      if (initialVar === '--outline-width') requestAnimationFrame(() => alignPanesFromSavedRatio());
       updateDebugStatus(`resizing ${initialVar}=${value}`);
     };
 
@@ -1197,6 +1202,7 @@ function attachResizable(handle, initialVar, min, max, direction = 'normal', sto
       document.body.style.cursor = '';
       document.body.style.userSelect = '';
       const finalValue = parseInt(getComputedStyle(document.documentElement).getPropertyValue(initialVar), 10) || startValue;
+      if (initialVar === '--outline-width') requestAnimationFrame(() => alignPanesFromSavedRatio());
       updateDebugStatus(`resize end ${initialVar}=${finalValue}`);
     };
 
@@ -1625,8 +1631,9 @@ absolutePathInput.addEventListener('keydown', (event) => {
 function setPaneTab(side, tab) {
   state.paneTabs[side] = tab;
   state.currentMode = state.paneTabs.left;
-  if (currentDoc()) renderCurrentFile().catch(showError);
-  else renderPaneTabState();
+  if (currentDoc()) {
+    renderCurrentFile().then(() => alignPanesFromSavedRatio(side)).catch(showError);
+  } else renderPaneTabState();
 }
 
 leftTabRaw.onclick = () => setPaneTab('left', 'raw');
@@ -1744,6 +1751,10 @@ window.addEventListener('keydown', (event) => {
     }
   }
 });
+window.addEventListener('resize', () => {
+  requestAnimationFrame(() => alignPanesFromSavedRatio());
+});
+
 window.addEventListener('beforeunload', (event) => {
   syncDocumentFromEditor();
   const doc = currentDoc();
