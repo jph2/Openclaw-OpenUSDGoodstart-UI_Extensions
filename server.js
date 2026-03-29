@@ -29,6 +29,8 @@ const TEXT_EXTENSIONS = new Set([
 
 const IMAGE_EXTENSIONS = new Set(['.png', '.jpg', '.jpeg', '.gif', '.webp', '.svg']);
 const PDF_EXTENSIONS = new Set(['.pdf']);
+const RECENT_DOC_EXTENSIONS = new Set(['.md', '.txt']);
+const RECENT_DOC_SKIP_DIRS = new Set(['.git', 'node_modules', 'dist', 'build', '.next', 'coverage']);
 
 const renderer = new marked.Renderer();
 renderer.heading = ({ tokens, depth }) => {
@@ -172,6 +174,43 @@ async function buildTree(rootKey, relativePath = '', depth = 0, maxDepth = 4) {
   return result;
 }
 
+async function collectRecentDocsForRoot(rootKey, options = {}) {
+  const rootPath = assertRoot(rootKey);
+  const limit = Math.max(1, Math.min(500, Number(options.limit || 20)));
+  const docs = [];
+
+  async function walk(currentPath) {
+    const entries = await fs.readdir(currentPath, { withFileTypes: true });
+    for (const entry of entries) {
+      if (entry.name.startsWith('.git')) continue;
+      if (entry.isDirectory() && RECENT_DOC_SKIP_DIRS.has(entry.name)) continue;
+
+      const fullPath = path.join(currentPath, entry.name);
+      if (entry.isDirectory()) {
+        await walk(fullPath);
+        continue;
+      }
+
+      const ext = path.extname(entry.name).toLowerCase();
+      if (!RECENT_DOC_EXTENSIONS.has(ext)) continue;
+
+      const stat = await fs.stat(fullPath);
+      docs.push({
+        root: rootKey,
+        name: entry.name,
+        path: path.relative(rootPath, fullPath).replaceAll(path.sep, '/'),
+        absolutePath: fullPath,
+        updatedAt: stat.mtimeMs,
+        size: stat.size,
+      });
+    }
+  }
+
+  await walk(rootPath);
+  docs.sort((a, b) => b.updatedAt - a.updatedAt || a.name.localeCompare(b.name));
+  return docs.slice(0, limit);
+}
+
 function registerApiRoutes(router) {
 router.get('/roots', (req, res) => {
   const roots = getRoots();
@@ -293,22 +332,18 @@ router.get('/file', async (req, res) => {
 
 router.get('/docs-index', async (req, res) => {
   try {
-    const root = 'workspace';
-    const docsDir = path.join(assertRoot(root), 'docs');
-    const entries = await fs.readdir(docsDir, { withFileTypes: true });
-    const docs = [];
-    for (const entry of entries) {
-      if (!entry.isFile() || !entry.name.endsWith('.md')) continue;
-      const absolutePath = path.join(docsDir, entry.name);
-      const stat = await fs.stat(absolutePath);
-      docs.push({
-        name: entry.name,
-        path: `docs/${entry.name}`,
-        updatedAt: stat.mtimeMs,
-      });
+    const limit = Math.max(1, Math.min(200, Number(req.query.limit || 20)));
+    const roots = Object.keys(getRoots());
+    const docsPerRoot = await Promise.all(roots.map((rootKey) => collectRecentDocsForRoot(rootKey, { limit })));
+    const dedupedByAbsolutePath = new Map();
+    for (const doc of docsPerRoot.flat()) {
+      const existing = dedupedByAbsolutePath.get(doc.absolutePath);
+      if (!existing || doc.updatedAt > existing.updatedAt) dedupedByAbsolutePath.set(doc.absolutePath, doc);
     }
-    docs.sort((a, b) => b.updatedAt - a.updatedAt);
-    res.json({ docs: docs.slice(0, 20) });
+    const docs = [...dedupedByAbsolutePath.values()]
+      .sort((a, b) => b.updatedAt - a.updatedAt || a.name.localeCompare(b.name))
+      .slice(0, limit);
+    res.json({ docs, roots, limit });
   } catch (error) {
     res.status(400).json({ error: error.message });
   }

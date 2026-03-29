@@ -16,7 +16,7 @@ Read-only workbench MVP for browsing laptop-hosted OpenClaw-related repositories
 - rendered markdown preview
 - mermaid rendering in preview mode
 - stable browser URL parameters
-- latest workspace docs list
+- latest docs list aggregated across all enabled roots
 - editable absolute + relative path fields
 - filename search within the selected root with kind/age/size filters
 - image preview with scalable overview controls

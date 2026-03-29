@@ -224,8 +224,8 @@ function dirtyDocumentCount() {
   return count;
 }
 
-function dirtyLabelForFile(pathValue) {
-  const doc = getDocument(state.currentRoot, pathValue);
+function dirtyLabelForFile(pathValue, root = state.currentRoot) {
+  const doc = getDocument(root, pathValue);
   return !!(doc && isDocumentDirty(doc));
 }
 
@@ -496,12 +496,20 @@ async function loadDocsIndex() {
     const li = document.createElement('li');
     const a = document.createElement('a');
     a.href = '#';
-    a.className = `file${dirtyLabelForFile(doc.path) ? ' dirty-link' : ''}`;
-    a.textContent = doc.name;
-    if (dirtyLabelForFile(doc.path)) a.title = 'Unsaved changes';
+    a.className = `file${dirtyLabelForFile(doc.path, doc.root) ? ' dirty-link' : ''}`;
+    const timeLabel = new Date(doc.updatedAt).toLocaleString([], {
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+    });
+    a.textContent = `${doc.root} · ${doc.path}`;
+    a.title = `${doc.absolutePath}\n${timeLabel}`;
+    if (dirtyLabelForFile(doc.path, doc.root)) a.title += '\nUnsaved changes';
     a.onclick = async (event) => {
       event.preventDefault();
-      await guardedOpenTarget(doc.path, 'workspace');
+      await guardedOpenTarget(doc.path, doc.root);
     };
     li.appendChild(a);
     docsIndex.appendChild(li);
