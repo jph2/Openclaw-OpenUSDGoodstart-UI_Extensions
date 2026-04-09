@@ -1,0 +1,124 @@
+{
+  "channels": [
+    {
+      "id": "-5207805052",
+      "name": "TL000 General Chat",
+      "model": "local-pc/google/gemma-4-26b-a4b",
+      "skills": [
+        "weather",
+        "web_search"
+      ],
+      "require_mention": false
+    },
+    {
+      "id": "-5272630186",
+      "name": "TL500 OpenClaw Governance",
+      "model": "local-pc/google/gemma-4-26b-a4b",
+      "skills": [
+        "healthcheck",
+        "node-connect"
+      ],
+      "require_mention": false
+    },
+    {
+      "id": "-3510007915",
+      "name": "TL020 omniUSD",
+      "model": "moonshot/kimi-k2.5",
+      "skills": [
+        "omniverse-extension-development",
+        "usd-development"
+      ],
+      "require_mention": false
+    },
+    {
+      "id": "-5012559503",
+      "name": "TL800 Experimental Box",
+      "model": "local-pc/google/gemma-4-26b-a4b",
+      "skills": [
+        "clawflow",
+        "skill-creator"
+      ],
+      "require_mention": false
+    },
+    {
+      "id": "-5272630187",
+      "name": "TG010_General_Discovery_Research",
+      "model": "local-pc/google/gemma-4-26b-a4b",
+      "skills": [],
+      "require_mention": false
+    },
+    {
+      "id": "-5272630188",
+      "name": "TG030_dcc_cad",
+      "model": "local-pc/google/gemma-4-26b-a4b",
+      "skills": [
+        "usd-development",
+        "omniverse-extension-development"
+      ],
+      "require_mention": false
+    },
+    {
+      "id": "-5272630189",
+      "name": "TG040_webdev_backend",
+      "model": "local-pc/google/gemma-4-26b-a4b",
+      "skills": [],
+      "require_mention": false
+    },
+    {
+      "id": "-5272630190",
+      "name": "TG050_webdev_frontend",
+      "model": "local-pc/google/gemma-4-26b-a4b",
+      "skills": [],
+      "require_mention": false
+    },
+    {
+      "id": "-5272630191",
+      "name": "TG060_social_media",
+      "model": "local-pc/google/gemma-4-26b-a4b",
+      "skills": [],
+      "require_mention": false
+    },
+    {
+      "id": "-5272630192",
+      "name": "TG070_qa_security",
+      "model": "local-pc/google/gemma-4-26b-a4b",
+      "skills": [],
+      "require_mention": false
+    },
+    {
+      "id": "-5272630193",
+      "name": "TG500_openclaw_governance",
+      "model": "local-pc/google/gemma-4-26b-a4b",
+      "skills": [],
+      "require_mention": false
+    },
+    {
+      "id": "-5272630194",
+      "name": "TG510_upcoming_skills",
+      "model": "local-pc/google/gemma-4-26b-a4b",
+      "skills": [],
+      "require_mention": false
+    },
+    {
+      "id": "-5272630195",
+      "name": "TG520_agentic_intelligence",
+      "model": "local-pc/google/gemma-4-26b-a4b",
+      "skills": [],
+      "require_mention": false
+    },
+    {
+      "id": "-5272630196",
+      "name": "TG700_studio_framework",
+      "model": "local-pc/google/gemma-4-26b-a4b",
+      "skills": [],
+      "require_mention": false
+    },
+    {
+      "id": "-5272630197",
+      "name": "TG900_troubleshooting",
+      "model": "local-pc/google/gemma-4-26b-a4b",
+      "skills": [],
+      "require_mention": false
+    }
+  ]
+}
