@@ -168,11 +168,11 @@
         
         .skill-item {
             display: flex;
-            align-items: flex-start;
+            align-items: center;
             gap: 12px;
             background: var(--bg-elevated);
             border: 1px solid var(--border-color);
-            padding: 10px 12px;
+            padding: 8px 12px;
             border-radius: 6px;
             transition: all 0.2s;
         }
@@ -197,18 +197,26 @@
         .skill-content {
             flex: 1;
             min-width: 0;
+            display: flex;
+            align-items: center;
+            gap: 8px;
         }
         
         .skill-name {
-            font-weight: 500;
+            font-weight: 600;
             font-size: 13px;
-            margin-bottom: 2px;
+            white-space: nowrap;
+        }
+        
+        .skill-separator {
+            color: var(--text-secondary);
+            font-weight: 300;
         }
         
         .skill-desc {
-            font-size: 11px;
+            font-size: 12px;
             color: var(--text-secondary);
-            line-height: 1.4;
+            font-weight: 400;
         }
         
         .skill-item button.remove {
@@ -497,8 +505,9 @@
                 <div class="skill-item active">
                     <input type="checkbox" checked onchange="toggleSkill('${channelId}', '${skill}', this.checked)">
                     <div class="skill-content">
-                        <div class="skill-name">${skill}</div>
-                        <div class="skill-desc">${SKILL_DESCRIPTIONS[skill] || 'No description available'}</div>
+                        <span class="skill-name">${skill}</span>
+                        <span class="skill-separator">|</span>
+                        <span class="skill-desc">${SKILL_DESCRIPTIONS[skill] || 'No description'}</span>
                     </div>
                     <button class="remove" onclick="removeSkill('${channelId}', '${skill}')">×</button>
                 </div>
