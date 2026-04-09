@@ -584,18 +584,21 @@
         
         async function saveConfig() {
             try {
-                const response = await fetch('/api/save-config', {
+                const response = await fetch('./api/save-config', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify(config)
                 });
                 
+                const data = await response.json();
+                
                 if (response.ok) {
-                    showToast('Configuration saved', 'success');
+                    showToast(`Saved to ${data.path}`);
                 } else {
-                    throw new Error('Failed to save');
+                    throw new Error(data.error || 'Failed to save');
                 }
             } catch (e) {
+                console.error('Save failed:', e);
                 // Fallback: download as file
                 const blob = new Blob([JSON.stringify(config, null, 2)], { type: 'application/json' });
                 const url = URL.createObjectURL(blob);
@@ -604,7 +607,7 @@
                 a.download = 'channel_config.json';
                 a.click();
                 URL.revokeObjectURL(url);
-                showToast('Configuration downloaded');
+                showToast('Downloaded (server save failed)');
             }
         }
         
