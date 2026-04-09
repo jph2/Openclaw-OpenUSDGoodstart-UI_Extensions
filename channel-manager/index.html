@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>OpenClaw Channel Manager</title>
+    <title>Channel Manager</title>
     <style>
         * {
             margin: 0;
@@ -29,36 +29,21 @@
             background: var(--bg-primary);
             color: var(--text-primary);
             min-height: 100vh;
-            display: flex;
-            flex-direction: column;
+            padding: 20px;
         }
         
         header {
-            background: var(--bg-surface);
-            border-bottom: 1px solid var(--border-color);
-            padding: 16px 24px;
             display: flex;
             justify-content: space-between;
             align-items: center;
+            margin-bottom: 30px;
+            padding-bottom: 20px;
+            border-bottom: 1px solid var(--border-color);
         }
         
         h1 {
-            font-size: 20px;
+            font-size: 24px;
             font-weight: 600;
-            display: flex;
-            align-items: center;
-            gap: 10px;
-        }
-        
-        .logo {
-            width: 32px;
-            height: 32px;
-            background: var(--accent);
-            border-radius: 8px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 18px;
         }
         
         .header-actions {
@@ -93,108 +78,21 @@
             background: var(--accent-hover);
         }
         
-        .tabs {
+        .toolbar {
             display: flex;
-            background: var(--bg-surface);
-            border-bottom: 1px solid var(--border-color);
-            padding: 0 24px;
-        }
-        
-        .tab {
-            padding: 12px 20px;
-            cursor: pointer;
-            border-bottom: 2px solid transparent;
-            color: var(--text-secondary);
-            transition: all 0.2s;
-        }
-        
-        .tab:hover {
-            color: var(--text-primary);
-        }
-        
-        .tab.active {
-            color: var(--accent);
-            border-bottom-color: var(--accent);
-        }
-        
-        main {
-            flex: 1;
-            padding: 24px;
-            overflow: auto;
-        }
-        
-        .tab-content {
-            display: none;
-        }
-        
-        .tab-content.active {
-            display: block;
-        }
-        
-        /* Channel List Styles */
-        .channel-grid {
-            display: grid;
-            gap: 16px;
-            max-width: 1200px;
-        }
-        
-        .channel-card {
-            background: var(--bg-surface);
-            border: 1px solid var(--border-color);
-            border-radius: 12px;
-            padding: 20px;
-            transition: all 0.2s;
-        }
-        
-        .channel-card:hover {
-            border-color: var(--accent);
-        }
-        
-        .channel-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: flex-start;
-            margin-bottom: 16px;
-        }
-        
-        .channel-info h3 {
-            font-size: 16px;
-            font-weight: 600;
-            margin-bottom: 4px;
-        }
-        
-        .channel-id {
-            font-size: 12px;
-            color: var(--text-secondary);
-            font-family: monospace;
-        }
-        
-        .channel-actions {
-            display: flex;
-            gap: 8px;
-        }
-        
-        .form-group {
-            margin-bottom: 16px;
-        }
-        
-        .form-group label {
-            display: block;
-            font-size: 12px;
-            color: var(--text-secondary);
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-            margin-bottom: 6px;
+            gap: 12px;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
         }
         
         select, input[type="text"] {
-            width: 100%;
             background: var(--bg-elevated);
             border: 1px solid var(--border-color);
             color: var(--text-primary);
-            padding: 10px 12px;
+            padding: 8px 12px;
             border-radius: 6px;
             font-size: 14px;
+            min-width: 200px;
         }
         
         select:focus, input:focus {
@@ -202,136 +100,170 @@
             border-color: var(--accent);
         }
         
-        .skills-container {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 8px;
-            margin-top: 8px;
+        /* Table Styles */
+        .channel-table {
+            width: 100%;
+            border-collapse: collapse;
+            background: var(--bg-surface);
+            border-radius: 12px;
+            overflow: hidden;
+            border: 1px solid var(--border-color);
         }
         
-        .skill-tag {
+        .channel-table th {
+            background: var(--bg-elevated);
+            padding: 16px;
+            text-align: left;
+            font-weight: 600;
+            font-size: 12px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            color: var(--text-secondary);
+            border-bottom: 1px solid var(--border-color);
+        }
+        
+        .channel-table td {
+            padding: 16px;
+            border-bottom: 1px solid var(--border-color);
+            vertical-align: top;
+        }
+        
+        .channel-table tr:hover {
+            background: rgba(80, 227, 194, 0.05);
+        }
+        
+        .channel-table tr:last-child td {
+            border-bottom: none;
+        }
+        
+        /* Column 1: Telegram Group */
+        .tg-group {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+        
+        .tg-name {
+            font-weight: 600;
+            font-size: 14px;
+        }
+        
+        .tg-id {
+            font-size: 11px;
+            color: var(--text-secondary);
+            font-family: monospace;
+        }
+        
+        /* Column 2: Skills */
+        .skills-cell {
+            min-width: 300px;
+        }
+        
+        .skills-list {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px;
+            margin-bottom: 12px;
+        }
+        
+        .skill-item {
+            display: flex;
+            align-items: center;
+            gap: 6px;
             background: var(--bg-elevated);
             border: 1px solid var(--border-color);
             padding: 4px 10px;
             border-radius: 4px;
             font-size: 12px;
-            display: flex;
-            align-items: center;
-            gap: 6px;
         }
         
-        .skill-tag button {
-            padding: 0;
+        .skill-item.active {
+            border-color: var(--accent);
+            background: rgba(80, 227, 194, 0.1);
+        }
+        
+        .skill-item input[type="checkbox"] {
+            width: 14px;
+            height: 14px;
+            cursor: pointer;
+        }
+        
+        .skill-item button.remove {
             background: none;
             border: none;
             color: var(--text-secondary);
+            padding: 0;
             font-size: 14px;
             line-height: 1;
+            cursor: pointer;
         }
         
-        .skill-tag button:hover {
+        .skill-item button.remove:hover {
             color: var(--danger);
         }
         
         .add-skill-row {
             display: flex;
             gap: 8px;
-            margin-top: 8px;
         }
         
         .add-skill-row select {
             flex: 1;
+            min-width: 150px;
         }
         
-        .checkbox-group {
+        /* Column 3: Model */
+        .model-cell {
+            min-width: 250px;
+        }
+        
+        .model-list {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+        
+        .model-item {
             display: flex;
             align-items: center;
-            gap: 8px;
-            margin-top: 12px;
+            gap: 10px;
+            padding: 8px 12px;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: all 0.2s;
         }
         
-        .checkbox-group input[type="checkbox"] {
-            width: auto;
+        .model-item:hover {
+            background: var(--bg-elevated);
         }
         
-        /* Skill Tree Canvas */
-        #skillTreeCanvas {
-            width: 100%;
-            height: calc(100vh - 200px);
-            background: var(--bg-surface);
-            border-radius: 12px;
-            border: 1px solid var(--border-color);
+        .model-item.active {
+            background: rgba(80, 227, 194, 0.1);
+            border: 1px solid var(--accent);
         }
         
-        .skill-tree-controls {
-            display: flex;
-            gap: 12px;
-            margin-bottom: 16px;
+        .model-item input[type="radio"] {
+            width: 16px;
+            height: 16px;
+            cursor: pointer;
         }
         
-        /* Detail Panel */
-        .detail-panel {
-            position: fixed;
-            top: 0;
-            right: -400px;
-            width: 400px;
-            height: 100vh;
-            background: var(--bg-surface);
-            border-left: 1px solid var(--border-color);
-            padding: 24px;
-            overflow-y: auto;
-            transition: right 0.3s ease;
-            z-index: 100;
+        .model-name {
+            font-size: 13px;
+            flex: 1;
         }
         
-        .detail-panel.open {
-            right: 0;
-        }
-        
-        .detail-panel.wide {
-            width: 560px;
-        }
-        
-        .panel-close {
-            position: absolute;
-            top: 16px;
-            right: 16px;
-            background: none;
-            border: none;
-            font-size: 24px;
+        .model-badge {
+            font-size: 10px;
+            padding: 2px 6px;
+            border-radius: 3px;
+            background: var(--bg-elevated);
             color: var(--text-secondary);
-            padding: 4px;
         }
         
-        .panel-close:hover {
-            color: var(--text-primary);
-        }
-        
-        .panel-content {
-            margin-top: 40px;
-        }
-        
-        .panel-content h2 {
-            font-size: 20px;
-            margin-bottom: 8px;
-        }
-        
-        .panel-content .meta {
-            color: var(--text-secondary);
-            font-size: 14px;
-            margin-bottom: 20px;
-        }
-        
-        .panel-section {
-            margin-bottom: 24px;
-        }
-        
-        .panel-section h4 {
-            font-size: 12px;
-            text-transform: uppercase;
-            color: var(--text-secondary);
-            letter-spacing: 0.5px;
-            margin-bottom: 10px;
+        .model-badge.local {
+            background: rgba(80, 227, 194, 0.2);
+            color: var(--accent);
         }
         
         /* Toast */
@@ -360,254 +292,231 @@
         .toast.success {
             border-color: var(--accent);
         }
-        
-        .toast.error {
-            border-color: var(--danger);
-        }
     </style>
 </head>
 <body>
     <header>
-        <h1>
-            <div class="logo">🦞</div>
-            OpenClaw Channel Manager
-        </h1>
+        <h1>📺 Channel Manager</h1>
         <div class="header-actions">
             <button onclick="loadConfig()">🔄 Reload</button>
-            <button class="primary" onclick="saveConfig()">💾 Save Config</button>
+            <button class="primary" onclick="saveConfig()">💾 Save</button>
         </div>
     </header>
     
-    <div class="tabs">
-        <div class="tab active" onclick="switchTab('channels')">Channels</div>
-        <div class="tab" onclick="switchTab('skilltree')">Skill Tree</div>
+    <div class="toolbar">
+        <select id="globalModelSelect">
+            <option value="">Set model for all channels...</option>
+        </select>
+        <button onclick="applyGlobalModel()">Apply to All</button>
     </div>
     
-    <main>
-        <!-- Channels Tab -->
-        <div id="channelsTab" class="tab-content active">
-            <div class="channel-grid" id="channelList"></div>
-        </div>
-        
-        <!-- Skill Tree Tab -->
-        <div id="skillTreeTab" class="tab-content">
-            <div class="skill-tree-controls">
-                <button onclick="resetSkillTree()">⟲ Reset View</button>
-                <button onclick="togglePhysics()">⏸ Pause Physics</button>
-            </div>
-            <canvas id="skillTreeCanvas"></canvas>
-        </div>
-    </main>
+    <table class="channel-table">
+        <thead>
+            <tr>
+                <th style="width: 200px;">Telegram Group</th>
+                <th>Skills</th>
+                <th style="width: 280px;">Model</th>
+            </tr>
+        </thead>
+        <tbody id="channelTableBody">
+            <!-- Rows generated by JS -->
+        </tbody>
+    </table>
     
-    <!-- Detail Panel -->
-    <div class="detail-panel" id="detailPanel">
-        <button class="panel-close" onclick="closePanel()">×</button>
-        <div class="panel-content" id="panelContent"></div>
-    </div>
-    
-    <!-- Toast -->
     <div class="toast" id="toast">
         <span id="toastMessage"></span>
     </div>
 
     <script>
-        // Configuration
-        const CONFIG_PATH = './channel_config.json';
-        let config = { channels: [] };
-        let availableSkills = [];
-        let availableModels = [
-            'local-pc/google/gemma-4-26b-a4b',
-            'moonshot/kimi-k2.5',
-            'kimi/kimi-code',
-            'openai-codex/gpt-5.4'
+        // Telegram Groups from Studio Framework
+        const TELEGRAM_GROUPS = [
+            { id: "-5207805052", name: "TG00 — General Chat", key: "general-chat" },
+            { id: "-5272630186", name: "TG01 — Idea Capture", key: "idea-capture" },
+            { id: "-5272630187", name: "TG10 — Discovery & Research", key: "discovery-research" },
+            { id: "-3510007915", name: "TG20 — omniUSD", key: "omniusd" },
+            { id: "-5272630188", name: "TG30 — DCC/CAD", key: "dcc-cad" },
+            { id: "-5272630189", name: "TG40 — WebDev Backend", key: "webdev-backend" },
+            { id: "-5272630190", name: "TG50 — WebDev Frontend", key: "webdev-frontend" },
+            { id: "-5272630191", name: "TG60 — Social Media", key: "social-media" },
+            { id: "-5272630192", name: "TG70 — QA/Security", key: "qa-security" },
+            { id: "-5272630193", name: "TG500 — OpenClaw Governance", key: "openclaw-governance" },
+            { id: "-5272630194", name: "TG510 — Upcoming Skills", key: "upcoming-skills" },
+            { id: "-5272630195", name: "TG520 — Agentic Intelligence", key: "agentic-intelligence" },
+            { id: "-5272630196", name: "TG700 — Studio Framework", key: "studio-framework" },
+            { id: "-5012559503", name: "TG800 — Experimental Box", key: "experimental-box" },
+            { id: "-5272630197", name: "TG900 — Troubleshooting", key: "troubleshooting" }
         ];
         
-        // Skill Tree State
-        let canvas, ctx;
-        let nodes = [];
-        let edges = [];
-        let animationId;
-        let draggedNode = null;
-        let hoveredNode = null;
-        let physicsEnabled = true;
-        let selectedNode = null;
+        const AVAILABLE_MODELS = [
+            { id: "local-pc/google/gemma-4-26b-a4b", name: "Gemma 4 26B", type: "local" },
+            { id: "moonshot/kimi-k2.5", name: "Kimi K2.5", type: "cloud" },
+            { id: "kimi/kimi-code", name: "Kimi Code", type: "cloud" },
+            { id: "openai-codex/gpt-5.4", name: "Codex", type: "cloud" }
+        ];
         
-        // Initialize
-        document.addEventListener('DOMContentLoaded', () => {
+        const AVAILABLE_SKILLS = [
+            "weather", "web_search", "web_fetch", "healthcheck", "node-connect",
+            "notion", "clawflow", "skill-creator", "omniverse-extension-development",
+            "usd-development", "clawhub", "mcporter"
+        ];
+        
+        let config = { channels: [] };
+        
+        function init() {
+            populateGlobalModelSelect();
             loadConfig();
-            initSkillTree();
-        });
-        
-        // Tab Switching
-        function switchTab(tab) {
-            document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
-            document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
-            
-            event.target.classList.add('active');
-            document.getElementById(tab + 'Tab').classList.add('active');
-            
-            if (tab === 'skilltree') {
-                resizeCanvas();
-            }
         }
         
-        // Load Configuration
+        function populateGlobalModelSelect() {
+            const select = document.getElementById('globalModelSelect');
+            AVAILABLE_MODELS.forEach(model => {
+                const option = document.createElement('option');
+                option.value = model.id;
+                option.textContent = model.name;
+                select.appendChild(option);
+            });
+        }
+        
         async function loadConfig() {
             try {
-                const response = await fetch(CONFIG_PATH);
+                const response = await fetch('./channel_config.json');
                 if (response.ok) {
                     config = await response.json();
                 }
             } catch (e) {
-                // Use default config
-                config = {
-                    channels: [
-                        {
-                            id: "-5207805052",
-                            name: "TL000 General Chat",
-                            model: "local-pc/google/gemma-4-26b-a4b",
-                            skills: ["weather", "web_search"],
-                            require_mention: false
-                        },
-                        {
-                            id: "-5272630186",
-                            name: "TL500 OpenClaw Governance",
-                            model: "local-pc/google/gemma-4-26b-a4b",
-                            skills: ["healthcheck", "node-connect"],
-                            require_mention: false
-                        },
-                        {
-                            id: "-3510007915",
-                            name: "TL020 omniUSD",
-                            model: "moonshot/kimi-k2.5",
-                            skills: ["omniverse-extension-development", "usd-development"],
-                            require_mention: false
-                        }
-                    ]
-                };
+                // Use default empty config
+                config = { channels: [] };
             }
             
-            // Load available skills
-            await loadSkills();
-            
-            renderChannels();
-            showToast('Configuration loaded', 'success');
-        }
-        
-        async function loadSkills() {
-            try {
-                // Try to fetch from OpenClaw skills endpoint
-                const response = await fetch('/api/skills');
-                if (response.ok) {
-                    availableSkills = await response.json();
-                } else {
-                    throw new Error('Failed to fetch skills');
+            // Ensure all telegram groups exist in config
+            TELEGRAM_GROUPS.forEach(group => {
+                const existing = config.channels.find(c => c.id === group.id);
+                if (!existing) {
+                    config.channels.push({
+                        id: group.id,
+                        name: group.name,
+                        model: "local-pc/google/gemma-4-26b-a4b",
+                        skills: [],
+                        require_mention: false
+                    });
                 }
-            } catch (e) {
-                // Fallback: scan local skills directory
-                availableSkills = [
-                    { name: 'weather', description: 'Get weather information' },
-                    { name: 'web_search', description: 'Search the web' },
-                    { name: 'healthcheck', description: 'System health monitoring' },
-                    { name: 'node-connect', description: 'Node connection diagnostics' },
-                    { name: 'omniverse-extension-development', description: 'Omniverse extension development' },
-                    { name: 'usd-development', description: 'USD development tools' },
-                    { name: 'notion', description: 'Notion API integration' },
-                    { name: 'clawflow', description: 'ClawFlow workflow management' }
-                ];
-            }
+            });
+            
+            renderTable();
         }
         
-        // Render Channels
-        function renderChannels() {
-            const container = document.getElementById('channelList');
-            container.innerHTML = config.channels.map((channel, index) => `
-                <div class="channel-card" data-index="${index}">
-                    <div class="channel-header">
-                        <div class="channel-info">
-                            <h3>${channel.name}</h3>
-                            <div class="channel-id">ID: ${channel.id}</div>
+        function renderTable() {
+            const tbody = document.getElementById('channelTableBody');
+            tbody.innerHTML = '';
+            
+            TELEGRAM_GROUPS.forEach(group => {
+                const channel = config.channels.find(c => c.id === group.id) || {
+                    model: AVAILABLE_MODELS[0].id,
+                    skills: []
+                };
+                
+                const row = document.createElement('tr');
+                row.innerHTML = `
+                    <td>
+                        <div class="tg-group">
+                            <div class="tg-name">${group.name}</div>
+                            <div class="tg-id">${group.id}</div>
                         </div>
-                        <div class="channel-actions">
-                            <button onclick="removeChannel(${index})">🗑</button>
-                        </div>
-                    </div>
-                    
-                    <div class="form-group">
-                        <label>Model</label>
-                        <select onchange="updateChannel(${index}, 'model', this.value)">
-                            ${availableModels.map(m => `
-                                <option value="${m}" ${channel.model === m ? 'selected' : ''}>${m}</option>
-                            `).join('')}
-                        </select>
-                    </div>
-                    
-                    <div class="form-group">
-                        <label>Skills</label>
-                        <div class="skills-container">
-                            ${(channel.skills || []).map((skill, skillIndex) => `
-                                <div class="skill-tag">
-                                    ${skill}
-                                    <button onclick="removeSkill(${index}, ${skillIndex})">×</button>
-                                </div>
-                            `).join('')}
+                    </td>
+                    <td class="skills-cell">
+                        <div class="skills-list" id="skills-${group.id}">
+                            ${renderSkills(channel.skills || [], group.id)}
                         </div>
                         <div class="add-skill-row">
-                            <select id="skillSelect-${index}">
+                            <select id="skill-select-${group.id}" onchange="addSkill('${group.id}')">
                                 <option value="">Add skill...</option>
-                                ${availableSkills
-                                    .filter(s => !(channel.skills || []).includes(s.name))
-                                    .map(s => `<option value="${s.name}">${s.name}</option>`)
-                                    .join('')}
+                                ${AVAILABLE_SKILLS.filter(s => !(channel.skills || []).includes(s)).map(s => 
+                                    `<option value="${s}">${s}</option>`
+                                ).join('')}
                             </select>
-                            <button onclick="addSkill(${index})">+ Add</button>
                         </div>
-                    </div>
-                    
-                    <div class="checkbox-group">
-                        <input type="checkbox" 
-                               id="mention-${index}"
-                               ${channel.require_mention ? 'checked' : ''}
-                               onchange="updateChannel(${index}, 'require_mention', this.checked)">
-                        <label for="mention-${index}">Require mention</label>
-                    </div>
+                    </td>
+                    <td class="model-cell">
+                        <div class="model-list">
+                            ${AVAILABLE_MODELS.map(model => `
+                                <label class="model-item ${channel.model === model.id ? 'active' : ''}">
+                                    <input type="radio" name="model-${group.id}" 
+                                           value="${model.id}" 
+                                           ${channel.model === model.id ? 'checked' : ''}
+                                           onchange="setModel('${group.id}', '${model.id}')">
+                                    <span class="model-name">${model.name}</span>
+                                    <span class="model-badge ${model.type}">${model.type}</span>
+                                </label>
+                            `).join('')}
+                        </div>
+                    </td>
+                `;
+                tbody.appendChild(row);
+            });
+        }
+        
+        function renderSkills(skills, channelId) {
+            return skills.map(skill => `
+                <div class="skill-item active">
+                    <input type="checkbox" checked onchange="toggleSkill('${channelId}', '${skill}', this.checked)">
+                    <span>${skill}</span>
+                    <button class="remove" onclick="removeSkill('${channelId}', '${skill}')">×</button>
                 </div>
             `).join('');
         }
         
-        // Channel Operations
-        function updateChannel(index, field, value) {
-            config.channels[index][field] = value;
-        }
-        
-        function addSkill(channelIndex) {
-            const select = document.getElementById(`skillSelect-${channelIndex}`);
+        function addSkill(channelId) {
+            const select = document.getElementById(`skill-select-${channelId}`);
             const skill = select.value;
             if (!skill) return;
             
-            if (!config.channels[channelIndex].skills) {
-                config.channels[channelIndex].skills = [];
-            }
+            const channel = config.channels.find(c => c.id === channelId);
+            if (!channel.skills) channel.skills = [];
             
-            if (!config.channels[channelIndex].skills.includes(skill)) {
-                config.channels[channelIndex].skills.push(skill);
-                renderChannels();
+            if (!channel.skills.includes(skill)) {
+                channel.skills.push(skill);
+                renderTable();
+                showToast(`Added ${skill}`);
             }
         }
         
-        function removeSkill(channelIndex, skillIndex) {
-            config.channels[channelIndex].skills.splice(skillIndex, 1);
-            renderChannels();
-        }
-        
-        function removeChannel(index) {
-            if (confirm('Delete this channel configuration?')) {
-                config.channels.splice(index, 1);
-                renderChannels();
+        function removeSkill(channelId, skill) {
+            const channel = config.channels.find(c => c.id === channelId);
+            if (channel && channel.skills) {
+                channel.skills = channel.skills.filter(s => s !== skill);
+                renderTable();
+                showToast(`Removed ${skill}`);
             }
         }
         
-        // Save Configuration
+        function toggleSkill(channelId, skill, active) {
+            // Skills are always in the list, checkbox just marks active state
+            // For now, we just show/hide - could be extended to "enabled/disabled"
+            showToast(`${skill} ${active ? 'enabled' : 'disabled'}`);
+        }
+        
+        function setModel(channelId, modelId) {
+            const channel = config.channels.find(c => c.id === channelId);
+            if (channel) {
+                channel.model = modelId;
+                renderTable();
+                showToast(`Model updated`);
+            }
+        }
+        
+        function applyGlobalModel() {
+            const select = document.getElementById('globalModelSelect');
+            const modelId = select.value;
+            if (!modelId) return;
+            
+            config.channels.forEach(channel => {
+                channel.model = modelId;
+            });
+            
+            renderTable();
+            showToast(`Applied ${AVAILABLE_MODELS.find(m => m.id === modelId)?.name || modelId} to all channels`);
+        }
+        
         async function saveConfig() {
             try {
                 const response = await fetch('/api/save-config', {
@@ -617,7 +526,7 @@
                 });
                 
                 if (response.ok) {
-                    showToast('Configuration saved successfully', 'success');
+                    showToast('Configuration saved', 'success');
                 } else {
                     throw new Error('Failed to save');
                 }
@@ -630,390 +539,23 @@
                 a.download = 'channel_config.json';
                 a.click();
                 URL.revokeObjectURL(url);
-                showToast('Configuration downloaded (server save not available)', 'success');
+                showToast('Configuration downloaded');
             }
         }
         
-        // Toast Notification
-        function showToast(message, type = 'success') {
+        function showToast(message) {
             const toast = document.getElementById('toast');
             const toastMessage = document.getElementById('toastMessage');
             toastMessage.textContent = message;
-            toast.className = `toast ${type} show`;
+            toast.className = 'toast show success';
             
             setTimeout(() => {
                 toast.classList.remove('show');
             }, 3000);
         }
         
-        // ==================== SKILL TREE ====================
-        
-        function initSkillTree() {
-            canvas = document.getElementById('skillTreeCanvas');
-            ctx = canvas.getContext('2d');
-            
-            resizeCanvas();
-            window.addEventListener('resize', resizeCanvas);
-            
-            // Mouse events
-            canvas.addEventListener('mousedown', onMouseDown);
-            canvas.addEventListener('mousemove', onMouseMove);
-            canvas.addEventListener('mouseup', onMouseUp);
-            canvas.addEventListener('click', onClick);
-            
-            // Initialize nodes from config
-            buildSkillTree();
-            
-            // Start animation
-            animate();
-        }
-        
-        function resizeCanvas() {
-            const rect = canvas.parentElement.getBoundingClientRect();
-            canvas.width = rect.width;
-            canvas.height = rect.height;
-        }
-        
-        function buildSkillTree() {
-            nodes = [];
-            edges = [];
-            
-            const centerX = canvas.width / 2;
-            const centerY = canvas.height / 2;
-            
-            // Create channel nodes (as agents)
-            config.channels.forEach((channel, i) => {
-                const angle = (i / config.channels.length) * Math.PI * 2;
-                const radius = 150;
-                
-                const node = {
-                    id: channel.id,
-                    type: 'channel',
-                    name: channel.name,
-                    x: centerX + Math.cos(angle) * radius,
-                    y: centerY + Math.sin(angle) * radius,
-                    vx: 0,
-                    vy: 0,
-                    radius: 32,
-                    color: getColor(i),
-                    data: channel
-                };
-                
-                nodes.push(node);
-                
-                // Create skill nodes and edges
-                (channel.skills || []).forEach(skillName => {
-                    let skillNode = nodes.find(n => n.type === 'skill' && n.name === skillName);
-                    
-                    if (!skillNode) {
-                        skillNode = {
-                            id: `skill-${skillName}`,
-                            type: 'skill',
-                            name: skillName,
-                            x: centerX + (Math.random() - 0.5) * 300,
-                            y: centerY + (Math.random() - 0.5) * 300,
-                            vx: 0,
-                            vy: 0,
-                            radius: 10,
-                            color: '#e0e0e0',
-                            agents: [channel.id]
-                        };
-                        nodes.push(skillNode);
-                    } else {
-                        skillNode.agents.push(channel.id);
-                        skillNode.radius = 13; // Larger if shared
-                    }
-                    
-                    edges.push({
-                        source: node,
-                        target: skillNode,
-                        color: node.color
-                    });
-                });
-            });
-        }
-        
-        function getColor(index) {
-            const colors = ['#50e3c2', '#e35050', '#e3c450', '#5080e3', '#e350a8', '#50e350', '#c450e3', '#50c8e3'];
-            return colors[index % colors.length];
-        }
-        
-        function animate() {
-            if (physicsEnabled) {
-                updatePhysics();
-            }
-            render();
-            animationId = requestAnimationFrame(animate);
-        }
-        
-        function updatePhysics() {
-            const centerX = canvas.width / 2;
-            const centerY = canvas.height / 2;
-            
-            // Apply forces
-            for (let i = 0; i < nodes.length; i++) {
-                const node = nodes[i];
-                let fx = 0, fy = 0;
-                
-                // Repulsion between all nodes
-                for (let j = 0; j < nodes.length; j++) {
-                    if (i === j) continue;
-                    const other = nodes[j];
-                    const dx = node.x - other.x;
-                    const dy = node.y - other.y;
-                    const dist = Math.sqrt(dx * dx + dy * dy) || 1;
-                    
-                    if (dist < 200) {
-                        const force = 2000 / (dist * dist);
-                        fx += (dx / dist) * force;
-                        fy += (dy / dist) * force;
-                    }
-                }
-                
-                // Center gravity
-                fx += (centerX - node.x) * 0.005;
-                fy += (centerY - node.y) * 0.005;
-                
-                // Apply velocity
-                node.vx = (node.vx + fx) * 0.6;
-                node.vy = (node.vy + fy) * 0.6;
-                
-                // Update position
-                if (node !== draggedNode) {
-                    node.x += node.vx;
-                    node.y += node.vy;
-                }
-                
-                // Keep in bounds
-                node.x = Math.max(node.radius, Math.min(canvas.width - node.radius, node.x));
-                node.y = Math.max(node.radius, Math.min(canvas.height - node.radius, node.y));
-            }
-            
-            // Attraction along edges
-            edges.forEach(edge => {
-                const dx = edge.target.x - edge.source.x;
-                const dy = edge.target.y - edge.source.y;
-                const dist = Math.sqrt(dx * dx + dy * dy) || 1;
-                const force = (dist - 160) * 0.003;
-                
-                const fx = (dx / dist) * force;
-                const fy = (dy / dist) * force;
-                
-                if (edge.source !== draggedNode) {
-                    edge.source.vx += fx;
-                    edge.source.vy += fy;
-                }
-                if (edge.target !== draggedNode) {
-                    edge.target.vx -= fx;
-                    edge.target.vy -= fy;
-                }
-            });
-        }
-        
-        function render() {
-            ctx.fillStyle = '#111111';
-            ctx.fillRect(0, 0, canvas.width, canvas.height);
-            
-            // Draw edges
-            edges.forEach(edge => {
-                const isHovered = hoveredNode && (edge.source === hoveredNode || edge.target === hoveredNode);
-                const isDimmed = hoveredNode && !isHovered;
-                
-                ctx.beginPath();
-                ctx.moveTo(edge.source.x, edge.source.y);
-                ctx.lineTo(edge.target.x, edge.target.y);
-                ctx.strokeStyle = isDimmed ? '#1a1a1a' : edge.color + (isHovered ? 'ff' : '66');
-                ctx.lineWidth = isHovered ? 1.5 : 0.8;
-                ctx.stroke();
-            });
-            
-            // Draw nodes
-            nodes.forEach(node => {
-                const isHovered = node === hoveredNode;
-                const isDimmed = hoveredNode && !isHovered && !isConnected(node, hoveredNode);
-                
-                if (node.type === 'channel') {
-                    // Draw channel node (bot icon)
-                    drawBotNode(node, isHovered, isDimmed);
-                } else {
-                    // Draw skill node
-                    ctx.beginPath();
-                    ctx.arc(node.x, node.y, node.radius, 0, Math.PI * 2);
-                    ctx.fillStyle = isDimmed ? '#1a1a1a' : node.color + '1a';
-                    ctx.fill();
-                    ctx.strokeStyle = isDimmed ? '#333' : node.color + '4d';
-                    ctx.lineWidth = 1;
-                    ctx.stroke();
-                }
-                
-                // Draw label on hover
-                if (isHovered) {
-                    ctx.fillStyle = '#e0e0e0';
-                    ctx.font = '12px sans-serif';
-                    ctx.textAlign = 'center';
-                    ctx.fillText(node.name, node.x, node.y + node.radius + 16);
-                }
-            });
-        }
-        
-        function drawBotNode(node, isHovered, isDimmed) {
-            const x = node.x, y = node.y, r = node.radius;
-            
-            // Glow on hover
-            if (isHovered) {
-                ctx.beginPath();
-                ctx.arc(x, y, r + 6, 0, Math.PI * 2);
-                ctx.fillStyle = node.color + '26';
-                ctx.fill();
-            }
-            
-            // Circle container
-            ctx.beginPath();
-            ctx.arc(x, y, r, 0, Math.PI * 2);
-            ctx.fillStyle = isDimmed ? '#0a0a0a' : '#0a0a0a';
-            ctx.fill();
-            ctx.strokeStyle = isDimmed ? '#333' : node.color + '66';
-            ctx.lineWidth = 1;
-            ctx.stroke();
-            
-            // Bot body (simplified)
-            ctx.fillStyle = isDimmed ? '#333' : node.color;
-            ctx.beginPath();
-            ctx.arc(x, y - 2, r * 0.5, 0, Math.PI * 2);
-            ctx.fill();
-            
-            // Eyes
-            ctx.fillStyle = '#000';
-            ctx.beginPath();
-            ctx.arc(x - 5, y - 4, 2, 0, Math.PI * 2);
-            ctx.arc(x + 5, y - 4, 2, 0, Math.PI * 2);
-            ctx.fill();
-            
-            // Name label
-            ctx.fillStyle = isDimmed ? '#666' : '#e0e0e0';
-            ctx.font = '11px sans-serif';
-            ctx.textAlign = 'center';
-            ctx.fillText(node.name.substring(0, 15), x, y + r + 14);
-        }
-        
-        function isConnected(node1, node2) {
-            return edges.some(e => 
-                (e.source === node1 && e.target === node2) ||
-                (e.source === node2 && e.target === node1)
-            );
-        }
-        
-        // Mouse Handlers
-        function onMouseDown(e) {
-            const pos = getMousePos(e);
-            draggedNode = nodes.find(n => {
-                const dx = pos.x - n.x;
-                const dy = pos.y - n.y;
-                return Math.sqrt(dx * dx + dy * dy) < n.radius;
-            });
-        }
-        
-        function onMouseMove(e) {
-            const pos = getMousePos(e);
-            
-            if (draggedNode) {
-                draggedNode.x = pos.x;
-                draggedNode.y = pos.y;
-                draggedNode.vx = 0;
-                draggedNode.vy = 0;
-            } else {
-                hoveredNode = nodes.find(n => {
-                    const dx = pos.x - n.x;
-                    const dy = pos.y - n.y;
-                    return Math.sqrt(dx * dx + dy * dy) < n.radius;
-                });
-                canvas.style.cursor = hoveredNode ? 'pointer' : 'default';
-            }
-        }
-        
-        function onMouseUp() {
-            draggedNode = null;
-        }
-        
-        function onClick(e) {
-            if (hoveredNode) {
-                selectedNode = hoveredNode;
-                showDetailPanel(hoveredNode);
-            }
-        }
-        
-        function getMousePos(e) {
-            const rect = canvas.getBoundingClientRect();
-            return {
-                x: e.clientX - rect.left,
-                y: e.clientY - rect.top
-            };
-        }
-        
-        // Detail Panel
-        function showDetailPanel(node) {
-            const panel = document.getElementById('detailPanel');
-            const content = document.getElementById('panelContent');
-            
-            if (node.type === 'channel') {
-                content.innerHTML = `
-                    <h2>${node.data.name}</h2>
-                    <div class="meta">Channel ID: ${node.data.id}</div>
-                    
-                    <div class="panel-section">
-                        <h4>Model</h4>
-                        <div>${node.data.model}</div>
-                    </div>
-                    
-                    <div class="panel-section">
-                        <h4>Skills</h4>
-                        <div class="skills-container">
-                            ${(node.data.skills || []).map(s => `
-                                <div class="skill-tag">${s}</div>
-                            `).join('')}
-                        </div>
-                    </div>
-                    
-                    <div class="panel-section">
-                        <h4>Settings</h4>
-                        <div>Require mention: ${node.data.require_mention ? 'Yes' : 'No'}</div>
-                    </div>
-                `;
-            } else {
-                const skillInfo = availableSkills.find(s => s.name === node.name);
-                content.innerHTML = `
-                    <h2>${node.name}</h2>
-                    <div class="meta">Skill</div>
-                    
-                    <div class="panel-section">
-                        <h4>Description</h4>
-                        <div>${skillInfo?.description || 'No description available'}</div>
-                    </div>
-                    
-                    <div class="panel-section">
-                        <h4>Used by Channels</h4>
-                        <div>${node.agents.length} channel(s)</div>
-                    </div>
-                `;
-            }
-            
-            panel.classList.add('open');
-        }
-        
-        function closePanel() {
-            document.getElementById('detailPanel').classList.remove('open');
-            selectedNode = null;
-        }
-        
-        // Controls
-        function resetSkillTree() {
-            buildSkillTree();
-        }
-        
-        function togglePhysics() {
-            physicsEnabled = !physicsEnabled;
-            event.target.textContent = physicsEnabled ? '⏸ Pause Physics' : '▶ Resume Physics';
-        }
+        // Initialize
+        init();
     </script>
 </body>
 </html>
