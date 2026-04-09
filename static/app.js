@@ -49,6 +49,25 @@ const ROOT_MAP = {
   'ui-extensions': '/media/claw-agentbox/data/9999_LocalRepo/Openclaw-OpenUSDGoodtstart-Extension',
 };
 
+// Dynamically load workspaces from Channel Manager
+async function loadWorkspaces() {
+  try {
+    const response = await fetch('http://localhost:3401/api/workspaces');
+    if (response.ok) {
+      const workspaces = await response.json();
+      workspaces.forEach(ws => {
+        const key = ws.name.toLowerCase().replace(/\s+/g, '-');
+        if (!ROOT_MAP[key]) {
+          ROOT_MAP[key] = ws.path;
+        }
+      });
+      populateRootSelect();
+    }
+  } catch (e) {
+    console.log('Could not load workspaces from Channel Manager:', e);
+  }
+}
+
 const rootSelect = document.getElementById('rootSelect');
 const addRootBtn = document.getElementById('addRootBtn');
 const removeRootBtn = document.getElementById('removeRootBtn');
@@ -1833,6 +1852,7 @@ window.addEventListener('beforeunload', (event) => {
 
 async function init() {
   parseInitialState();
+  await loadWorkspaces(); // Load dynamic workspaces from Channel Manager
   await loadRoots(state.currentRoot);
   await loadDocsIndex();
   setupResizablePanes();
