@@ -349,6 +349,17 @@
     </header>
     
     <div class="toolbar">
+        <input type="text" id="searchInput" placeholder="Search channels..." oninput="filterChannels()">
+        <select id="filterModel" onchange="filterChannels()">
+            <option value="">All models</option>
+        </select>
+        <select id="filterSkill" onchange="filterChannels()">
+            <option value="">All skills</option>
+        </select>
+        <button onclick="resetFilters()">Reset</button>
+        <span id="filterCount" style="margin-left: auto; color: var(--text-secondary);"></span>
+    </div>
+    <div class="toolbar">
         <select id="globalModelSelect">
             <option value="">Set model for all channels...</option>
         </select>
@@ -432,12 +443,65 @@
         
         function populateGlobalModelSelect() {
             const select = document.getElementById('globalModelSelect');
+            const filterSelect = document.getElementById('filterModel');
             AVAILABLE_MODELS.forEach(model => {
                 const option = document.createElement('option');
                 option.value = model.id;
                 option.textContent = model.name;
                 select.appendChild(option);
+                
+                const filterOption = document.createElement('option');
+                filterOption.value = model.id;
+                filterOption.textContent = model.name;
+                filterSelect.appendChild(filterOption);
             });
+        }
+        
+        function populateFilterSkills() {
+            const select = document.getElementById('filterSkill');
+            AVAILABLE_SKILLS.forEach(skill => {
+                const option = document.createElement('option');
+                option.value = skill;
+                option.textContent = skill;
+                select.appendChild(option);
+            });
+        }
+        
+        function filterChannels() {
+            const search = document.getElementById('searchInput').value.toLowerCase();
+            const modelFilter = document.getElementById('filterModel').value;
+            const skillFilter = document.getElementById('filterSkill').value;
+            
+            const rows = document.querySelectorAll('#channelTableBody tr');
+            let visibleCount = 0;
+            
+            rows.forEach(row => {
+                const groupName = row.querySelector('.tg-name')?.textContent.toLowerCase() || '';
+                const groupId = row.querySelector('.tg-id')?.textContent.toLowerCase() || '';
+                const modelRadio = row.querySelector('input[type="radio"]:checked');
+                const model = modelRadio?.value || '';
+                const skills = Array.from(row.querySelectorAll('.skill-name')).map(s => s.textContent);
+                
+                const matchesSearch = !search || groupName.includes(search) || groupId.includes(search);
+                const matchesModel = !modelFilter || model === modelFilter;
+                const matchesSkill = !skillFilter || skills.includes(skillFilter);
+                
+                if (matchesSearch && matchesModel && matchesSkill) {
+                    row.style.display = '';
+                    visibleCount++;
+                } else {
+                    row.style.display = 'none';
+                }
+            });
+            
+            document.getElementById('filterCount').textContent = `${visibleCount} of ${rows.length} channels`;
+        }
+        
+        function resetFilters() {
+            document.getElementById('searchInput').value = '';
+            document.getElementById('filterModel').value = '';
+            document.getElementById('filterSkill').value = '';
+            filterChannels();
         }
         
         async function loadConfig() {
@@ -628,6 +692,7 @@
         }
         
         // Initialize
+        populateFilterSkills();
         init();
     </script>
 </body>
