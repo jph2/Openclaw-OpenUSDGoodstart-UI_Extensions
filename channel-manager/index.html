@@ -676,24 +676,22 @@
         }
         
         function populateGlobalModelSelect() {
-            const select = document.getElementById('globalModelSelect');
             const filterSelect = document.getElementById('filterModel');
             const bulkSelect = document.getElementById('bulkModelSelect');
             AVAILABLE_MODELS.forEach(model => {
-                const option = document.createElement('option');
-                option.value = model.id;
-                option.textContent = model.name;
-                select.appendChild(option);
+                if (filterSelect) {
+                    const filterOption = document.createElement('option');
+                    filterOption.value = model.id;
+                    filterOption.textContent = model.name;
+                    filterSelect.appendChild(filterOption);
+                }
                 
-                const filterOption = document.createElement('option');
-                filterOption.value = model.id;
-                filterOption.textContent = model.name;
-                filterSelect.appendChild(filterOption);
-                
-                const bulkOption = document.createElement('option');
-                bulkOption.value = model.id;
-                bulkOption.textContent = model.name;
-                bulkSelect.appendChild(bulkOption);
+                if (bulkSelect) {
+                    const bulkOption = document.createElement('option');
+                    bulkOption.value = model.id;
+                    bulkOption.textContent = model.name;
+                    bulkSelect.appendChild(bulkOption);
+                }
             });
         }
         
@@ -960,7 +958,8 @@
         }
         
         function applyGlobalModel() {
-            const select = document.getElementById('globalModelSelect');
+            const select = document.getElementById('bulkModelSelect');
+            if (!select) return;
             const modelId = select.value;
             if (!modelId) return;
             
@@ -969,6 +968,7 @@
             });
             
             renderTable();
+            filterChannels();
             showToast(`Applied ${AVAILABLE_MODELS.find(m => m.id === modelId)?.name || modelId} to all channels`);
         }
         
