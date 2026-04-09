@@ -19,10 +19,20 @@ Web-UI zur Verwaltung von OpenClaw Telegram-Kanälen mit persistenten Modell- un
 # Server starten
 ./channel-manager.sh start
 
-# UI öffnen
+# UI öffnen (lokal)
 ./channel-manager.sh open
 # → http://127.0.0.1:3401
 ```
+
+### Zugriff vom Windows PC (Tailscale)
+
+Da der PC über Tailscale verbunden ist:
+
+```
+http://100.89.176.89:3401
+```
+
+**Hinweis:** Die lokale IP (192.168.0.106) funktioniert nicht vom PC aus - immer Tailscale-IP verwenden!
 
 ## Architektur
 
