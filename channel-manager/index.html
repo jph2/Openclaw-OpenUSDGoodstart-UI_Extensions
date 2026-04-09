@@ -360,15 +360,25 @@
         <span id="filterCount" style="margin-left: auto; color: var(--text-secondary);"></span>
     </div>
     <div class="toolbar">
-        <select id="globalModelSelect">
-            <option value="">Set model for all channels...</option>
+        <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
+            <input type="checkbox" id="selectAll" onchange="toggleSelectAll()">
+            <span>Select All</span>
+        </label>
+        <select id="bulkModelSelect">
+            <option value="">Set model for selected...</option>
         </select>
-        <button onclick="applyGlobalModel()">Apply to All</button>
+        <button onclick="applyBulkModel()">Apply</button>
+        <select id="bulkSkillSelect">
+            <option value="">Add skill to selected...</option>
+        </select>
+        <button onclick="applyBulkSkill()">Add</button>
+        <button onclick="applyGlobalModel()" style="margin-left: auto;">Apply to All</button>
     </div>
     
     <table class="channel-table">
         <thead>
             <tr>
+                <th style="width: 40px;"><input type="checkbox" id="selectAllHeader" onchange="toggleSelectAll()"></th>
                 <th style="width: 200px;">Telegram Group</th>
                 <th>Skills</th>
                 <th style="width: 280px;">Model</th>
@@ -444,6 +454,7 @@
         function populateGlobalModelSelect() {
             const select = document.getElementById('globalModelSelect');
             const filterSelect = document.getElementById('filterModel');
+            const bulkSelect = document.getElementById('bulkModelSelect');
             AVAILABLE_MODELS.forEach(model => {
                 const option = document.createElement('option');
                 option.value = model.id;
@@ -454,7 +465,76 @@
                 filterOption.value = model.id;
                 filterOption.textContent = model.name;
                 filterSelect.appendChild(filterOption);
+                
+                const bulkOption = document.createElement('option');
+                bulkOption.value = model.id;
+                bulkOption.textContent = model.name;
+                bulkSelect.appendChild(bulkOption);
             });
+        }
+        
+        function populateBulkSkills() {
+            const select = document.getElementById('bulkSkillSelect');
+            AVAILABLE_SKILLS.forEach(skill => {
+                const option = document.createElement('option');
+                option.value = skill;
+                option.textContent = skill;
+                select.appendChild(option);
+            });
+        }
+        
+        function toggleSelectAll() {
+            const selectAll = document.getElementById('selectAll')?.checked || document.getElementById('selectAllHeader')?.checked;
+            document.querySelectorAll('.channel-select').forEach(cb => {
+                cb.checked = selectAll;
+            });
+        }
+        
+        function getSelectedChannels() {
+            return Array.from(document.querySelectorAll('.channel-select:checked')).map(cb => cb.value);
+        }
+        
+        function applyBulkModel() {
+            const modelId = document.getElementById('bulkModelSelect').value;
+            if (!modelId) return;
+            
+            const selected = getSelectedChannels();
+            if (selected.length === 0) {
+                showToast('No channels selected');
+                return;
+            }
+            
+            selected.forEach(channelId => {
+                const channel = config.channels.find(c => c.id === channelId);
+                if (channel) channel.model = modelId;
+            });
+            
+            renderTable();
+            filterChannels();
+            showToast(`Applied model to ${selected.length} channels`);
+        }
+        
+        function applyBulkSkill() {
+            const skill = document.getElementById('bulkSkillSelect').value;
+            if (!skill) return;
+            
+            const selected = getSelectedChannels();
+            if (selected.length === 0) {
+                showToast('No channels selected');
+                return;
+            }
+            
+            selected.forEach(channelId => {
+                const channel = config.channels.find(c => c.id === channelId);
+                if (channel) {
+                    if (!channel.skills) channel.skills = [];
+                    if (!channel.skills.includes(skill)) channel.skills.push(skill);
+                }
+            });
+            
+            renderTable();
+            filterChannels();
+            showToast(`Added ${skill} to ${selected.length} channels`);
         }
         
         function populateFilterSkills() {
@@ -543,7 +623,11 @@
                 };
                 
                 const row = document.createElement('tr');
+                row.dataset.channelId = group.id;
                 row.innerHTML = `
+                    <td>
+                        <input type="checkbox" class="channel-select" value="${group.id}">
+                    </td>
                     <td>
                         <div class="tg-group">
                             <div class="tg-name">${group.name}</div>
@@ -693,6 +777,7 @@
         
         // Initialize
         populateFilterSkills();
+        populateBulkSkills();
         init();
     </script>
 </body>
