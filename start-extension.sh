@@ -24,7 +24,6 @@ start_workbench() {
     cd "$SCRIPT_DIR" && npm start > /tmp/workbench.log 2>&1 &
     echo $! > "$pidfile"
     
-    # Wait for server to be ready
     for i in {1..30}; do
         if curl -s http://localhost:4260 > /dev/null 2>&1; then
             log "✅ Workbench ready on http://localhost:4260"
@@ -49,7 +48,6 @@ start_channel_manager() {
     cd "$SCRIPT_DIR/channel-manager" && node server.js > /tmp/channel-manager.log 2>&1 &
     echo $! > "$pidfile"
     
-    # Wait for server to be ready
     for i in {1..30}; do
         if curl -s http://localhost:3401 > /dev/null 2>&1; then
             log "✅ Channel Manager ready on http://localhost:3401"
@@ -63,28 +61,49 @@ start_channel_manager() {
 }
 
 start_landing() {
-    log "Opening landing page..."
+    local pidfile="$PID_DIR/landing.pid"
     
-    # Try to open browser
-    local landing_url="file://$SCRIPT_DIR/index.html"
+    if [ -f "$pidfile" ] && kill -0 "$(cat "$pidfile")" 2>/dev/null; then
+        log "Landing Page already running (PID: $(cat "$pidfile"))"
+        return 0
+    fi
+    
+    log "Starting Landing Page..."
+    cd "$SCRIPT_DIR" && node landing-server.js > /tmp/landing.log 2>&1 &
+    echo $! > "$pidfile"
+    
+    for i in {1..30}; do
+        if curl -s http://localhost:8080 > /dev/null 2>&1; then
+            log "✅ Landing Page ready on http://localhost:8080"
+            return 0
+        fi
+        sleep 1
+    done
+    
+    log "❌ Landing Page failed to start (check /tmp/landing.log)"
+    return 1
+}
+
+open_browser() {
+    local url="http://localhost:8080"
     
     if command -v xdg-open &> /dev/null; then
-        xdg-open "$landing_url" &
+        xdg-open "$url" &
     elif command -v open &> /dev/null; then
-        open "$landing_url" &
+        open "$url" &
     elif command -v firefox &> /dev/null; then
-        firefox "$landing_url" &
+        firefox "$url" &
     elif command -v chromium &> /dev/null; then
-        chromium "$landing_url" &
+        chromium "$url" &
     else
-        log "📄 Open landing page: $landing_url"
+        log "📄 Open: $url"
     fi
 }
 
 stop_all() {
     log "Stopping all services..."
     
-    for service in workbench channel-manager; do
+    for service in workbench channel-manager landing; do
         local pidfile="$PID_DIR/$service.pid"
         if [ -f "$pidfile" ]; then
             local pid=$(cat "$pidfile")
@@ -102,9 +121,15 @@ stop_all() {
 status() {
     log "Extension Status:"
     
-    for service in workbench channel-manager; do
+    declare -A ports=(
+        [workbench]=4260
+        [channel-manager]=3401
+        [landing]=8080
+    )
+    
+    for service in workbench channel-manager landing; do
         local pidfile="$PID_DIR/$service.pid"
-        local port=$( [ "$service" = "workbench" ] && echo "4260" || echo "3401" )
+        local port=${ports[$service]}
         
         if [ -f "$pidfile" ] && kill -0 "$(cat "$pidfile")" 2>/dev/null; then
             log "  $service: ✅ Running (PID: $(cat "$pidfile"), Port: $port)"
@@ -123,8 +148,11 @@ case "${1:-start}" in
         start_landing
         log "=== All services started ==="
         log ""
+        log "🌐 Landing Page:   http://localhost:8080"
         log "📁 Workbench:      http://localhost:4260"
         log "📺 Channel Manager: http://localhost:3401"
+        log ""
+        open_browser
         ;;
     stop)
         stop_all
