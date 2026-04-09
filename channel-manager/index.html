@@ -343,6 +343,11 @@
     <header>
         <h1>📺 Channel Manager</h1>
         <div class="header-actions">
+            <button onclick="exportConfig()">📥 Export</button>
+            <label style="cursor: pointer;">
+                <input type="file" id="importFile" accept=".json" style="display: none;" onchange="importConfig(this)">
+                <span style="background: var(--bg-elevated); border: 1px solid var(--border-color); color: var(--text-primary); padding: 8px 16px; border-radius: 6px; font-size: 14px;">📤 Import</span>
+            </label>
             <button onclick="loadConfig()">🔄 Reload</button>
             <button class="primary" onclick="saveConfig()">💾 Save</button>
         </div>
@@ -760,6 +765,47 @@
             });
             
             return { errors, warnings };
+        }
+        
+        function exportConfig() {
+            const blob = new Blob([JSON.stringify(config, null, 2)], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `channel-config-${new Date().toISOString().split('T')[0]}.json`;
+            a.click();
+            URL.revokeObjectURL(url);
+            showToast('Config exported');
+        }
+        
+        async function importConfig(input) {
+            const file = input.files[0];
+            if (!file) return;
+            
+            try {
+                const text = await file.text();
+                const imported = JSON.parse(text);
+                
+                if (!imported.channels || !Array.isArray(imported.channels)) {
+                    throw new Error('Invalid config format');
+                }
+                
+                // Validate imported channels
+                imported.channels.forEach(ch => {
+                    if (!ch.id || !ch.name) {
+                        throw new Error('Channel missing required fields');
+                    }
+                });
+                
+                config = imported;
+                renderTable();
+                filterChannels();
+                showToast(`Imported ${config.channels.length} channels`);
+            } catch (e) {
+                showToast(`Import failed: ${e.message}`);
+            }
+            
+            input.value = '';
         }
         
         async function saveConfig() {
