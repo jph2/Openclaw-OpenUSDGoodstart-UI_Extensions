@@ -240,7 +240,7 @@
         <p class="subtitle">Workbench & Channel Management Tools</p>
         
         <div class="apps-grid">
-            <a href="http://localhost:4260" class="app-card" target="_blank">
+            <a href="#" id="workbench-link" class="app-card" target="_blank">
                 <div class="app-icon">📁</div>
                 <h2>Workbench</h2>
                 <p>Browse and view OpenClaw-related repositories with folder tree navigation, markdown preview, and document search.</p>
@@ -250,7 +250,7 @@
                 </div>
             </a>
             
-            <a href="http://localhost:3401" class="app-card" target="_blank">
+            <a href="#" id="channel-link" class="app-card" target="_blank">
                 <div class="app-icon">📺</div>
                 <h2>Channel Manager</h2>
                 <p>Manage Telegram channel configurations with persistent model assignments and interactive Skill Tree visualization.</p>
@@ -297,10 +297,13 @@
     </div>
     
     <script>
+        // Detect if we're accessing via Tailscale or localhost
+        const HOST = window.location.hostname.includes('100.') ? window.location.hostname : 'localhost';
+        
         const SERVICES = {
-            workbench: { port: 4260, name: 'Workbench' },
-            channel: { port: 3401, name: 'Channel Manager' },
-            landing: { port: 8080, name: 'Landing Page' }
+            workbench: { port: 4260, name: 'Workbench', host: HOST },
+            channel: { port: 3401, name: 'Channel Manager', host: HOST },
+            landing: { port: 8080, name: 'Landing Page', host: HOST }
         };
         
         function log(message, type = 'info') {
@@ -314,19 +317,13 @@
         async function checkStatus() {
             for (const [key, service] of Object.entries(SERVICES)) {
                 try {
-                    const response = await fetch(`http://localhost:${service.port}/`, { 
+                    const response = await fetch(`http://${service.host}:${service.port}/`, { 
                         method: 'HEAD',
                         mode: 'no-cors'
                     });
                     updateStatus(key, 'running');
                 } catch (e) {
-                    // Try alternative check
-                    try {
-                        await fetch(`http://127.0.0.1:${service.port}/`);
-                        updateStatus(key, 'running');
-                    } catch (e2) {
-                        updateStatus(key, 'stopped');
-                    }
+                    updateStatus(key, 'stopped');
                 }
             }
         }
@@ -420,6 +417,10 @@
                 `).join('');
             }
         }
+        
+        // Update links based on host
+        document.getElementById('workbench-link').href = `http://${HOST}:4260`;
+        document.getElementById('channel-link').href = `http://${HOST}:3401`;
         
         // Check status on load
         checkStatus();
