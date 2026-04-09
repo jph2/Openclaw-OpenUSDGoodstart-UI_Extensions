@@ -154,48 +154,72 @@
             font-family: monospace;
         }
         
-        /* Column 2: Skills */
+        /* Column 2: Skills - Vertical Layout */
         .skills-cell {
-            min-width: 300px;
+            min-width: 350px;
         }
         
         .skills-list {
             display: flex;
-            flex-wrap: wrap;
-            gap: 6px;
+            flex-direction: column;
+            gap: 8px;
             margin-bottom: 12px;
         }
         
         .skill-item {
             display: flex;
-            align-items: center;
-            gap: 6px;
+            align-items: flex-start;
+            gap: 12px;
             background: var(--bg-elevated);
             border: 1px solid var(--border-color);
-            padding: 4px 10px;
-            border-radius: 4px;
-            font-size: 12px;
+            padding: 10px 12px;
+            border-radius: 6px;
+            transition: all 0.2s;
+        }
+        
+        .skill-item:hover {
+            border-color: var(--accent);
         }
         
         .skill-item.active {
             border-color: var(--accent);
-            background: rgba(80, 227, 194, 0.1);
+            background: rgba(80, 227, 194, 0.05);
         }
         
         .skill-item input[type="checkbox"] {
-            width: 14px;
-            height: 14px;
+            width: 16px;
+            height: 16px;
             cursor: pointer;
+            margin-top: 2px;
+            flex-shrink: 0;
+        }
+        
+        .skill-content {
+            flex: 1;
+            min-width: 0;
+        }
+        
+        .skill-name {
+            font-weight: 500;
+            font-size: 13px;
+            margin-bottom: 2px;
+        }
+        
+        .skill-desc {
+            font-size: 11px;
+            color: var(--text-secondary);
+            line-height: 1.4;
         }
         
         .skill-item button.remove {
             background: none;
             border: none;
             color: var(--text-secondary);
-            padding: 0;
-            font-size: 14px;
+            padding: 2px;
+            font-size: 16px;
             line-height: 1;
             cursor: pointer;
+            flex-shrink: 0;
         }
         
         .skill-item button.remove:hover {
@@ -205,6 +229,8 @@
         .add-skill-row {
             display: flex;
             gap: 8px;
+            padding-top: 8px;
+            border-top: 1px solid var(--border-color);
         }
         
         .add-skill-row select {
@@ -354,11 +380,22 @@
             { id: "openai-codex/gpt-5.4", name: "Codex", type: "cloud" }
         ];
         
-        const AVAILABLE_SKILLS = [
-            "weather", "web_search", "web_fetch", "healthcheck", "node-connect",
-            "notion", "clawflow", "skill-creator", "omniverse-extension-development",
-            "usd-development", "clawhub", "mcporter"
-        ];
+        const SKILL_DESCRIPTIONS = {
+            "weather": "Get current weather and forecasts for any location",
+            "web_search": "Search the web using Google Search grounding",
+            "web_fetch": "Fetch and extract content from URLs",
+            "healthcheck": "System security hardening and risk assessment",
+            "node-connect": "Diagnose OpenClaw node connection failures",
+            "notion": "Create and manage Notion pages and databases",
+            "clawflow": "ClawFlow workflow orchestration and job management",
+            "skill-creator": "Create, edit and audit AgentSkills",
+            "omniverse-extension-development": "Develop Omniverse extensions and tools",
+            "usd-development": "OpenUSD scene development and manipulation",
+            "clawhub": "Search, install and publish agent skills",
+            "mcporter": "Configure and call MCP servers and tools"
+        };
+        
+        const AVAILABLE_SKILLS = Object.keys(SKILL_DESCRIPTIONS);
         
         let config = { channels: [] };
         
@@ -459,7 +496,10 @@
             return skills.map(skill => `
                 <div class="skill-item active">
                     <input type="checkbox" checked onchange="toggleSkill('${channelId}', '${skill}', this.checked)">
-                    <span>${skill}</span>
+                    <div class="skill-content">
+                        <div class="skill-name">${skill}</div>
+                        <div class="skill-desc">${SKILL_DESCRIPTIONS[skill] || 'No description available'}</div>
+                    </div>
                     <button class="remove" onclick="removeSkill('${channelId}', '${skill}')">×</button>
                 </div>
             `).join('');
