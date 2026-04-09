@@ -1,0 +1,375 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>OpenClaw UI Extensions</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        :root {
+            --bg-primary: #0a0a0a;
+            --bg-surface: #111111;
+            --bg-elevated: #1a1a1a;
+            --border-color: #2a2a2a;
+            --text-primary: #e0e0e0;
+            --text-secondary: #888888;
+            --accent: #50e3c2;
+            --accent-hover: #3bc9a8;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 40px 20px;
+        }
+        
+        .container {
+            max-width: 800px;
+            width: 100%;
+            text-align: center;
+        }
+        
+        .logo {
+            width: 80px;
+            height: 80px;
+            background: var(--accent);
+            border-radius: 20px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 40px;
+            margin: 0 auto 30px;
+            box-shadow: 0 0 40px rgba(80, 227, 194, 0.3);
+        }
+        
+        h1 {
+            font-size: 32px;
+            font-weight: 600;
+            margin-bottom: 10px;
+        }
+        
+        .subtitle {
+            color: var(--text-secondary);
+            font-size: 16px;
+            margin-bottom: 50px;
+        }
+        
+        .apps-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 20px;
+            margin-bottom: 40px;
+        }
+        
+        .app-card {
+            background: var(--bg-surface);
+            border: 1px solid var(--border-color);
+            border-radius: 16px;
+            padding: 30px;
+            text-align: left;
+            transition: all 0.3s ease;
+            cursor: pointer;
+            text-decoration: none;
+            color: inherit;
+            display: block;
+        }
+        
+        .app-card:hover {
+            border-color: var(--accent);
+            transform: translateY(-4px);
+            box-shadow: 0 10px 40px rgba(80, 227, 194, 0.1);
+        }
+        
+        .app-icon {
+            width: 50px;
+            height: 50px;
+            background: var(--bg-elevated);
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 24px;
+            margin-bottom: 20px;
+        }
+        
+        .app-card h2 {
+            font-size: 20px;
+            font-weight: 600;
+            margin-bottom: 8px;
+        }
+        
+        .app-card p {
+            color: var(--text-secondary);
+            font-size: 14px;
+            line-height: 1.5;
+        }
+        
+        .app-meta {
+            display: flex;
+            gap: 12px;
+            margin-top: 20px;
+            font-size: 12px;
+        }
+        
+        .status-badge {
+            padding: 4px 10px;
+            border-radius: 4px;
+            background: var(--bg-elevated);
+            border: 1px solid var(--border-color);
+        }
+        
+        .status-badge.running {
+            background: rgba(80, 227, 194, 0.1);
+            border-color: var(--accent);
+            color: var(--accent);
+        }
+        
+        .status-badge.stopped {
+            background: rgba(227, 80, 80, 0.1);
+            border-color: #e35050;
+            color: #e35050;
+        }
+        
+        .actions {
+            display: flex;
+            gap: 12px;
+            justify-content: center;
+            flex-wrap: wrap;
+        }
+        
+        button {
+            background: var(--bg-elevated);
+            border: 1px solid var(--border-color);
+            color: var(--text-primary);
+            padding: 12px 24px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        button:hover {
+            background: var(--border-color);
+            border-color: var(--accent);
+        }
+        
+        button.primary {
+            background: var(--accent);
+            color: #000;
+            border-color: var(--accent);
+            font-weight: 500;
+        }
+        
+        button.primary:hover {
+            background: var(--accent-hover);
+        }
+        
+        .footer {
+            margin-top: 60px;
+            color: var(--text-secondary);
+            font-size: 12px;
+        }
+        
+        .footer a {
+            color: var(--accent);
+            text-decoration: none;
+        }
+        
+        /* Server Log */
+        .log-panel {
+            margin-top: 40px;
+            background: var(--bg-surface);
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            padding: 20px;
+            text-align: left;
+        }
+        
+        .log-panel h3 {
+            font-size: 14px;
+            color: var(--text-secondary);
+            margin-bottom: 12px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        
+        .log-content {
+            font-family: 'Menlo', 'Monaco', monospace;
+            font-size: 12px;
+            color: var(--text-secondary);
+            max-height: 150px;
+            overflow-y: auto;
+        }
+        
+        .log-entry {
+            padding: 4px 0;
+            border-bottom: 1px solid var(--bg-elevated);
+        }
+        
+        .log-entry:last-child {
+            border-bottom: none;
+        }
+        
+        .log-entry.success {
+            color: var(--accent);
+        }
+        
+        .log-entry.error {
+            color: #e35050;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="logo">🦞</div>
+        <h1>OpenClaw UI Extensions</h1>
+        <p class="subtitle">Workbench & Channel Management Tools</p>
+        
+        <div class="apps-grid">
+            <a href="http://localhost:4260" class="app-card" target="_blank">
+                <div class="app-icon">📁</div>
+                <h2>Workbench</h2>
+                <p>Browse and view OpenClaw-related repositories with folder tree navigation, markdown preview, and document search.</p>
+                <div class="app-meta">
+                    <span class="status-badge" id="workbench-status">Checking...</span>
+                    <span>Port 4260</span>
+                </div>
+            </a>
+            
+            <a href="http://localhost:3401" class="app-card" target="_blank">
+                <div class="app-icon">📺</div>
+                <h2>Channel Manager</h2>
+                <p>Manage Telegram channel configurations with persistent model assignments and interactive Skill Tree visualization.</p>
+                <div class="app-meta">
+                    <span class="status-badge" id="channel-status">Checking...</span>
+                    <span>Port 3401</span>
+                </div>
+            </a>
+        </div>
+        
+        <div class="actions">
+            <button class="primary" onclick="startAll()">
+                <span>▶</span> Start All Services
+            </button>
+            <button onclick="stopAll()">
+                <span>⏹</span> Stop All
+            </button>
+            <button onclick="checkStatus()">
+                <span>🔄</span> Refresh Status
+            </button>
+        </div>
+        
+        <div class="log-panel">
+            <h3>Server Log</h3>
+            <div class="log-content" id="logContent">
+                <div class="log-entry">Ready. Click "Start All Services" to begin.</div>
+            </div>
+        </div>
+        
+        <div class="footer">
+            <p>OpenClaw OpenUSDGoodstart UI Extensions</p>
+            <p><a href="https://github.com/jph2/Openclaw-OpenUSDGoodstart-UI_Extensions" target="_blank">GitHub Repository</a></p>
+        </div>
+    </div>
+    
+    <script>
+        const SERVICES = {
+            workbench: { port: 4260, name: 'Workbench' },
+            channel: { port: 3401, name: 'Channel Manager' }
+        };
+        
+        function log(message, type = 'info') {
+            const logContent = document.getElementById('logContent');
+            const entry = document.createElement('div');
+            entry.className = `log-entry ${type}`;
+            entry.textContent = `[${new Date().toLocaleTimeString()}] ${message}`;
+            logContent.insertBefore(entry, logContent.firstChild);
+        }
+        
+        async function checkStatus() {
+            for (const [key, service] of Object.entries(SERVICES)) {
+                try {
+                    const response = await fetch(`http://localhost:${service.port}/`, { 
+                        method: 'HEAD',
+                        mode: 'no-cors'
+                    });
+                    updateStatus(key, 'running');
+                } catch (e) {
+                    // Try alternative check
+                    try {
+                        await fetch(`http://127.0.0.1:${service.port}/`);
+                        updateStatus(key, 'running');
+                    } catch (e2) {
+                        updateStatus(key, 'stopped');
+                    }
+                }
+            }
+        }
+        
+        function updateStatus(service, status) {
+            const badge = document.getElementById(`${service}-status`);
+            badge.textContent = status === 'running' ? '● Running' : '○ Stopped';
+            badge.className = `status-badge ${status}`;
+        }
+        
+        async function startAll() {
+            log('Starting all services...');
+            
+            try {
+                // Start Workbench
+                log('Starting Workbench...');
+                await fetch('/api/start/workbench', { method: 'POST' });
+                updateStatus('workbench', 'running');
+                log('Workbench started on port 4260', 'success');
+            } catch (e) {
+                log('Failed to start Workbench. Try: npm start', 'error');
+            }
+            
+            try {
+                // Start Channel Manager
+                log('Starting Channel Manager...');
+                await fetch('/api/start/channel', { method: 'POST' });
+                updateStatus('channel', 'running');
+                log('Channel Manager started on port 3401', 'success');
+            } catch (e) {
+                log('Failed to start Channel Manager. Try: ./channel-manager.sh start', 'error');
+            }
+            
+            setTimeout(checkStatus, 2000);
+        }
+        
+        async function stopAll() {
+            log('Stopping all services...');
+            
+            try {
+                await fetch('/api/stop/all', { method: 'POST' });
+                log('All services stopped', 'success');
+            } catch (e) {
+                log('Stop command failed. Stop manually if needed.', 'error');
+            }
+            
+            setTimeout(checkStatus, 1000);
+        }
+        
+        // Check status on load
+        checkStatus();
+        
+        // Auto-refresh every 10 seconds
+        setInterval(checkStatus, 10000);
+    </script>
+</body>
+</html>

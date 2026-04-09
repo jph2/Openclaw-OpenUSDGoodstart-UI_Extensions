@@ -4,9 +4,42 @@ Read-only workbench MVP for browsing laptop-hosted OpenClaw-related repositories
 
 ## Components
 
+- **Landing Page** (`index.html`) - Central hub with links to all tools
 - **Workbench** (`workbench/`) - Classic folder tree document browser
 - **Channel Manager** (`channel-manager/`) - Telegram channel config UI with Skill Tree visualization
 - **Workbench Mobile** (`workbench/mobile/`) - React Native iOS/Android app
+
+## Quick Start
+
+```bash
+# Start all services and open landing page
+./start-extension.sh start
+
+# Or start individually:
+npm start                    # Workbench only (port 4260)
+cd channel-manager && ./channel-manager.sh start  # Channel Manager only (port 3401)
+```
+
+Open: `file:///media/claw-agentbox/data/9999_LocalRepo/Openclaw-OpenUSDGoodtstart-Extension/index.html`
+
+## Auto-Start with OpenClaw
+
+### Option 1: Systemd Service (Recommended)
+
+```bash
+sudo cp openclaw-extensions.service /etc/systemd/system/
+sudo systemctl enable openclaw-extensions
+sudo systemctl start openclaw-extensions
+```
+
+### Option 2: OpenClaw Hook
+
+The hook script is automatically called when OpenClaw starts (if `.auto-start-enabled` exists):
+
+```bash
+touch .auto-start-enabled  # Enable auto-start
+./openclaw-hook.sh         # Manual trigger
+```
 
 ## Workbench Features
 
@@ -47,6 +80,14 @@ Features:
 - Persistent configuration
 
 See [channel-manager/README.md](channel-manager/README.md) for details.
+
+## Landing Page
+
+Central hub at `index.html` showing:
+- Status of all services (Workbench + Channel Manager)
+- Quick-start buttons
+- Links to all tools
+- Server logs
 
 ## Why this exists
 
