@@ -605,36 +605,60 @@
     <script>
         // Telegram Groups from Studio Framework
         const TELEGRAM_GROUPS = [
-            { id: "-5207805052", name: "TG000_General_Chat", key: "general-chat", status: "active", currentTask: "General conversation", assignedAgent: null },
-            { id: "-5272630186", name: "TG001_Idea_Capture", key: "idea-capture", status: "idle", currentTask: "Waiting for input", assignedAgent: null },
-            { id: "-5272630187", name: "TG010_General_Discovery_Research", key: "discovery-research", status: "idle", currentTask: "Research standby", assignedAgent: null },
-            { id: "-3510007915", name: "TG020_omniUSD", key: "omniusd", status: "active", currentTask: "USD scene development", assignedAgent: "tars" },
-            { id: "-5272630188", name: "TG030_dcc_cad", key: "dcc-cad", status: "idle", currentTask: "DCC tools ready", assignedAgent: null },
-            { id: "-5272630189", name: "TG040_webdev_backend", key: "webdev-backend", status: "active", currentTask: "API development", assignedAgent: "sonic" },
-            { id: "-5272630190", name: "TG050_webdev_frontend", key: "webdev-frontend", status: "active", currentTask: "UI improvements", assignedAgent: "sonic" },
-            { id: "-5272630191", name: "TG060_social_media", key: "social-media", status: "idle", currentTask: "Monitoring mentions", assignedAgent: null },
-            { id: "-5272630192", name: "TG070_qa_security", key: "qa-security", status: "idle", currentTask: "Security checks", assignedAgent: "marvin" },
-            { id: "-5272630193", name: "TG500_openclaw_governance", key: "openclaw-governance", status: "active", currentTask: "System orchestration", assignedAgent: "tars" },
-            { id: "-5272630194", name: "TG510_upcoming_skills", key: "upcoming-skills", status: "planning", currentTask: "Skill planning", assignedAgent: "tars" },
-            { id: "-5272630195", name: "TG520_agentic_intelligence", key: "agentic-intelligence", status: "research", currentTask: "Agent architecture", assignedAgent: "tars" },
-            { id: "-5272630196", name: "TG700_studio_framework", key: "studio-framework", status: "active", currentTask: "Framework development", assignedAgent: "sonic" },
-            { id: "-5012559503", name: "TG800_experimental_box", key: "experimental-box", status: "active", currentTask: "Channel Manager UI", assignedAgent: "sonic" },
-            { id: "-5272630197", name: "TG900_troubleshooting", key: "troubleshooting", status: "standby", currentTask: "Debug ready", assignedAgent: "marvin" }
+            { id: "-5207805052", name: "TG000_General_Chat", key: "general-chat", status: "active", currentTask: "General conversation", assignedAgent: null, subAgent: null },
+            { id: "-5272630186", name: "TG001_Idea_Capture", key: "idea-capture", status: "idle", currentTask: "Waiting for input", assignedAgent: null, subAgent: null },
+            { id: "-5272630187", name: "TG010_General_Discovery_Research", key: "discovery-research", status: "idle", currentTask: "Research standby", assignedAgent: "tars", subAgent: "researcher" },
+            { id: "-3510007915", name: "TG020_omniUSD", key: "omniusd", status: "active", currentTask: "USD scene development", assignedAgent: "tars", subAgent: "coder" },
+            { id: "-5272630188", name: "TG030_dcc_cad", key: "dcc-cad", status: "idle", currentTask: "DCC tools ready", assignedAgent: null, subAgent: null },
+            { id: "-5272630189", name: "TG040_webdev_backend", key: "webdev-backend", status: "active", currentTask: "API development", assignedAgent: "sonic", subAgent: "coder" },
+            { id: "-5272630190", name: "TG050_webdev_frontend", key: "webdev-frontend", status: "active", currentTask: "UI improvements", assignedAgent: "sonic", subAgent: "coder" },
+            { id: "-5272630191", name: "TG060_social_media", key: "social-media", status: "idle", currentTask: "Monitoring mentions", assignedAgent: null, subAgent: null },
+            { id: "-5272630192", name: "TG070_qa_security", key: "qa-security", status: "idle", currentTask: "Security checks", assignedAgent: "marvin", subAgent: "tester" },
+            { id: "-5272630193", name: "TG500_openclaw_governance", key: "openclaw-governance", status: "active", currentTask: "System orchestration", assignedAgent: "tars", subAgent: null },
+            { id: "-5272630194", name: "TG510_upcoming_skills", key: "upcoming-skills", status: "planning", currentTask: "Skill planning", assignedAgent: "tars", subAgent: null },
+            { id: "-5272630195", name: "TG520_agentic_intelligence", key: "agentic-intelligence", status: "research", currentTask: "Agent architecture", assignedAgent: "tars", subAgent: "researcher" },
+            { id: "-5272630196", name: "TG700_studio_framework", key: "studio-framework", status: "active", currentTask: "Framework development", assignedAgent: "sonic", subAgent: "documenter" },
+            { id: "-5012559503", name: "TG800_experimental_box", key: "experimental-box", status: "active", currentTask: "Channel Manager UI", assignedAgent: "sonic", subAgent: "coder" },
+            { id: "-5272630197", name: "TG900_troubleshooting", key: "troubleshooting", status: "standby", currentTask: "Debug ready", assignedAgent: "marvin", subAgent: "reviewer" }
         ];
         
-        // Agent Definitions
+        // Agent Definitions with Default Skills
         const MAIN_AGENTS = [
-            { id: "tars", name: "TARS", role: "Planner", description: "Constructive builder in artifact system", color: "#50e3c2" },
-            { id: "marvin", name: "MARVIN", role: "Critic", description: "Adversarial audit and QA", color: "#e35050" },
-            { id: "sonic", name: "SONIC", role: "Executor", description: "Fast implementation mode", color: "#e3c450" }
+            { 
+                id: "tars", 
+                name: "TARS", 
+                role: "Planner", 
+                description: "Constructive builder in artifact system", 
+                color: "#50e3c2",
+                defaultSkills: ["clawflow", "skill-creator", "clawhub"],
+                soul: "Direct, honest, useful. No fake certainty. Builds with architecture and rigor."
+            },
+            { 
+                id: "marvin", 
+                name: "MARVIN", 
+                role: "Critic", 
+                description: "Adversarial audit and QA", 
+                color: "#e35050",
+                defaultSkills: ["healthcheck", "node-connect"],
+                soul: "Zero-trust reviewer. Assumes everything is broken. Finds failures before they find you."
+            },
+            { 
+                id: "sonic", 
+                name: "SONIC", 
+                role: "Executor", 
+                description: "Fast implementation mode", 
+                color: "#e3c450",
+                defaultSkills: ["web_search", "web_fetch"],
+                soul: "Fast execution inside scope. Moves quick when plan is solid. Stops when reality diverges."
+            }
         ];
         
         const SUB_AGENTS = [
-            { id: "researcher", name: "Researcher", parent: "tars", description: "Web search and information gathering" },
-            { id: "coder", name: "Coder", parent: "sonic", description: "Code implementation and debugging" },
-            { id: "reviewer", name: "Reviewer", parent: "marvin", description: "Code review and quality checks" },
-            { id: "documenter", name: "Documenter", parent: "tars", description: "Documentation and knowledge management" },
-            { id: "tester", name: "Tester", parent: "marvin", description: "Testing and validation" }
+            { id: "researcher", name: "Researcher", parent: "tars", description: "Web search and information gathering", additionalSkills: ["web_search", "web_fetch"] },
+            { id: "coder", name: "Coder", parent: "sonic", description: "Code implementation and debugging", additionalSkills: ["omniverse-extension-development", "usd-development"] },
+            { id: "reviewer", name: "Reviewer", parent: "marvin", description: "Code review and quality checks", additionalSkills: [] },
+            { id: "documenter", name: "Documenter", parent: "tars", description: "Documentation and knowledge management", additionalSkills: ["notion"] },
+            { id: "tester", name: "Tester", parent: "marvin", description: "Testing and validation", additionalSkills: ["healthcheck"] }
         ];
         
         const MODEL_DESCRIPTIONS = {
@@ -847,7 +871,14 @@
                 const row = document.createElement('tr');
                 row.dataset.channelId = group.id;
                 const agent = MAIN_AGENTS.find(a => a.id === group.assignedAgent);
+                const subAgent = SUB_AGENTS.find(s => s.id === group.subAgent);
                 const agentColor = agent?.color || '#888';
+                
+                // Combine default skills + channel skills
+                const defaultSkills = agent?.defaultSkills || [];
+                const subAgentSkills = subAgent?.additionalSkills || [];
+                const channelSkills = channel.skills || [];
+                const allSkills = [...new Set([...defaultSkills, ...subAgentSkills, ...channelSkills])];
                 
                 row.innerHTML = `
                     <td>
@@ -865,18 +896,22 @@
                             ${group.assignedAgent ? `
                                 <span class="assigned-agent" style="background: ${agentColor}20; color: ${agentColor}; border: 1px solid ${agentColor}40;">
                                     ${agent?.name || group.assignedAgent}
+                                    ${subAgent ? `→ ${subAgent.name}` : ''}
                                 </span>
                             ` : ''}
                         </div>
                     </td>
                     <td class="skills-cell">
+                        <div style="font-size: 10px; color: var(--text-secondary); margin-bottom: 8px; text-transform: uppercase; letter-spacing: 0.5px;">
+                            ${allSkills.length} skills (Default: ${defaultSkills.length}, Sub: ${subAgentSkills.length}, Added: ${channelSkills.length})
+                        </div>
                         <div class="skills-list" id="skills-${group.id}">
-                            ${renderSkills(channel.skills || [], group.id)}
+                            ${renderAllSkills(allSkills, defaultSkills, subAgentSkills, channelSkills, group.id)}
                         </div>
                         <div class="add-skill-row">
                             <select id="skill-select-${group.id}" onchange="addSkill('${group.id}')" class="skill-dropdown">
-                                <option value="">Add skill...</option>
-                                ${AVAILABLE_SKILLS.filter(s => !(channel.skills || []).includes(s)).map(s => 
+                                <option value="">Add channel skill...</option>
+                                ${AVAILABLE_SKILLS.filter(s => !allSkills.includes(s)).map(s => 
                                     `<option value="${s}">${s} | ${SKILL_DESCRIPTIONS[s]}</option>`
                                 ).join('')}
                             </select>
@@ -902,6 +937,35 @@
                 `;
                 tbody.appendChild(row);
             });
+        }
+        
+        function renderAllSkills(allSkills, defaultSkills, subAgentSkills, channelSkills, channelId) {
+            return allSkills.map(skill => {
+                let source = 'channel';
+                if (defaultSkills.includes(skill)) source = 'default';
+                else if (subAgentSkills.includes(skill)) source = 'subagent';
+                
+                const sourceBadge = {
+                    'default': '<span style="font-size: 9px; color: #50e3c2; margin-left: 8px;">[AGENT]</span>',
+                    'subagent': '<span style="font-size: 9px; color: #e3c450; margin-left: 8px;">[SUB]</span>',
+                    'channel': '<span style="font-size: 9px; color: #888; margin-left: 8px;">[CH]</span>'
+                }[source];
+                
+                const canRemove = source === 'channel';
+                
+                return `
+                    <div class="skill-item active" style="opacity: ${source === 'channel' ? 1 : 0.8};">
+                        <input type="checkbox" checked onchange="toggleSkill('${channelId}', '${skill}', this.checked)">
+                        <div class="skill-content">
+                            <span class="skill-name">${skill}</span>
+                            <span class="skill-separator">|</span>
+                            <span class="skill-desc">${SKILL_DESCRIPTIONS[skill]}</span>
+                            ${sourceBadge}
+                        </div>
+                        ${canRemove ? `<button class="remove" onclick="removeSkill('${channelId}', '${skill}')">×</button>` : '<span style="width: 20px;"></span>'}
+                    </div>
+                `;
+            }).join('');
         }
         
         function renderSkills(skills, channelId) {
@@ -1122,11 +1186,22 @@
                         <h3 style="color: ${agent.color}">${agent.name}</h3>
                         <div class="agent-role">${agent.role}</div>
                         <div class="agent-desc">${agent.description}</div>
+                        <div style="margin-top: 12px; padding: 10px; background: var(--bg-elevated); border-radius: 6px; font-size: 12px; font-style: italic; color: var(--text-secondary); border-left: 2px solid ${agent.color};">
+                            "${agent.soul}"
+                        </div>
+                        <div style="margin-top: 12px;">
+                            <div style="font-size: 11px; color: var(--text-secondary); margin-bottom: 6px;">Default Skills:</div>
+                            <div style="display: flex; flex-wrap: wrap; gap: 6px;">
+                                ${agent.defaultSkills.map(skill => `
+                                    <span class="sub-agent-tag">${skill}</span>
+                                `).join('')}
+                            </div>
+                        </div>
                         ${subAgents.length > 0 ? `
                             <div class="sub-agents">
                                 <div style="font-size: 11px; color: var(--text-secondary); margin-bottom: 8px;">Sub-Agents:</div>
                                 ${subAgents.map(sub => `
-                                    <span class="sub-agent-tag">${sub.name}</span>
+                                    <span class="sub-agent-tag" title="${sub.description}">${sub.name}</span>
                                 `).join('')}
                             </div>
                         ` : ''}
@@ -1140,11 +1215,23 @@
                 const parent = MAIN_AGENTS.find(a => a.id === sub.parent);
                 return `
                     <div class="skill-card">
-                        <h3>${sub.name}</h3>
-                        <p>${sub.description}</p>
-                        <div style="margin-top: 8px; font-size: 11px; color: ${parent?.color || '#888'};">
-                            Parent: ${parent?.name || sub.parent}
+                        <div style="display: flex; justify-content: space-between; align-items: center;">
+                            <h3>${sub.name}</h3>
+                            <span style="font-size: 10px; color: ${parent?.color || '#888'}; padding: 2px 8px; background: ${parent?.color || '#888'}20; border-radius: 3px;">
+                                ${parent?.name || sub.parent}
+                            </span>
                         </div>
+                        <p>${sub.description}</p>
+                        ${sub.additionalSkills.length > 0 ? `
+                            <div style="margin-top: 8px;">
+                                <span style="font-size: 10px; color: var(--text-secondary);">Additional Skills:</span>
+                                <div style="display: flex; flex-wrap: wrap; gap: 4px; margin-top: 4px;">
+                                    ${sub.additionalSkills.map(skill => `
+                                        <span style="font-size: 10px; padding: 2px 6px; background: var(--bg-elevated); border-radius: 3px;">${skill}</span>
+                                    `).join('')}
+                                </div>
+                            </div>
+                        ` : ''}
                     </div>
                 `;
             }).join('');
