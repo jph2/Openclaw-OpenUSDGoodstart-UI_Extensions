@@ -63,7 +63,8 @@ async function loadWorkspaces() {
           ROOT_MAP[key] = ws.path;
         }
       });
-      populateRootSelect();
+      // Refresh roots to include new workspaces
+      await loadRoots(state.currentRoot);
     }
   } catch (e) {
     console.log('Could not load workspaces from Channel Manager:', e);
@@ -183,11 +184,15 @@ function escapeHtml(input) {
 
 function appBase() {
   const path = window.location.pathname || '/';
-  return path.endsWith('/') ? path.slice(0, -1) || '/' : path;
+  // Remove /static/... from path to get base
+  const basePath = path.replace(/\/static\/.*$/, '');
+  return basePath.endsWith('/') ? basePath.slice(0, -1) || '/' : basePath;
 }
 
 function apiUrl(pathname, params) {
-  const url = new URL(`${appBase()}/api/${pathname}`, window.location.origin);
+  const base = appBase();
+  const apiPath = base === '/' ? `/api/${pathname}` : `${base}/api/${pathname}`;
+  const url = new URL(apiPath, window.location.origin);
   if (params) {
     for (const [key, value] of Object.entries(params)) url.searchParams.set(key, value);
   }
