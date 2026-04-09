@@ -1209,26 +1209,25 @@
             input.value = '';
         }
         
-        function updateSaveStatus(status, message) {
+        function updateSaveStatus(status, message, details = {}) {
             const statusEl = document.getElementById('saveStatus');
             const btn = document.getElementById('saveBtn');
-            
+            const time = new Date().toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' });
+
             if (status === 'saving') {
-                statusEl.textContent = '💾 Saving...';
-                statusEl.style.color = 'var(--accent)';
+                statusEl.innerHTML = '💾 <span style="color: var(--accent)">Saving ' + config.channels.length + ' channels...</span>';
                 btn.disabled = true;
             } else if (status === 'saved') {
-                statusEl.textContent = '✅ Saved';
-                statusEl.style.color = '#50e3c2';
+                const path = details.path ? details.path.split('/').pop() : 'config file';
+                statusEl.innerHTML = '✅ <span style="color: #50e3c2">Saved ' + details.count + ' channels to ' + path + ' at ' + time + '</span>';
                 btn.disabled = false;
-                setTimeout(() => { statusEl.textContent = ''; }, 3000);
+                originalConfig = JSON.stringify(config);
+                setTimeout(() => { statusEl.textContent = ''; }, 5000);
             } else if (status === 'error') {
-                statusEl.textContent = '❌ ' + message;
-                statusEl.style.color = '#e35050';
+                statusEl.innerHTML = '❌ <span style="color: #e35050">' + message + '</span>';
                 btn.disabled = false;
             } else if (status === 'modified') {
-                statusEl.textContent = '⚠️ Unsaved changes';
-                statusEl.style.color = '#e3c450';
+                statusEl.innerHTML = '⚠️ <span style="color: #e3c450">Unsaved changes (' + config.channels.length + ' channels)</span>';
             }
         }
         
@@ -1261,8 +1260,8 @@
                 const data = await response.json();
                 
                 if (response.ok) {
-                    updateSaveStatus('saved');
-                    showToast(`✅ Saved ${config.channels.length} channels to server`);
+                    updateSaveStatus('saved', '', { count: config.channels.length, path: data.path });
+                    showToast(`✅ Saved ${config.channels.length} channels`);
                 } else {
                     throw new Error(data.error || 'Failed to save');
                 }
