@@ -2,10 +2,12 @@ import express from 'express';
 import fs from 'fs/promises';
 import path from 'path';
 import { z } from 'zod';
+import multer from 'multer';
 import { resolveSafe } from '../utils/security.js';
 import { apiLimiter, fsHeavyLimiter } from '../utils/rateLimiter.js';
 
 const router = express.Router();
+const upload = multer({ storage: multer.memoryStorage() });
 
 /**
  * G4 Security Fix-Gate: Validation Schemas
@@ -45,25 +47,42 @@ router.get('/list', apiLimiter, async (req, res, next) => {
         const { path: relPath } = ListDirectorySchema.parse(req.query);
         const { resolved, relative } = await resolveSafe(process.env.WORKSPACE_ROOT, relPath);
         
-        const stat = await fs.stat(resolved);
+        let stat;
+        try {
+            stat = await fs.stat(resolved);
+        } catch (err) {
+            return res.status(403).json({ error: true, message: 'Permission denied or path does not exist.' });
+        }
+        
         if (!stat.isDirectory()) {
             return res.status(400).json({ error: true, message: 'Target is not a directory.' });
         }
 
-        const entries = await fs.readdir(resolved, { withFileTypes: true });
+        let entries = [];
+        try {
+            entries = await fs.readdir(resolved, { withFileTypes: true });
+        } catch (err) {
+            return res.status(403).json({ error: true, message: 'Permission denied reading directory contents.' });
+        }
+        
         // Hide .git and node_modules folders securely
         const filtered = entries.filter(entry => !entry.name.startsWith('.git') && entry.name !== 'node_modules');
         
-        const items = await Promise.all(filtered.map(async (entry) => {
+        const items = [];
+        await Promise.all(filtered.map(async (entry) => {
             const childAbsolute = path.join(resolved, entry.name);
-            const childStat = await fs.stat(childAbsolute);
-            return {
-                name: entry.name,
-                type: entry.isDirectory() ? 'dir' : 'file',
-                kind: entry.isDirectory() ? 'dir' : getFileKind(childAbsolute),
-                size: childStat.size,
-                updatedAt: childStat.mtimeMs
-            };
+            try {
+                const childStat = await fs.stat(childAbsolute);
+                items.push({
+                    name: entry.name,
+                    type: entry.isDirectory() ? 'dir' : 'file',
+                    kind: entry.isDirectory() ? 'dir' : getFileKind(childAbsolute),
+                    size: childStat.size,
+                    updatedAt: childStat.mtimeMs
+                });
+            } catch (err) {
+                // Ignore unreadable entries
+            }
         }));
 
         res.json({
@@ -89,33 +108,45 @@ router.get('/tree', fsHeavyLimiter, async (req, res, next) => {
         const { path: relPath } = ListDirectorySchema.parse(req.query);
         const { resolved, relative } = await resolveSafe(process.env.WORKSPACE_ROOT, relPath);
         
-        const maxDepth = 4; // Hardcoded safety limit
+        const maxDepth = 8; // Safely increased to support deeper project structures.
 
         async function buildTree(currentPath, currentDepth) {
             if (currentDepth > maxDepth) return [];
             
-            const entries = await fs.readdir(currentPath, { withFileTypes: true });
-            const filtered = entries.filter(e => !e.name.startsWith('.git') && e.name !== 'node_modules');
-            
-            const result = [];
-            for (const entry of filtered) {
-                const childPath = path.join(currentPath, entry.name);
-                const stat = await fs.stat(childPath);
-                
-                const item = {
-                    name: entry.name,
-                    type: entry.isDirectory() ? 'dir' : 'file',
-                    path: path.relative(resolved, childPath).replaceAll(path.sep, '/'),
-                    size: stat.size,
-                };
-
-                if (entry.isDirectory()) {
-                    item.children = await buildTree(childPath, currentDepth + 1);
-                } else {
-                    item.kind = getFileKind(childPath);
-                }
-                result.push(item);
+            let entries = [];
+            try {
+                entries = await fs.readdir(currentPath, { withFileTypes: true });
+            } catch (err) {
+                console.error(`[WARN] Skipping unreadable directory ${currentPath}:`, err.message);
+                return [];
             }
+            
+            const filtered = entries.filter(e => !e.name.startsWith('.git') && e.name !== 'node_modules' && e.name !== 'dist' && e.name !== 'build' && !e.isSymbolicLink());
+            
+            const rawResult = await Promise.all(filtered.map(async (entry) => {
+                const childPath = path.join(currentPath, entry.name);
+                try {
+                    const stat = await fs.stat(childPath);
+                    const item = {
+                        name: entry.name,
+                        type: entry.isDirectory() ? 'dir' : 'file',
+                        path: childPath,
+                        size: stat.size,
+                        updatedAt: stat.mtimeMs
+                    };
+
+                    if (entry.isDirectory()) {
+                        item.children = await buildTree(childPath, currentDepth + 1);
+                    } else {
+                        item.kind = getFileKind(childPath);
+                    }
+                    return item;
+                } catch (err) {
+                    return null; // Skip unreadable files
+                }
+            }));
+            
+            const result = rawResult.filter(Boolean);
             return result.sort((a, b) => a.type === 'dir' && b.type !== 'dir' ? -1 : 1);
         }
 
@@ -167,6 +198,72 @@ router.post('/save', apiLimiter, async (req, res, next) => {
         res.json({ ok: true, message: 'File saved successfully.' });
     } catch (error) {
         if (error instanceof z.ZodError) error.status = 400;
+        next(error);
+    }
+});
+
+const FsActionSchema = z.object({
+    path: z.string().min(1),
+    dest: z.string().optional()
+});
+
+router.post('/mkdir', apiLimiter, async (req, res, next) => {
+    try {
+        const { path: relPath } = FsActionSchema.parse(req.body);
+        const { resolved } = await resolveSafe(process.env.WORKSPACE_ROOT, relPath);
+        await fs.mkdir(resolved, { recursive: true });
+        res.json({ ok: true, message: 'Directory created' });
+    } catch (error) {
+        if (error instanceof z.ZodError) error.status = 400;
+        next(error);
+    }
+});
+
+router.post('/touch', apiLimiter, async (req, res, next) => {
+    try {
+        const { path: relPath } = FsActionSchema.parse(req.body);
+        const { resolved } = await resolveSafe(process.env.WORKSPACE_ROOT, relPath);
+        await fs.writeFile(resolved, '');
+        res.json({ ok: true, message: 'File created' });
+    } catch (error) {
+        if (error instanceof z.ZodError) error.status = 400;
+        next(error);
+    }
+});
+
+router.post('/delete', apiLimiter, async (req, res, next) => {
+    try {
+        const { path: relPath } = FsActionSchema.parse(req.body);
+        const { resolved } = await resolveSafe(process.env.WORKSPACE_ROOT, relPath);
+        await fs.rm(resolved, { recursive: true, force: true });
+        res.json({ ok: true, message: 'Deleted successfully' });
+    } catch (error) {
+        if (error instanceof z.ZodError) error.status = 400;
+        next(error);
+    }
+});
+
+router.post('/duplicate', apiLimiter, async (req, res, next) => {
+    try {
+        const { path: srcPath, dest: destPath } = FsActionSchema.parse(req.body);
+        const { resolved: srcResolved } = await resolveSafe(process.env.WORKSPACE_ROOT, srcPath);
+        const { resolved: destResolved } = await resolveSafe(process.env.WORKSPACE_ROOT, destPath);
+        await fs.cp(srcResolved, destResolved, { recursive: true });
+        res.json({ ok: true, message: 'Duplicated successfully' });
+    } catch (error) {
+        if (error instanceof z.ZodError) error.status = 400;
+        next(error);
+    }
+});
+
+router.post('/upload', apiLimiter, upload.single('file'), async (req, res, next) => {
+    try {
+        if (!req.file) throw new Error('No file uploaded');
+        const relPath = req.body.path || req.file.originalname;
+        const { resolved } = await resolveSafe(process.env.WORKSPACE_ROOT, relPath);
+        await fs.writeFile(resolved, req.file.buffer);
+        res.json({ ok: true, message: 'File uploaded' });
+    } catch (error) {
         next(error);
     }
 });
