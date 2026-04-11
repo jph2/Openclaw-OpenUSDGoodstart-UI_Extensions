@@ -121,6 +121,44 @@
       "model": "local-pc/google/gemma-4-26b-a4b",
       "skills": [],
       "require_mention": false
+    },
+    {
+      "id": "-3736210177",
+      "name": "New Channel -3736210177",
+      "model": "local-pc/google/gemma-4-26b-a4b",
+      "skills": [
+        "web_fetch"
+      ],
+      "assignedAgent": "",
+      "inactiveSubAgents": [
+        "researcher",
+        "documenter"
+      ],
+      "inactiveSkills": [
+        "web_search"
+      ]
+    },
+    {
+      "id": "-3899450316",
+      "name": "New Channel -3899450316",
+      "model": "local-pc/google/gemma-4-26b-a4b",
+      "skills": [],
+      "assignedAgent": "tars",
+      "inactiveSubAgents": [
+        "researcher",
+        "documenter"
+      ]
+    },
+    {
+      "id": "-3566334093",
+      "name": "New Channel -3566334093",
+      "model": "local-pc/google/gemma-4-26b-a4b",
+      "skills": [],
+      "assignedAgent": "tars",
+      "inactiveSubAgents": [
+        "researcher",
+        "documenter"
+      ]
     }
   ],
   "agents": [
@@ -132,10 +170,11 @@
       "color": "#50e3c2",
       "defaultSkills": [
         "clawflow",
-        "skill-creator",
-        "clawhub"
+        "web_search"
       ],
-      "soul": "Direct, honest, useful. No fake certainty. Builds with architecture and rigor."
+      "inactiveSkills": [
+        "web_search"
+      ]
     },
     {
       "id": "marvin",
@@ -146,8 +185,7 @@
       "defaultSkills": [
         "healthcheck",
         "node-connect"
-      ],
-      "soul": "Zero-trust reviewer. Assumes everything is broken. Finds failures before they find you."
+      ]
     },
     {
       "id": "sonic",
@@ -158,8 +196,7 @@
       "defaultSkills": [
         "web_search",
         "web_fetch"
-      ],
-      "soul": "Fast execution inside scope. Moves quick when plan is solid. Stops when reality diverges."
+      ]
     }
   ],
   "subAgents": [
@@ -188,7 +225,9 @@
       "name": "Reviewer",
       "parent": "marvin",
       "description": "Code review and quality checks",
-      "additionalSkills": []
+      "additionalSkills": [
+        "web_fetch"
+      ]
     },
     {
       "id": "documenter",

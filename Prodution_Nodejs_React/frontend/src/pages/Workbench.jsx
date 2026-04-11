@@ -597,7 +597,7 @@ export default function Workbench() {
                     </div>
                 </div>
             )}
-            <PanelGroup autoSaveId="workbench-main-split" orientation="horizontal">
+            <PanelGroup id="workbench-main-split" orientation="horizontal">
                 
                 {/* SIDEBAR PANEL */}
                 <Panel defaultSize={20} minSize={15} style={{ display: 'flex', flexDirection: 'column', background: 'var(--bg-elevated)' }}>
@@ -610,7 +610,7 @@ export default function Workbench() {
                     </div>
 
                     {/* KEY triggers remount setting to defaultSizes */}
-                    <PanelGroup key={`sidebar-${sidebarKey}`} autoSaveId="workbench-sidebar-split" orientation="vertical" style={{ flex: 1, minHeight: 0 }}>
+                    <PanelGroup key={`sidebar-${sidebarKey}`} id="workbench-sidebar-split" orientation="vertical" style={{ flex: 1, minHeight: 0 }}>
                         
                         {/* Workspaces */}
                         <Panel defaultSize={20} minSize={15} style={{ display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
