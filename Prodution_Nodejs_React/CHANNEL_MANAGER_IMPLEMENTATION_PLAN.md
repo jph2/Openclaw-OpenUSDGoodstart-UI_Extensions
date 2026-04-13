@@ -54,10 +54,10 @@ tags: [implementation, channel_manager, telegram-hub, zod, private-ecosystem]
 - [x] **Sub-Task 4.2**: Refactoring `telegramService.js` (Asymmetric Relay).
 - [x] **Sub-Task 4.3**: CASE Bot (@BotFather) Initialisierung.
 - [x] **Sub-Task 4.4**: Verifizierung der Engine Antwort-Logik auf Relay-Nachrichten.
-
 ## 5. Phase: UI-Polishing, Persistence & Unified Brain (AKTIVE PHASE 🏗️)
 Ziel: Bedienkomfort verbessern, Architektur-Lecks schließen und Wissens-Kontinuität sicherstellen.
 
+- [x] **Phase 5.0: AgentClaw IDE Integration** (VSIX Installation & CDP-Relay Aktivierung abgeschlossen ✅).
 - [ ] **Phase 5.1: Zod Normalization Layer** (Härtung der Pipeline gegen undefined/null-Crashes).
 - [ ] **Phase 5.2: Memory History Hydration (Rosetta Stone)**
   - Implementierung eines Scanners für `/home/claw-agentbox/.openclaw/workspace/memory/*.md`.
