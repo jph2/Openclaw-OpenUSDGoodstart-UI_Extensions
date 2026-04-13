@@ -18,20 +18,21 @@ provenance:
   git_branch: "main"
   git_path: "Prodution_Nodejs_React/Channel_Manager_Anti-Gravity_Plugin_Overview.md"
 tags: [plugins, ide_integration, agentclaw]
+tags: [plugins, ide_integration, agentclaw, best_practices, stabilization]
 ---
 
 # Channel Manager Anti-Gravity Plugin Overview
 
 **Version**: 1.0.0 | **Date**: 12.04.2026 | **Time**: 03:07 | **GlobalID**: 20260412_0307_PLUGIN_OVERVIEW_v1
 
-**Last Updated:** 12.04.2026 03:07  
+**Last Updated:** 13.04.2026 18:40  
 **Framework:** Horizon Studio Framework  
 **Status:** active
 
-**Git:** Repo: Openclaw-OpenUSDGoodtstart-Extension | Branch: main | Path: Prodution_Nodejs_React/Channel_Manager_Anti-Gravity_Plugin_Overview.md | Commit: pending
+**Git:** Repo: Openclaw-OpenUSDGoodtstart-Extension | Branch: main | Path: Prodution_Nodejs_React/Channel_Manager_Anti-Gravity_Plugin_Overview.md | Commit: 05dfe99
 
 **Tag block:**
-#plugins #ide_integration #agentclaw
+#plugins #ide_integration #agentclaw #best_practices #stabilization
 
 ---
 
@@ -178,3 +179,23 @@ Gib Bescheid, sobald du die VSIX-Datei installiert hast oder falls du den Telegr
 
 
 </details>
+
+---
+
+## 4. Best Practices & Anti-Patterns (Stabilisierungs-Update 13.04.2026)
+
+Aufbauend auf der System-Stabilisierung vom 13. April wurden folgende Richtlinien für den Betrieb des Channel Managers und der Engine-Authentifizierung festgelegt.
+
+### ✅ Best Practices
+- **Token-Choice vor API-Key:** Für hochpreisige Modelle wie **Codex (GPT-5.4)** sollte immer das **OAuth/Token-Verfahren** (Sitzungs-basiert) bevorzugt werden, um die Betriebskosten der OpenAI-Platform zu minimieren.
+- **Hierarchisches Fallback-Management:** In der `models.json` muss eine klare Provider-Kette (`Primary -> Fallback #1 -> #2`) definiert sein. Ein stabiler, latenzarmer Drittanbieter (z.B. **Moonshot/Kimi**) sollte immer redundant bereitgehalten werden.
+- **Manuelle Konfigurations-Hoheit:** Nach der Nutzung von CLI-Wizards (`openclaw onboard` oder `doctor`) müssen die Felder `controlUi.allowedOrigins` und `bind: "lan"` manuell kontrolliert werden, da Wizards diese oft auf restriktive Standardwerte zurücksetzen.
+- **Insecure WebSocket Overrides:** Für vertrauenswürdige interne Netzwerke (Tailscale/LAN) sollte die Umgebungsvariable `OPENCLAW_ALLOW_INSECURE_PRIVATE_WS=1` genutzt werden, um Browser-Blocking ohne komplexes SSL-Setup zu umgehen.
+
+### ❌ Anti-Patterns
+- **Wizard-Blind-Glaube:** Das blinde Vertrauen auf CLI-Automatisierung für "Sovereign"-Setups. Wizards überschreiben oft gehärtete JSON-Dateien mit "Safe"-Defaults, die den Remote-Zugriff kappen.
+- **Geheimnis-Verteilung:** Das Hardcoden von API-Keys direkt in der `models.json`. Keys gehören ausschließlich in die `auth-profiles.json`.
+- **Ewige Wildcards:** Das dauerhafte Belassen von `allowedOrigins: ["*"]` nach der Initial-Phase. Ziel sollte der Wechsel auf spezifische Tailscale-IPs sein.
+- **ID-Mismatch:** Die Verwendung von inkonsistenten IDs zwischen `models.json` (Provider) und `openclaw.json` (Profiles), was dazu führt, dass Modelle als "no auth" gelistet werden, obwohl sie eingeloggt sind.
+
+---
