@@ -24,7 +24,7 @@ tags: [specification, channel_manager, requirements, private-ecosystem, zod-hard
 
 # Spezifikation & Kernanforderungen: Sovereign Channel Management (V1.5)
 
-**Version**: 1.6.0 | **Date**: 13.04.2026 | **Status**: Hardened | **Context**: Rosetta Stone / TARS Hub Continuity
+**Version**: 1.7.0 | **Date**: 13.04.2026 | **Status**: Sovereign | **Context**: IDE Agnosticism (Cursor/AntiGravity Parity)
 20260413_2055_SPECIFICATION_v1.5
 
 **Status:** active | **Master Source:** Horizon Studio Framework
@@ -140,6 +140,12 @@ To ensure **Context Continuity** between the Channel Manager, Anti-Gravity IDE, 
 3. **Deep Links**: Direct navigation to `http://<HOST>:18789/chat?session=<KEY>`.
 
 Any channel configuration change in `openclaw.json` must preserve these keys to prevent "Context Amnesia".
+
+### 5.5 Surface Agnosticism (IDE Parity)
+The Channel Manager and its underlying CASE Relay are designed to be **IDE-Agnostic**. Any development environment based on Visual Studio Code (including **Cursor** and **Anti-Gravity**) is supported, provided the `TureAutoAcceptAntiGravity` (Open VSX) plugin is active.
+
+- **Unified Command Center:** The CASE bot interacts with the filesystem logs, which are shared across all IDEs via the Tailscale Workspace.
+- **Plugin Bridge:** The reliance on the shared Open VSX extension allows for a seamless transition between IDEs without losing "Human-in-the-Loop" (HITL) context.
 
 ---
 

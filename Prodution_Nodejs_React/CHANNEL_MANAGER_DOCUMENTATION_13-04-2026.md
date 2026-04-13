@@ -123,8 +123,8 @@ Das Erfinden neuer Session-Keys für bestehende Kanäle zerstört den Zugriff au
 3. **Context Continuity First:** Im privaten Setup ist ein "Memory Bleed" zwischen Sessions ein Feature, das den nahtlosen Wechsel zwischen Oberflächen erst ermöglicht.
 4. **Token-Choice vor API-Key:** Für hochpreisige Modelle (Codex/GPT-5.4) immer das **OAuth/Token-Verfahren** bevorzugen, um Betriebskosten zu minimieren.
 5. **Hierarchisches Fallback-Management:** In der `models.json` eine klare Provider-Kette (`Primary -> Fallback`) definieren.
-6. **Insecure WebSocket Overrides:** Für vertrauenswürdige interne Netzwerke `OPENCLAW_ALLOW_INSECURE_PRIVATE_WS=1` nutzen, um Browser-Blocking zu umgehen.
 7. **Cross-Surface Continuity (Rosetta-Sync):** Verifiziere IMMER das Mapping zwischen Session-Key (`agent:main:...`) und physikalischem Memory-Log. Ein Kanal ohne korrekten Link zum TARS-Hub ist ein "blinder" Kanal.
+8. **Multi-Surface Capability (IDE Agnosticism):** Baue Komponenten immer FS-zentriert. Da über Open VSX (`TureAutoAcceptAntiGravity`) sowohl Anti-Gravity als auch Cursor unterstützt werden, muss das Backend IDE-agnostisch bleiben.
 
 ---
 
