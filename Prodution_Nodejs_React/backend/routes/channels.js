@@ -76,6 +76,8 @@ const ChannelConfigSchema = z.object({
         ideOverride: z.boolean().nullish(),
         inactiveSubAgents: z.array(z.string()).nullish(),
         inactiveSkills: z.array(z.string()).nullish(),
+        caseSkills: z.array(z.string()).nullish(),
+        inactiveCaseSkills: z.array(z.string()).nullish(),
         status: z.string().nullish(),
         currentTask: z.string().nullish()
     })),
@@ -100,7 +102,9 @@ const UpdateChannelSchema = z.object({
     ideOverride: z.boolean().nullish(),
     model: z.string().nullish(),
     inactiveSubAgents: z.array(z.string()).nullish(),
-    inactiveSkills: z.array(z.string()).nullish()
+    inactiveSkills: z.array(z.string()).nullish(),
+    caseSkills: z.array(z.string()).nullish(),
+    inactiveCaseSkills: z.array(z.string()).nullish()
 }).passthrough();
 
 const UpdateAgentSchema = z.object({
@@ -264,6 +268,8 @@ router.get('/', async (req, res, next) => {
                 ideOverride: localInfo.ideOverride || false,
                 inactiveSubAgents: localInfo.inactiveSubAgents || [],
                 inactiveSkills: localInfo.inactiveSkills || [],
+                caseSkills: localInfo.caseSkills || [],
+                inactiveCaseSkills: localInfo.inactiveCaseSkills || [],
                 require_mention: settings.requireMention || false,
                 currentTask: routingInfo.purpose || "Live Channel",
                 status: "active"
@@ -283,6 +289,8 @@ router.get('/', async (req, res, next) => {
                  ideOverride: localInfo.ideOverride || false,
                  inactiveSubAgents: localInfo.inactiveSubAgents || [],
                  inactiveSkills: localInfo.inactiveSkills || [],
+                 caseSkills: localInfo.caseSkills || [],
+                 inactiveCaseSkills: localInfo.inactiveCaseSkills || [],
                  currentTask: "Offline/Disconnected",
                  status: "offline"
              });
@@ -303,7 +311,8 @@ router.get('/', async (req, res, next) => {
             mainAgents: {
                 tars: { name: "TARS", role: "Planner", color: "#50e3c2", defaultSkills: ["clawflow", "skill-creator", "clawhub"], quote: "Direct, honest, useful. No fake certainty. Builds with architecture and rigor." },
                 marvin: { name: "MARVIN", role: "Critic", color: "#e35050", defaultSkills: ["healthcheck", "node-connect"], quote: "Zero-trust reviewer. Assumes everything is broken. Finds failures before they find you." },
-                sonic: { name: "SONIC", role: "Executor", color: "#e3c450", defaultSkills: ["web_search", "web_fetch"], quote: "Fast execution inside scope. Moves quick when plan is solid. Stops when reality diverges." }
+                sonic: { name: "SONIC", role: "Executor", color: "#e3c450", defaultSkills: ["web_search", "web_fetch"], quote: "Fast execution inside scope. Moves quick when plan is solid. Stops when reality diverges." },
+                case: { name: "CASE (@CASE_JanBot)", role: "IDE Relay / DevBot", color: "#3b82f6", defaultSkills: ["clawflow", "web_search"], quote: "Translates human intent into IDE action. I build what TARS plans." }
             },
             subAgentsDict: {
                 researcher: { name: "Researcher", parent: "tars", additionalSkills: ["web_search", "web_fetch"] },
@@ -390,6 +399,12 @@ router.post('/update', async (req, res, next) => {
                 if (payload.inactiveSkills !== undefined) {
                     parsed.channels[channelIndex].inactiveSkills = payload.inactiveSkills;
                 }
+                if (payload.caseSkills !== undefined) {
+                    parsed.channels[channelIndex].caseSkills = payload.caseSkills;
+                }
+                if (payload.inactiveCaseSkills !== undefined) {
+                    parsed.channels[channelIndex].inactiveCaseSkills = payload.inactiveCaseSkills;
+                }
             } else {
                 parsed.channels.push({
                     id: payload.channelId,
@@ -399,7 +414,9 @@ router.post('/update', async (req, res, next) => {
                     ideOverride: payload.ideOverride || false,
                     model: payload.model || 'local-pc/google/gemma-4-26b-a4b',
                     inactiveSubAgents: payload.inactiveSubAgents || [],
-                    inactiveSkills: payload.inactiveSkills || []
+                    inactiveSkills: payload.inactiveSkills || [],
+                    caseSkills: payload.caseSkills || [],
+                    inactiveCaseSkills: payload.inactiveCaseSkills || []
                 });
             }
 

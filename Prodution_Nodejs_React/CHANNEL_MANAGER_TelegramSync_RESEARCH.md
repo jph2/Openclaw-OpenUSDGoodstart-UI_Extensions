@@ -74,6 +74,10 @@ Die Analyse zeigt, dass TARS und CASE innerhalb derselben privaten Gruppen agier
 Real-time Feedback im Web darf nicht auf Telegram-Edits warten.
 - **Pattern:** SSE-Streaming erfolgt direkt aus dem Backend-Hook, während Telegram verzögert (debounced) aktualisiert wird, um 429-Rate-Limits zu vermeiden.
 
+### 2.3 The Gateway Transcript vs. Prompt Context
+Das OpenClaw-Verhalten ist "by design": Die Web UI zeigt das **Gateway-Transcript** (Source of Truth). Der Telegram-Agent selbst erhält jedoch nicht automatisch das gesamte Transcript wieder injiziert, sondern buffert über `historyLimit` (Default 50) nur pendente oder frische Nachrichten, um die Token-Kosten und das Kontextfenster extrem gering zu halten.
+- **Architektonischer Pivot:** Wir stoppen den Versuch, die Chat-Historie aus Telegram live herauszusaugen. Das Channel-Manager-Backend operiert jetzt "Gateway-First".
+
 ---
 
 ## 3. Implementation Specifications

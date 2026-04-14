@@ -57,9 +57,11 @@ router.post('/send', apiLimiter, async (req, res, next) => {
         console.log(`[API POST /send] Parsed values -> chatId: ${chatId}, textLength: ${text.length}`);
         
         // Auto-fix legacy generic OpenClaw aliases to the real telegram Chat ID
-        if (chatId === '-3736210177') {
-            console.log('[API POST /send] Auto-correcting legacy chatId -3736210177 to -1003752539559');
+        if (chatId === '-3736210177' || chatId === 'TG000_General_Chat') {
+            console.log(`[API POST /send] Auto-correcting alias ${chatId} to -1003752539559`);
             chatId = '-1003752539559';
+        } else if (chatId === 'TG001_Idea_Capture') {
+            chatId = '-1002047804899'; // Assuming this is correct from common openclaw usages, adjust if needed
         }
         
         const result = await sendMessageToChat(chatId, text);

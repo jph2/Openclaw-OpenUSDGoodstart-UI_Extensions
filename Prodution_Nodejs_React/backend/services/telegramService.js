@@ -1,5 +1,8 @@
 import { Telegraf } from 'telegraf';
 import { EventEmitter } from 'events';
+import chokidar from 'chokidar';
+import fs from 'fs';
+import path from 'path';
 
 export const telegramEvents = new EventEmitter();
 
@@ -10,13 +13,15 @@ const MAX_BUFFER_SIZE = 50;
 let bot = null;         // TARS (Inbound)
 let relayBot = null;    // CASE / Shedly (Outbound)
 
+// Track file sizes to only read new lines
+const fileOffsets = new Map();
+
 export const initTelegramService = () => {
     const token = process.env.TELEGRAM_BOT_TOKEN;
     const relayToken = process.env.RELAY_BOT_TOKEN || process.env.SHEDLY_BOT_TOKEN;
 
     if (!token) {
-        console.warn('[TelegramService] TELEGRAM_BOT_TOKEN not found in .env. Running in offline/mock mode for Sub-Task 3.1.');
-        return;
+        console.warn('[TelegramService] TELEGRAM_BOT_TOKEN not found in .env.');
     }
     
     if (!relayToken) {
@@ -26,43 +31,130 @@ export const initTelegramService = () => {
     }
 
     try {
-        bot = new Telegraf(token);
+        if (token) {
+            bot = new Telegraf(token);
+            // NOTE: bot.launch() is INTENTIONALLY REMOVED to satisfy Phase 7 (Gateway-First)
+            // The 409 Conflict is solved because the local process no longer actively polls Telegram.
+        }
 
-        // Sub-Task 3.1: Listen to live message stream
-        bot.on('message', (ctx) => {
-            const chatId = ctx.chat.id.toString();
-            const message = {
-                id: ctx.message.message_id,
-                text: ctx.message.text || '[Non-text message]',
-                sender: ctx.from.first_name || ctx.from.username || 'Unknown',
-                senderId: ctx.from.id,
-                date: ctx.message.date,
-                isBot: ctx.from.is_bot
-            };
-
-            // Store in buffer
-            if (!messageBuffer.has(chatId)) messageBuffer.set(chatId, []);
-            const chatBuffer = messageBuffer.get(chatId);
-            chatBuffer.push(message);
-            if (chatBuffer.length > MAX_BUFFER_SIZE) chatBuffer.shift();
-
-            // Broadcast to ChannelManager.jsx over Server-Sent Events
-            telegramEvents.emit('newMessage', { chatId, message });
+        // ==========================================
+        // PHASE 7: Gateway-First Filesystem Bridge
+        // ==========================================
+        const agentsDir = path.resolve(process.env.HOME || '/home/claw-agentbox', '.openclaw/agents');
+        
+        console.log(`[TelegramService] Initializing Chokidar Gateway Listener on ${agentsDir} ...`);
+        
+        const watcher = chokidar.watch(agentsDir, {
+            persistent: true,
+            ignoreInitial: false,
+            usePolling: true,
+            interval: 500
         });
 
-        bot.launch().then(() => {
-            console.log('[TelegramService] Telegraf Bot successfully connected and streaming data.');
-        }).catch(err => {
-            console.error('[TelegramService] Polling failed (usually 409 Conflict with OpenClaw). Receiving disabled, but sending remains active.', err.message);
-            // Do NOT set bot = null. We can still use bot.telegram.sendMessage!
+        watcher.on('add', (filePath, stats) => {
+            if (!filePath.endsWith('.jsonl') || !filePath.includes('/sessions/')) return;
+            
+            fs.appendFileSync('backend_debug.log', `[Chokidar ADD] ${filePath}\n`);
+            try {
+                const data = fs.readFileSync(filePath, 'utf8');
+                const lines = data.split('\n').filter(l => l.trim() !== '');
+                const recentLines = lines.slice(-200); 
+                
+                for (const line of recentLines) {
+                    try {
+                        const parsed = JSON.parse(line);
+                        if (parsed.type === 'message' && parsed.message) {
+                            processGatewayMessage(parsed);
+                        }
+                    } catch(e) { }
+                }
+            } catch (err) {
+                fs.appendFileSync('backend_debug.log', `[Chokidar ADD Error] ${err.message}\n`);
+            }
+            fileOffsets.set(filePath, stats ? stats.size : fs.statSync(filePath).size);
         });
 
-        // Enable graceful stop
-        process.once('SIGINT', () => { if (bot) bot.stop('SIGINT') });
-        process.once('SIGTERM', () => { if (bot) bot.stop('SIGTERM') });
+        watcher.on('change', (filePath, stats) => {
+            if (!filePath.endsWith('.jsonl') || !filePath.includes('/sessions/')) return;
+            
+            fs.appendFileSync('backend_debug.log', `[Chokidar CHANGE] ${filePath}\n`);
+            const currentSize = stats ? stats.size : fs.statSync(filePath).size;
+            const previousSize = fileOffsets.get(filePath) || 0;
+            
+            if (currentSize > previousSize) {
+                const stream = fs.createReadStream(filePath, { start: previousSize, end: currentSize - 1 });
+                let data = '';
+                
+                stream.on('error', err => fs.appendFileSync('backend_debug.log', `[Stream Error] ${err.message}\n`));
+                stream.on('data', chunk => { data += chunk.toString(); });
+                stream.on('end', () => {
+                    fileOffsets.set(filePath, currentSize);
+                    const lines = data.split('\n').filter(l => l.trim() !== '');
+                    for (const line of lines) {
+                        try {
+                            const parsed = JSON.parse(line);
+                            if (parsed.type === 'message' && parsed.message) {
+                                processGatewayMessage(parsed);
+                            }
+                        } catch(e) { }
+                    }
+                });
+            } else if (currentSize < previousSize) {
+                fileOffsets.set(filePath, currentSize);
+            }
+        });
+
+        console.log('[TelegramService] Phase 7 Gateway Listener active. Bridging session transcripts to React SSE.');
+
     } catch (err) {
         console.error('[TelegramService] Initialization failed:', err.message);
     }
+};
+
+const processGatewayMessage = (data) => {
+    const role = data.message.role;
+    const contentBlocks = data.message.content || [];
+    let text = '';
+    
+    // Convert OpenClaw message format to pure text for the Simple React Chat
+    contentBlocks.forEach(b => {
+        if (b.type === 'text') {
+            text += b.text + '\n';
+        } else if (b.type === 'toolCall') {
+            text += `⚙️ [Tool Call: ${b.name}]\n`;
+        } else if (b.type === 'toolResult') {
+            text += `✅ [Tool Result: ${b.toolName}]\n`;
+        }
+    });
+    
+    text = text.trim();
+    if (!text) return;
+
+    // Use a hardcoded mapped ID, or route generically.
+    // The frontend listens on -1003752539559 / -3736210177 or the channel UI name directly.
+    const targetChatIds = ['-1003752539559', '-3736210177', 'TG000_General_Chat', 'TG001_Idea_Capture'];
+    
+    const msgObj = {
+        id: data.id,
+        text: text,
+        sender: role === 'assistant' ? 'TARS (Gateway)' : (role === 'toolResult' ? 'System (Tool)' : 'User'),
+        senderId: role,
+        date: Math.floor(new Date(data.timestamp).getTime() / 1000),
+        isBot: role === 'assistant' || role === 'toolResult',
+        metrics: data.message.usage || null,
+        model: data.message.model || ''
+    };
+
+    targetChatIds.forEach(chatId => {
+        if (!messageBuffer.has(chatId)) messageBuffer.set(chatId, []);
+        const chatBuffer = messageBuffer.get(chatId);
+        
+        // Push and emit
+        chatBuffer.push(msgObj);
+        if (chatBuffer.length > MAX_BUFFER_SIZE) chatBuffer.shift();
+        
+        telegramEvents.emit('newMessage', { chatId, message: msgObj });
+    });
 };
 
 export const getMessagesForChat = (chatId) => {
@@ -90,22 +182,16 @@ export const getChatBots = async (chatId) => {
         // Filter out human admins, keep only bots, AND hide the primary bot itself
         const bots = admins.filter(admin => admin.user.is_bot && admin.user.id !== mainBotInfo.id).map(admin => admin.user);
 
-        // Telegram's getChatAdministrators misses bots that are normal members (e.g. CASE often defaults to member).
-        // Since we know the Relay Bot (CASE), we can explicitly check its presence:
         if (relayBot) {
             try {
                 if (!relayBotInfo) relayBotInfo = await relayBot.telegram.getMe();
-                
-                // If it's already caught in the admins query, no need to duplicate
                 if (!bots.find(b => b.id === relayBotInfo.id)) {
                     const relayMember = await bot.telegram.getChatMember(chatId, relayBotInfo.id);
                     if (['creator', 'administrator', 'member', 'restricted'].includes(relayMember.status)) {
                         bots.push(relayMember.user);
                     }
                 }
-            } catch (err) {
-                // Relay bot not present in chat or unauthorized
-            }
+            } catch (err) {}
         }
 
         return bots;

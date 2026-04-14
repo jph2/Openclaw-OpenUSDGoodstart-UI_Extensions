@@ -1,14 +1,96 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { Send, Copy } from 'lucide-react';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
+
+const RENDER_PLUGINS = [remarkGfm];
+
+const RENDER_COMPONENTS = {
+    p: ({ node: _node, ...props }) => <p style={{ margin: '0 0 10px 0' }} {...props} />,
+    pre: ({ node: _node, ...props }) => <pre style={{ background: 'rgba(0,0,0,0.2)', padding: '10px', borderRadius: '6px', overflowX: 'auto', margin: '10px 0' }} {...props} />,
+    code: ({ node: _node, inline, className, children, ...props }) => inline ? <code style={{ background: 'rgba(0,0,0,0.15)', padding: '2px 4px', borderRadius: '4px', fontFamily: 'monospace', fontSize: '0.9em' }} {...props}>{children}</code> : <code style={{ fontFamily: 'monospace', fontSize: '0.9em' }} className={className} {...props}>{children}</code>,
+    ul: ({ node: _node, ...props }) => <ul style={{ paddingLeft: '24px', marginBottom: '10px', marginTop: '0' }} {...props} />,
+    ol: ({ node: _node, ...props }) => <ol style={{ paddingLeft: '24px', marginBottom: '10px', marginTop: '0' }} {...props} />,
+    li: ({ node: _node, ...props }) => <li style={{ marginBottom: '4px' }} {...props} />,
+    a: ({ node: _node, ...props }) => <a style={{ color: '#50e3c2', textDecoration: 'none' }} {...props} />
+};
+
+const MessageBubble = React.memo(({ msg }) => {
+    const isMe = msg.senderId === 'me' || (msg.sender && (msg.sender.toLowerCase() === 'you (frontend)' || msg.sender.toLowerCase().includes('jan') || msg.sender.toLowerCase().includes('user')));
+    
+    const formatNum = (n) => n > 1000 ? (n/1000).toFixed(1) + 'k' : n;
+    const timestampStr = new Date(msg.date * 1000).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+    let stamp = `${timestampStr}`;
+    if (msg.metrics) {
+        const input = formatNum(msg.metrics.input || 0);
+        const output = formatNum(msg.metrics.output || 0);
+        const cache = formatNum(msg.metrics.cacheRead || 0);
+        stamp += ` ↑${input} ↓${output} R${cache}`;
+    }
+    if (msg.model) {
+        stamp += ` ctx ${msg.model}`;
+    }
+
+    const copyToClipboard = (text) => {
+        navigator.clipboard.writeText(text);
+    };
+
+    return (
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: isMe ? 'flex-end' : 'flex-start', marginBottom: '8px' }}>
+            <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginBottom: '4px', marginLeft: isMe ? 0 : '8px', marginRight: isMe ? '8px' : 0, fontWeight: 600 }}>
+                {msg.sender.replace(' (Gateway)', '')} {msg.isBot && <span style={{ background: '#50e3c2', color: '#000', padding: '1px 4px', borderRadius: '4px', fontSize: '9px', marginLeft: '4px', fontWeight: 'bold' }}>BOT</span>}
+            </div>
+            <div style={{ 
+                background: isMe ? '#50e3c2' : '#2a2b36', 
+                color: isMe ? '#000' : '#e0e0e0',
+                padding: '12px 16px', 
+                borderRadius: '8px',
+                borderBottomRightRadius: isMe ? 0 : '8px',
+                borderBottomLeftRadius: isMe ? '8px' : 0,
+                maxWidth: '85%',
+                wordBreak: 'break-word',
+                lineHeight: '1.5',
+                position: 'relative'
+            }}>
+                <div style={{ position: 'absolute', top: '8px', right: '8px' }}>
+                    <button 
+                        onClick={() => copyToClipboard(msg.text)}
+                        style={{ background: 'rgba(0,0,0,0.1)', border: 'none', color: isMe ? '#000' : '#888', cursor: 'pointer', borderRadius: '4px', padding: '4px', display: 'flex', alignItems: 'center' }}
+                        title="Copy as markdown"
+                    >
+                        <Copy size={14} />
+                    </button>
+                </div>
+                <div style={{ paddingRight: '20px' }}>
+                    {/* eslint-disable no-unused-vars */}
+                    <ReactMarkdown remarkPlugins={RENDER_PLUGINS} components={RENDER_COMPONENTS}>
+                        {msg.text}
+                    </ReactMarkdown>
+                </div>
+            </div>
+            <div style={{ fontSize: '10px', color: '#666', marginTop: '4px', marginLeft: isMe ? 0 : '8px', marginRight: isMe ? '8px' : 0 }}>
+                {stamp}
+            </div>
+        </div>
+    );
+}, (prevProps, nextProps) => {
+    return prevProps.msg.id === nextProps.msg.id && prevProps.msg.text === nextProps.msg.text;
+});
 
 export default function TelegramChat({ channelId, channelName }) {
     const [messages, setMessages] = useState([]);
     const [inputValue, setInputValue] = useState('');
     const [isSending, setIsSending] = useState(false);
-    const messagesEndRef = useRef(null);
+    const containerRef = useRef(null);
 
     // Auto-scroll to bottom
     const scrollToBottom = () => {
-        messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+        if (containerRef.current) {
+            containerRef.current.scrollTo({
+                top: containerRef.current.scrollHeight,
+                behavior: "smooth"
+            });
+        }
     };
 
     useEffect(() => {
@@ -109,37 +191,16 @@ export default function TelegramChat({ channelId, channelName }) {
             </div>
             
             {/* Messages Area */}
-            <div style={{ flex: 1, padding: '16px', display: 'flex', flexDirection: 'column', gap: '12px', overflowY: 'auto' }}>
+            <div ref={containerRef} style={{ flex: 1, padding: '16px', display: 'flex', flexDirection: 'column', gap: '12px', overflowY: 'auto' }}>
                 {messages.length === 0 ? (
                     <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-muted)' }}>
                         Waiting for messages in {channelName}...
                     </div>
                 ) : (
-                    messages.map((msg, idx) => {
-                        const isMe = msg.senderId === 'me';
-                        return (
-                            <div key={msg.id || idx} style={{ display: 'flex', flexDirection: 'column', alignItems: isMe ? 'flex-end' : 'flex-start' }}>
-                                <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginBottom: '4px', marginLeft: isMe ? 0 : '8px', marginRight: isMe ? '8px' : 0 }}>
-                                    {msg.sender} {msg.isBot && <span style={{ background: '#50e3c2', color: '#000', padding: '1px 4px', borderRadius: '4px', fontSize: '9px', marginLeft: '4px' }}>BOT</span>}
-                                </div>
-                                <div style={{ 
-                                    background: isMe ? '#50e3c2' : '#2a2b36', 
-                                    color: isMe ? '#000' : '#fff',
-                                    padding: '8px 12px', 
-                                    borderRadius: '8px',
-                                    borderBottomRightRadius: isMe ? 0 : '8px',
-                                    borderBottomLeftRadius: isMe ? '8px' : 0,
-                                    maxWidth: '85%',
-                                    wordBreak: 'break-word',
-                                    lineHeight: '1.4'
-                                }}>
-                                    {msg.text}
-                                </div>
-                            </div>
-                        );
-                    })
+                    messages.map((msg, idx) => (
+                        <MessageBubble key={msg.id || idx} msg={msg} />
+                    ))
                 )}
-                <div ref={messagesEndRef} />
             </div>
 
             {/* Input Area */}

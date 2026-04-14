@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
@@ -77,7 +78,7 @@ const PaneHeader = ({ title }) => (
 );
 
 // --- Zustand Store ---
-const useWorkbenchStore = create(persist((set) => ({
+export const useWorkbenchStore = create(persist((set) => ({
     viewMode: 'code', // 'code' | 'diff'
     setViewMode: (mode) => set({ viewMode: mode }),
     activeFile: null,
@@ -411,6 +412,15 @@ export default function Workbench() {
     } = useWorkbenchStore();
     
     const queryClient = useQueryClient();
+    const [searchParams] = useSearchParams();
+    
+    useEffect(() => {
+        const queryPath = searchParams.get('path');
+        if (queryPath) {
+            addWorkspace(queryPath);
+            setCurrentRoot(queryPath);
+        }
+    }, [searchParams, addWorkspace, setCurrentRoot]);
 
     const [sidebarKey, setSidebarKey] = useState(0);
     const [mainKey, setMainKey] = useState(0);

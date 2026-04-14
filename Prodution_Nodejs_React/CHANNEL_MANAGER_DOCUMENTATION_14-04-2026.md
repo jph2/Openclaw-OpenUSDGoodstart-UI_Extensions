@@ -6,27 +6,27 @@ type: DOCUMENTATION
 status: active
 trust_level: 3
 agent_index:
-  context: "Consolidated Master Documentation (10.04. - 13.04.2026) covering Architecture, Stabilization, and Private Ecosystem Governance."
-  maturation: 3
+  context: "Consolidated Master Documentation (10.04. - 14.04.2026) covering Architecture, Stabilization, und Private Ecosystem Governance."
+  maturation: 4
   routing:
     history: "#1-architektur-evolution--refactoring-history"
-    stabilization: "#2-stabilisierungs-meilensteine-13042026"
+    stabilization: "#2-stabilisierungs-meilensteine-14042026"
     anti_patterns: "#anti-patterns--architektonische-fallstricke"
 created: "2026-04-13T20:45:00Z"
-last_modified: "2026-04-13T20:45:00Z"
+last_modified: "2026-04-14T12:00:00Z"
 author: "AntiGravity"
 provenance:
   git_repo: "Openclaw-OpenUSDGoodtstart-Extension"
   git_branch: "main"
-  git_path: "Prodution_Nodejs_React/CHANNEL_MANAGER_DOCUMENTATION_13-04-2026.md"
-tags: [master-docs, architecture, zod, telegram-hub, private-ecosystem, anti-patterns]
+  git_path: "Prodution_Nodejs_React/CHANNEL_MANAGER_DOCUMENTATION_14-04-2026.md"
+tags: [master-docs, architecture, zod, telegram-hub, private-ecosystem, anti-patterns, mcp]
 ---
 
 # OpenClaw Channel Manager: Master Documentation
 
-**Version**: 2.0.0 | **Date**: 13.04.2026 | **Time**: 20:45 | **GlobalID**: 20260413_2045_MASTER_DOC_v2
+**Version**: 2.1.0 | **Date**: 14.04.2026 | **Time**: 12:30 | **GlobalID**: 20260414_1230_MASTER_DOC_v2
 
-**Status:** active | **Source Registry:** Consolidated from Docs 10.04. & 13.04.
+**Status:** active | **Source Registry:** Consolidated from Docs 10.04. & 14.04.
 
 ---
 
@@ -60,6 +60,21 @@ Um den **Telegram HTTP 409 Polling Conflict** zu lösen, nutzt das System zwei I
 - **CASE:** Sendet aktiv aus dem Web-Interface/IDE (Relay).
 - **Resultat:** Keine Token-Kollisionen und stabile Antwort-Zyklen der Engine.
 
+### 2.3 Gateway-First Architektur (Der finale Shift)
+Um die HTTP 409 Fehler endgültig zu eliminieren, wurde das Polling im lokalen Backend komplett deaktiviert.
+- **Source of Truth:** Das physische Transkript im OpenClaw Workspace.
+- **Mechanismus:** Ein FS-Scanner (Chokidar) überwacht die Session-Files und streamt diese per SSE direkt an das React-Frontend. Das System agiert als reiner **Mirror** des Gateways.
+
+### 2.4 UI Parity & CASE Visual Alignment (14.04.2026)
+Um CASE als First-Class-Citizen abzubilden, wurde das Channel Manager UI refactored:
+- **Horizontal Alignment:** Die Tabellen-Struktur von `ChannelManager.jsx` wurde über Flexbox-Modifikatoren so konfiguriert (`marginTop: 'auto'`), dass die dynamischen Telegram-Bots (links) immer exakt horizontal mit den "CASE SKILLS" Konfigurationsblöcken (rechts) korrelieren.
+- **Workbench Access:** Die Skill-Buttons wurden entsperrt, sodass auch `bundled` Skills (wie Clawflow und Skill-Creator) per UI für die Editierung in einer Workbench getriggered werden können.
+
+### 2.5 Model Context Protocol (MCP) Integration Decision (14.04.2026)
+Es wurde final beschlossen, den Channel Manager um einen **Sovereign MCP Server** zu erweitern, anstatt auf ACP (Agent Communication Protocol) zu setzen.
+- **Begründung:** MCP ist präzise darauf ausgelegt, IDEs (wie AntiGravity) direkten Kontext und freigegebene Tools zur Verfügung zu stellen. 
+- **Nutzen:** AntiGravity (als Frontend-Model) kann den MCP Server kontaktieren, liest über ihn das Memory-Transcript aus `/workspace/memory/` sowie die erlaubten Channel-Skills, und hydratisiert so den System-Prompt von CASE komplett autonom.
+
 ---
 
 ## Anti-Patterns & Architektonische Fallstricke
@@ -83,6 +98,9 @@ Nutze für Hot-Reloading und einfache Status-Updates **SSE (Server-Sent Events)*
 
 ### AP-06: Bot Identity Loop Trap
 Bots antworten in Telegram standardmäßig nicht auf andere Bots. Ein Web-Interface, das mit dem Haupt-Token (`TARS_2`) sendet, wird von der Engine ignoriert. Lösung: **CASE Relay-Bot**.
+
+### AP-06B: The 409 Deadlock (getUpdates Conflict)
+Zwei konkurrierende Bot-Instanzen (z.B. TARS-Cloud und lokales Web-Backend) dürfen nicht rigoros dasselbe Token für `getUpdates` nutzen, sonst kappt Telegram die Verbindung gnadenlos mit `409 Conflict: terminated by other getUpdates request`. **Lösung:** Entweder strikte Token-Trennung per Architektur (TARS vs. CASE) oder direkter Wechsel auf MTProto.
 
 ### AP-07: Flexbox Container Collapse
 Tief verschachtelte Flexboxen ohne `min-width: 0` können bei Text-Ellipsis auf 0 Pixel kollabieren. Lösung: Rigoroses **CSS Grid** (`1fr`) für Content-Bereiche nutzen.
@@ -129,4 +147,4 @@ Das Erfinden neuer Session-Keys für bestehende Kanäle zerstört den Zugriff au
 ---
 
 **Ende der konsolidierten Master-Dokumentation.**
-*Zusammengeführt am 13.04.2026 durch AntiGravity.*
+*Zusammengeführt am 14.04.2026 durch AntiGravity.*

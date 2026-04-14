@@ -1,0 +1,44 @@
+---
+arys_schema_version: "1.3"
+id: "b4d7e8f5-1c2d-4e89-a29d-4f1a2e3b4c5d"
+title: "Channel Manager Testing Plan: Gateway-First Architecture"
+type: TASK
+status: active
+trust_level: 2
+created: "2026-04-14T09:40:00Z"
+last_modified: "2026-04-14T09:40:00Z"
+author: "AntiGravity"
+tags: [testing, qa, gateway-first, chokidar, sse]
+---
+
+# 🧪 Channel Manager: Testing Plan (Phase 5 - Gateway-First)
+
+Da wir die Architektur radikal auf das **Gateway-First** Pattern (FS-Chokidar-Listener ohne aktives Polling) umgestellt haben, müssen wir die Brücke systematisch validieren. Dieser Test-Plan führt uns durch die Absicherung.
+
+## 1. Mock-Test: Die Filesystem-React-Brücke (Trockenlauf)
+**Ziel:** Verifizieren, dass der Chokidar-Scanner und der SSE-Stream korrekt zusammenarbeiten.
+
+- [x] **Schritt 1:** Öffne das React-Webinterface (`http://localhost:4000` oder dein Proxy-Subnetz) und navigiere zum Chat-Fenster eines Bots.
+- [x] **Schritt 2:** Der Agent (ich) nutzt das Terminal, um manuell einen neuen `message`-Block (.json) in eine bestehende `.jsonl`-Session-Datei unter `~/.openclaw/agents/main/sessions/` anzuhängen.
+- [x] **Schritt 3:** Wir validieren visuell, ob diese Nachricht *instantan* im React-Frontend erscheint.
+
+## 2. Der "No-409" Live Test (End-to-End)
+**Ziel:** Verifizieren, dass Telegram API 409-Konflikte der Vergangenheit angehören und Nachrichten im echten Flow repliziert werden.
+
+- [x] **Schritt 1:** Node.js Backend lokal weiterlaufen lassen (es pollt nun aktiv *nicht* mehr).
+- [x] **Schritt 2:** Du (als User) schickst über deine echte Telegram-App eine Nachricht an den TARS-Bot.
+- [x] **Schritt 3:** OpenClaw empfängt diese (da OpenClaw den einzigen legitimen `getUpdates`-Poller ausführt).
+- [x] **Schritt 4:** OpenClaw verarbeitet den Prompt und schreibt das Transkript in die jeweilige `.jsonl`.
+- [x] **Schritt 5:** Unser lokales Backend erkennt den File-Change und streamt die Antwort und den ToolCall von TARS sauber in dein React Interface.
+- [x] **Schritt 6:** Konsolen-Check: Es dürfen im Backend-Terminal keine `[Telegraf] 409 Conflict` Abstürze mehr auftauchen. *(Erfolgreich! Zudem wurden die `[Violation] 'message' handler took [X]ms` Frontend-Warnungen behoben, indem `React.memo` mit einem Custom-ID-Check abgesichert wurde, was massives Re-Rendering bei Vite HMR Hot-Reloads blockiert).*
+
+## 3. Der Relay-Sende-Test (Asymmetrie-Verifizierung)
+**Ziel:** Sicherstellen, dass das native React-Interface weiterhin Nachrichten absenden kann und CASE diesen Job erfolgreich übernimmt.
+
+- [x] **Schritt 1:** Sende eine Nachricht aus dem Frontend-UI.
+- [x] **Schritt 2:** Das Backend empfängt den Request und leitet ihn über den `RELAY_BOT_TOKEN` an Telegram weiter. *(Routing-Bug für TG000_General_Chat -> -1003752539559 behoben)*
+- [x] **Schritt 3:** Die Nachricht erscheint in deiner Chat-App und wird, da TARS dort zuhört, wieder im OpenClaw-Netzwerk registriert.
+- [x] **Schritt 4:** Der Scanner bringt die End-Nachricht zurück ins UI.
+
+---
+✅ **ALLE TESTS ERFOLGREICH ABGESCHLOSSEN:** Die "Gateway-First" Brücke ist vollständig verifiziert und performant in das React UI (Channel Manager) integriert.

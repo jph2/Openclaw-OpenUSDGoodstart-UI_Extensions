@@ -1,28 +1,22 @@
-const { z } = require('zod');
+import chokidar from 'chokidar';
+import path from 'path';
 
-const ChannelConfigSchema = z.object({
-    metadata: z.object({
-        mainAgents: z.record(z.object({
-            name: z.string(),
-            role: z.string().nullish(),
-            color: z.string().nullish(),
-            defaultSkills: z.array(z.string()).nullish(),
-            quote: z.string().nullish()
-        })).nullish()
-    }).nullish()
-}).passthrough();
+const agentsDir = path.resolve('/home/claw-agentbox', '.openclaw/agents');
 
-const unifiedData = {
-    metadata: {
-        mainAgents: {
-            tars: { name: "TARS", role: "Planner", color: "#50e3c2", defaultSkills: ["clawflow"], quote: "Direct" }
-        }
-    }
-};
+console.log(`Watching: ${agentsDir}`);
 
-try {
-    ChannelConfigSchema.parse(unifiedData);
-    console.log("SUCCESS");
-} catch (e) {
-    console.log(JSON.stringify(e, null, 2));
-}
+const watcher = chokidar.watch(agentsDir, {
+    persistent: true,
+    ignoreInitial: false,
+    usePolling: true,
+    interval: 500,
+    depth: 3
+});
+
+watcher.on('add', (fp) => {
+    if (fp.endsWith('.jsonl')) console.log('ADDED:', fp);
+});
+watcher.on('ready', () => {
+    console.log('Initial scan complete. Ready for changes.');
+    process.exit(0);
+});
