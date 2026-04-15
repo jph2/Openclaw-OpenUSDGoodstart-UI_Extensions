@@ -9,7 +9,7 @@ import path from 'path';
 // presenting them to the local IDE (AntiGravity) securely over stdio.
 
 const server = new Server({
-    name: "sovereign-channel-bridge",
+    name: "MCP-ChannelManager",
     version: "1.0.0"
 }, {
     capabilities: {
@@ -54,7 +54,7 @@ server.setRequestHandler(ListResourceTemplatesRequestSchema, async () => {
 server.setRequestHandler(ReadResourceRequestSchema, async (request) => {
     if (request.params.uri === "config://channels") {
         try {
-            const configPath = path.resolve(process.env.WORKSPACE_ROOT || '/media/claw-agentbox/data/9999_LocalRepo/', 'Openclaw-OpenUSDGoodtstart-Extension/channel_CHAT-manager/channel_config.json');
+            const configPath = path.resolve(process.env.WORKSPACE_ROOT || '/media/claw-agentbox/data/9999_LocalRepo/', 'OpenClaw_Control_Center/channel_CHAT-manager/channel_config.json');
             const data = await fs.readFile(configPath, 'utf8');
             return {
                 contents: [{
@@ -74,7 +74,7 @@ server.setRequestHandler(ReadResourceRequestSchema, async (request) => {
         try {
             // Memory is usually stored in /workspace/memory/TGXXX_name.md
             // Since we know the id (e.g. -1005752539559), we can search the memory dir for a file containing the id
-            const memoryDir = path.resolve(process.env.WORKSPACE_ROOT || '/media/claw-agentbox/data/9999_LocalRepo/', 'Openclaw-OpenUSDGoodtstart-Extension/channel_CHAT-manager/memory');
+            const memoryDir = path.resolve(process.env.WORKSPACE_ROOT || '/media/claw-agentbox/data/9999_LocalRepo/', 'OpenClaw_Control_Center/channel_CHAT-manager/memory');
             const files = await fs.readdir(memoryDir);
             const targetFile = files.find(f => f.includes(id));
             if (!targetFile) throw new Error("Transcript file not found for this channel ID.");
@@ -96,7 +96,7 @@ server.setRequestHandler(ReadResourceRequestSchema, async (request) => {
     if (request.params.uri.startsWith("config://") && request.params.uri !== "config://channels") {
         const id = request.params.uri.replace("config://", "");
         try {
-            const configPath = path.resolve(process.env.WORKSPACE_ROOT || '/media/claw-agentbox/data/9999_LocalRepo/', 'Openclaw-OpenUSDGoodtstart-Extension/channel_CHAT-manager/channel_config.json');
+            const configPath = path.resolve(process.env.WORKSPACE_ROOT || '/media/claw-agentbox/data/9999_LocalRepo/', 'OpenClaw_Control_Center/channel_CHAT-manager/channel_config.json');
             const data = JSON.parse(await fs.readFile(configPath, 'utf8'));
             const channel = data.channels.find(c => c.id === id);
             if (!channel) throw new Error("Channel configuration not found.");
@@ -157,7 +157,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
             const response = await fetch(`http://localhost:3000/api/telegram/send`, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ chat_id: channel_id, text: message })
+                body: JSON.stringify({ chatId: channel_id, text: message })
             });
             if (!response.ok) throw new Error(`HTTP ${response.status}`);
             return { content: [{ type: "text", text: `Message injected successfully into ${channel_id}` }], isError: false };

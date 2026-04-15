@@ -16,15 +16,15 @@ created: "2026-04-12T01:07:00Z"
 last_modified: "2026-04-14T17:15:00Z"
 author: "AntiGravity"
 provenance:
-  git_repo: "Openclaw-OpenUSDGoodtstart-Extension"
+  git_repo: "OpenClaw_Control_Center"
   git_branch: "main"
-  git_path: "Prodution_Nodejs_React/CHANNEL_MANAGER_IMPLEMENTATION_PLAN.md"
+  git_path: "Production_Nodejs_React/CHANNEL_MANAGER_IMPLEMENTATION_PLAN.md"
 tags: [implementation, channel_manager, telegram-hub, zod, private-ecosystem]
 ---
 
 # Implementierungsplan: Centralized Channel Manager (V1.3)
 
-**Release**: V1.4 | **Status**: Research-Complete / Phase 5 In-Progress | **Focus**: Rosetta-Sync & Context Continuity
+**Release**: V1.4 | **Status**: Phase 6 & 8 In-Progress | **Focus**: Rosetta-Sync & Context Continuity
 **GlobalID**: 20260413_2050_IMPLEMENTATION_v1.3
 
 **Last Updated:** 14.04.2026 17:15  
@@ -64,13 +64,13 @@ Ziel: Bedienkomfort verbessern, Architektur-Lecks schließen und Wissens-Kontinu
 
 - [x] **Sub-Task 6.0: AgentClaw IDE Integration** (VSIX Installation & CDP-Relay Aktivierung abgeschlossen ✅).
 
-- [ ] **Sub-Task 6.1: Message-Filter Layer (System/Heartbeat Toggle)**
+- [x] **Sub-Task 6.1: Message-Filter Layer (System/Heartbeat Toggle)**
   - Implementierung eines UI-Toggles an zentraler Stelle im UI: `[ ] Show System/Agent Internal Tasks`.
   - **Funktion 1 (Ganze Nachrichten blocken):** Wenn Toggle "aus", droppe alle Nachrichten, die exakt "HEARTBEAT_OK" enthalten oder mit "Read HEARTBEAT.md" beginnen.
   - **Funktion 2 (Text bereinigen / RegEx-Wäsche):** Wenn Toggle "aus", schneide aus den verbleibenden validen Nachrichten den Metadaten-Block heraus.
     - Entferne Präfix: `\[\[reply_to_current\]\] `
     - Entferne JSON-Blöcke (RegEx): Alle Vorkommen von `Conversation info \(untrusted metadata\):` und `Sender \(untrusted metadata\):` inklusive der darauf folgenden ` ```json ... ``` ` Code-Blöcke komplett aus dem Markdown-String löschen, sodass nur die echte Nutzer-Nachricht (z.B. "Hallo zusammen PING4") übrig bleibt.
-- [ ] **Sub-Task 6.2: Zod Normalization Layer** (Härtung der Pipeline gegen undefined/null-Crashes).
+- [x] **Sub-Task 6.2: Zod Normalization Layer** (Härtung der Pipeline gegen undefined/null-Crashes).
 - [ ] **Sub-Task 6.3: Memory History Hydration (Rosetta Stone)**
   - Implementierung eines Scanners für `/home/claw-agentbox/.openclaw/workspace/memory/*.md`.
   - Abgleich der `agent:main:telegram:group:<ID>` Keys mit den Markdown-Metadaten.
@@ -100,13 +100,9 @@ Ziel: Anbindung von AntiGravity an den Channel Manager über einen lokalen MCP S
 ## 8. Phase: Gateway & MCP Port-Stabilisierung (AKTIVE PHASE 🛠️)
 Ziel: Behebung von Port-Konflikten (EADDRINUSE) und Stabilisierung der Port-Forwarding Architektur zwischen IDE, Backend und Frontend.
 
-- [ ] **Sub-Task 8.1: Port-Standardisierung (Contract Fix)**
-  - Festlegen fester Ports: **3000** für das Backend (wie vom User präferiert), **5173** für Vite, **4260** für die Workbench.
-  - Update der `MCP-ChannelManager.mjs` auf den finalen Backend-Port.
-- [ ] **Sub-Task 8.2: Deep-Clean Zombie-Prozesse**
-  - Bereinigen aller verwaisten Node/Vite Prozesse auf 13.04/14.04-Basis.
-  - Skript-basierte Prüfung der Port-Belegung vor dem Start.
-- [ ] **Sub-Task 8.3: Validierung Test 4**
+- [x] **Sub-Task 8.1: Port-Standardisierung (Contract Fix)** (Port 3000, 5173, 4260 established via `occ-ctl.mjs` ✅).
+- [x] **Sub-Task 8.2: Deep-Clean Zombie-Prozesse** (Automated termination logic implemented in start/stop script ✅).
+- [ ] **Sub-Task 8.3: Validierung Test 4** (Sovereign MCP Bridge Verification).
   - Durchführung des Sovereign MCP-Bridge Tests (Send Telegram Reply) nach IDE-Reload.
 
 ## 9. Phase: MCP Governance & Whitelisting 🔮
@@ -135,5 +131,15 @@ Ziel: Schaffung eines "Single Point of Entry" zum Starten des Control Centers (W
   - Erstellung des [SKILL_Control_Center_Maintenance.md](file:///media/claw-agentbox/data/9999_LocalRepo/Studio_Framework/015_AgentSkills_Dev/20_Domain_Skills/SKILL_Control_Center_Maintenance.md).
   - Befähigung des Agenten, den Status des Control Centers autonom zu prüfen und ggf. Neustarts anzubieten.
 
+## 11. Phase: Repository Renaming & Path Desensitization (RESEARCH PHASE 🏗️)
+Ziel: Umbenennung des Repositories in `OpenClaw_Control_Center` und Ablösung harter Pfad-Abhängigkeiten zur Sicherstellung der Portabilität.
+
+- [ ] **Sub-Task 11.1: Absolute Path Audit (Research Phase B)**
+  - Vollständiger Scan der Quellcodes (`.js`, `.mjs`, `.sh`), Konfigs (`.json`) und Umgebungsvariablen (`.env`) nach hartkodierten `/media/claw-agentbox/...` Pfaden.
+- [x] **Sub-Task 11.2: MCP Configuration Patching** (Updated `mcp_config.json` to new repo path and fixed typos ✅).
+- [ ] **Sub-Task 11.3: ARYS/GILD Metadata Sync**
+  - Massen-Update der `git_path` Einträge in den YAML-Headern aller Dokumente im Studio Framework und Extension-Repo.
+- [x] **Sub-Task 11.4: Final Execution (Rename & Deployment)** (Directory renamed to `OpenClaw_Control_Center` ✅).
+
 ---
-*Status: Phasen 1-7 abgeschlossen. Phase 8 (Stabilisierung) und Phase 10 (OpenClaw Control Center) aktuell in Arbeit.*
+*Status: Phasen 1-8 (Teilweise 8), Phase 10 & 11 (Teilweise 11) abgeschlossen.*

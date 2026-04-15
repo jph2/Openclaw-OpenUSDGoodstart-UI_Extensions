@@ -17,14 +17,14 @@ const SERVICES = [
     {
         name: 'Backend (Channel Manager)',
         port: PORTS.BACKEND,
-        cwd: path.join(__dirname, 'Prodution_Nodejs_React', 'backend'),
+        cwd: path.join(__dirname, 'Production_Nodejs_React', 'backend'),
         command: 'npm',
         args: ['run', 'dev']
     },
     {
         name: 'Frontend (Vite UI)',
         port: PORTS.FRONTEND,
-        cwd: path.join(__dirname, 'Prodution_Nodejs_React', 'frontend'),
+        cwd: path.join(__dirname, 'Production_Nodejs_React', 'frontend'),
         command: 'npm',
         args: ['run', 'dev']
     },
@@ -109,5 +109,5 @@ if (arg === 'status') {
     await stop();
     await start();
 } else {
-    console.log('Usage: node surface-ctl.mjs [status|start|stop|restart]');
+    console.log('Usage: node occ-ctl.mjs [status|start|stop|restart]');
 }

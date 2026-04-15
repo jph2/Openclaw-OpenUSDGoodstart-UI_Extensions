@@ -3,7 +3,7 @@
 # OpenClaw Integration Hook
 # This script is called by OpenClaw on startup to auto-start extensions
 
-EXTENSION_DIR="/media/claw-agentbox/data/9999_LocalRepo/Openclaw-OpenUSDGoodtstart-Extension"
+EXTENSION_DIR="/media/claw-agentbox/data/9999_LocalRepo/OpenClaw_Control_Center"
 HOOK_ENABLED_FILE="$EXTENSION_DIR/.auto-start-enabled"
 
 # Check if auto-start is enabled

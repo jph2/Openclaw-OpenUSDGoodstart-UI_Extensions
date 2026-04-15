@@ -16,9 +16,9 @@ created: "2026-04-13T20:45:00Z"
 last_modified: "2026-04-14T12:00:00Z"
 author: "AntiGravity"
 provenance:
-  git_repo: "Openclaw-OpenUSDGoodtstart-Extension"
+  git_repo: "OpenClaw_Control_Center"
   git_branch: "main"
-  git_path: "Prodution_Nodejs_React/CHANNEL_MANAGER_DOCUMENTATION_14-04-2026.md"
+  git_path: "Production_Nodejs_React/CHANNEL_MANAGER_DOCUMENTATION_14-04-2026.md"
 tags: [master-docs, architecture, zod, telegram-hub, private-ecosystem, anti-patterns, mcp]
 ---
 
@@ -54,11 +54,14 @@ Der finale Durchbruch: Die Erkenntnis, dass TARS (Web/Chat) und CASE (IDE) keine
 Aufgrund von Inkompatibilitäten der Version `zod@4.3.6` mit `undefined`-Werten wurde eine **Normalisierungs-Schicht** im Backend implementiert. 
 - **Zustand:** Alle Arrays (`agents`, `subAgents`, `skills`) werden vor der Validierung zwingend initialisiert.
 
-### 2.2 Asymmetrischer Bot-Relay (TARS/CASE)
-Um den **Telegram HTTP 409 Polling Conflict** zu lösen, nutzt das System zwei Identitäten:
-- **TARS_2:** Hört passiv im Chat zu (Listener).
-- **CASE:** Sendet aktiv aus dem Web-Interface/IDE (Relay).
-- **Resultat:** Keine Token-Kollisionen und stabile Antwort-Zyklen der Engine.
+### 2.2 Local Gateway Injection (Bypassing Telegram Bot Filters)
+Zuvor wurde versucht, UI-Eingaben über einen dedizierten Relay-Bot (CASE) an Telegram zu senden. 
+- **Problem:** TARS (selbst ein Bot) ignoriert architektur-bedingt alle eingehenden Telegram-Nachrichten von anderen Bots. Das Interface war somit "stumm".
+- **Lösung:** Das Backend umgeht Telegram vollständig und injiziert UI-Eingaben nun direkt via lokaler CLI (`openclaw agent --to <chat_id> --message <text>`) in die laufende TARS-Session. TARS betrachtet diese Eingaben nativ als "Human in the loop".
+
+### 2.2b OpenClaw Schema Protection (JSON Recovery)
+Beim Speichern von UI-Configs hat das Backend unerlaubte Eigenschaften (`model`) in die `openclaw.json` geschrieben. Das führte zu einem Fatal Crash der Engine (`must NOT have additional properties`). 
+- **Fix:** Die Synchronisierung in die kritische Engine-JSON wurde ausgebaut (siehe `routes/channels.js`). Das System nutzt nun strikt die eigene `channel_config.json` für UI-Einstellungen, um OpenClaw nicht zu korrumpieren.
 
 ### 2.3 Gateway-First Architektur (Der finale Shift)
 Um die HTTP 409 Fehler endgültig zu eliminieren, wurde das Polling im lokalen Backend komplett deaktiviert.

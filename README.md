@@ -20,7 +20,7 @@ npm start                    # Workbench only (port 4260)
 cd channel-manager && ./channel-manager.sh start  # Channel Manager only (port 3401)
 ```
 
-Open: `file:///media/claw-agentbox/data/9999_LocalRepo/Openclaw-OpenUSDGoodtstart-Extension/index.html`
+Open: `file:///media/claw-agentbox/data/9999_LocalRepo/OpenClaw_Control_Center/index.html`
 
 ## Auto-Start with OpenClaw
 

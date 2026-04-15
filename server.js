@@ -14,7 +14,7 @@ app.use(express.json({ limit: '10mb' }));
 const DEFAULT_ROOTS = {
   workspace: '/home/claw-agentbox/.openclaw/workspace',
   'studio-framework': '/media/claw-agentbox/data/9999_LocalRepo/Studio_Framework',
-  'ui-extensions': '/media/claw-agentbox/data/9999_LocalRepo/Openclaw-OpenUSDGoodtstart-Extension',
+  'ui-extensions': '/media/claw-agentbox/data/9999_LocalRepo/OpenClaw_Control_Center',
   'general-dev': '/media/claw-agentbox/data/9999_LocalRepo/General_Dev',
 };
 const CUSTOM_ROOTS_FILE = path.join(__dirname, 'data', 'custom-roots.json');

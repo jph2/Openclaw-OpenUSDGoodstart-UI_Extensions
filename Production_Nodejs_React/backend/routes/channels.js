@@ -13,14 +13,15 @@ async function syncToOpenClawState(channelId, updates) {
     try {
         const raw = await fs.readFile(OPENCLAW_JSON_PATH, 'utf8');
         const state = JSON.parse(raw);
-        
+
         if (!state.channels?.telegram?.groups) return;
-        
+
         const group = state.channels.telegram.groups[channelId];
         if (group) {
-            if (updates.model) group.model = updates.model;
-            await fs.writeFile(OPENCLAW_JSON_PATH, JSON.stringify(state, null, 2));
-            console.log(`[Sync] Synchronized ${channelId} model (${updates.model}) to sovereign state.`);
+            // OpenClaw schema strictly denies 'model' inside telegram groups. Wait for proper API approach.
+            // if (updates.model) group.model = updates.model;
+            // await fs.writeFile(OPENCLAW_JSON_PATH, JSON.stringify(state, null, 2));
+            console.log(`[Sync] Skipped syncing model (${updates.model}) to OpenClaw (unsupported schema property).`);
         }
     } catch (err) {
         console.error(`[Sync] Failed to sync to OpenClaw state: ${err.message}`);
@@ -34,7 +35,7 @@ const configEvents = new EventEmitter();
 let _cachedConfigPath = null;
 const getResolvedConfigPath = async () => {
     if (_cachedConfigPath) return _cachedConfigPath;
-    const { resolved } = await resolveSafe(process.env.WORKSPACE_ROOT, 'Openclaw-OpenUSDGoodtstart-Extension/channel_CHAT-manager/channel_config.json');
+    const { resolved } = await resolveSafe(process.env.WORKSPACE_ROOT, 'OpenClaw_Control_Center/channel_CHAT-manager/channel_config.json');
     _cachedConfigPath = resolved;
     return resolved;
 };
@@ -48,7 +49,7 @@ setTimeout(async () => {
             ignoreInitial: true,
             awaitWriteFinish: { stabilityThreshold: 500, pollInterval: 100 }
         });
-        
+
         watcher.on('change', () => {
             console.log(`[Chokidar] Detected config change in ${configPath}. Pushing SSE hot-reload event...`);
             configEvents.emit('configChange');
@@ -92,7 +93,7 @@ const ChannelConfigSchema = z.object({
     })).nullish(),
     subAgents: z.array(z.any()).nullish(),
     metadata: z.any().nullish(),
-    availableModels: z.record(z.any()).optional()
+    availableModels: z.any().optional()
 }).passthrough();
 
 const UpdateChannelSchema = z.object({
@@ -124,7 +125,7 @@ const UpdateSubAgentSchema = z.object({
  */
 const getConfigPath = async () => {
     // Legacy configs are stored in the prototypes folder
-    const { resolved } = await resolveSafe(process.env.WORKSPACE_ROOT, 'Openclaw-OpenUSDGoodtstart-Extension/channel_CHAT-manager/channel_config.json');
+    const { resolved } = await resolveSafe(process.env.WORKSPACE_ROOT, 'OpenClaw_Control_Center/channel_CHAT-manager/channel_config.json');
     return resolved;
 };
 
@@ -248,17 +249,13 @@ router.get('/', async (req, res, next) => {
         const routingState = await readExternalJsonSafe(process.env.TELEGRAM_ROUTING_PATH);
         const routingChannels = routingState?.channels || {};
 
-        // 4. Merge Engine
         const mergedChannels = [];
-        
+        console.log("MARKER [1]: Starting merge...");
         // Ensure every live OpenClaw group exists locally
         for (const [groupId, settings] of Object.entries(liveTelegramGroups)) {
-            // Ignore wildcard entry
             if (groupId === '*') continue;
-
             const routingInfo = routingChannels[groupId] || {};
             const localInfo = localChannelsMap.get(groupId) || {};
-
             mergedChannels.push({
                 id: groupId,
                 name: routingInfo.name || localInfo.name || `TG Unknown (${groupId})`,
@@ -274,31 +271,28 @@ router.get('/', async (req, res, next) => {
                 currentTask: routingInfo.purpose || "Live Channel",
                 status: "active"
             });
-            
             localChannelsMap.delete(groupId);
         }
 
-        // Add any local orphan channels that are NOT in live OpenClaw yet (for robustness)
+        console.log("MARKER [2]: Processing orphans...");
         for (const [groupId, localInfo] of localChannelsMap.entries()) {
-             mergedChannels.push({
-                 id: groupId,
-                 name: localInfo.name || `Orphan (${groupId})`,
-                 model: localInfo.model || 'local-pc/google/gemma-4-26b-a4b',
-                 skills: localInfo.skills || [],
-                 assignedAgent: localInfo.assignedAgent || undefined,
-                 ideOverride: localInfo.ideOverride || false,
-                 inactiveSubAgents: localInfo.inactiveSubAgents || [],
-                 inactiveSkills: localInfo.inactiveSkills || [],
-                 caseSkills: localInfo.caseSkills || [],
-                 inactiveCaseSkills: localInfo.inactiveCaseSkills || [],
-                 currentTask: "Offline/Disconnected",
-                 status: "offline"
-             });
+            mergedChannels.push({
+                id: groupId,
+                name: localInfo.name || `Orphan (${groupId})`,
+                model: localInfo.model || 'local-pc/google/gemma-4-26b-a4b',
+                skills: localInfo.skills || [],
+                assignedAgent: localInfo.assignedAgent || undefined,
+                ideOverride: localInfo.ideOverride || false,
+                inactiveSubAgents: localInfo.inactiveSubAgents || [],
+                inactiveSkills: localInfo.inactiveSkills || [],
+                caseSkills: localInfo.caseSkills || [],
+                inactiveCaseSkills: localInfo.inactiveCaseSkills || [],
+                currentTask: "Offline/Disconnected",
+                status: "offline"
+            });
         }
 
-        // 5. Aggregate Metadata (Sub-Task 1.2) - Moved from Frontend
-        // Sub-Task 1.5: Dynamic Model Mapping from Sovereign State
-        // Convert OpenClaw's models object into a flat array for the UI dropdown
+        console.log("MARKER [3]: Building metadata...");
         const modelsObject = openclawState?.agents?.defaults?.models || {};
         const dynamicModels = Object.entries(modelsObject).map(([id, info]) => ({
             id: id,
@@ -334,7 +328,6 @@ router.get('/', async (req, res, next) => {
             }
         };
 
-        // Extract available models from the sovereign state for dynamic UI population
         const availableModels = openclawState?.agents?.defaults?.models || {};
 
         const normalizedData = {
@@ -345,11 +338,19 @@ router.get('/', async (req, res, next) => {
             availableModels: availableModels
         };
 
-        // const validated = ChannelConfigSchema.parse(normalizedData);
-        res.json({ ok: true, data: normalizedData });
+        try {
+            const validated = ChannelConfigSchema.parse(normalizedData);
+            res.json({ ok: true, data: validated });
+        } catch (zodError) {
+            import('fs').then(fs => fs.writeFileSync('/tmp/zod_error.txt', zodError.stack || zodError.toString() || 'unknown error in parse'));
+            if (zodError instanceof z.ZodError) {
+                return res.status(422).json({ ok: false, error: "Validation Failed", details: zodError.format() });
+            }
+            throw zodError; // This causes the 500
+        }
     } catch (error) {
-        console.error("MARKER: Caught Error in Route:", error.message);
-        next(error); 
+        import('fs').then(fs => fs.writeFileSync('/tmp/global_error.txt', error.stack || error.toString() || 'unknown error in global'));
+        next(error);
     }
 });
 
@@ -363,7 +364,7 @@ router.post('/update', async (req, res, next) => {
     try {
         // G4: Strict input validation completely shields from payload injection
         const payload = UpdateChannelSchema.parse(req.body);
-        
+
         const configPath = await getConfigPath();
         await ensureConfigExists(configPath);
 
@@ -373,13 +374,13 @@ router.post('/update', async (req, res, next) => {
         try {
             const raw = await fs.readFile(configPath, 'utf8');
             const parsed = JSON.parse(raw);
-            
+
             if (!parsed.channels) {
                 parsed.channels = [];
             }
 
             const channelIndex = parsed.channels.findIndex(c => c.id === payload.channelId);
-            
+
             if (channelIndex > -1) {
                 if (payload.skills !== undefined) {
                     parsed.channels[channelIndex].skills = payload.skills;
@@ -424,7 +425,7 @@ router.post('/update', async (req, res, next) => {
             const finalState = ChannelConfigSchema.parse(parsed);
 
             await fs.writeFile(configPath, JSON.stringify(finalState, null, 2), 'utf8');
-            
+
             // Sub-Task 1.5: Sovereign State Synchronization
             // Ensure model changes are pushed to the live OpenClaw Engine config
             if (payload.model) {
@@ -459,7 +460,7 @@ router.post('/updateAgent', async (req, res, next) => {
         try {
             const raw = await fs.readFile(configPath, 'utf8');
             const parsed = JSON.parse(raw);
-            
+
             if (!parsed.agents) parsed.agents = [];
 
             const agentIndex = parsed.agents.findIndex(a => a.id === payload.agentId);
@@ -494,7 +495,7 @@ router.post('/updateSubAgent', async (req, res, next) => {
         try {
             const raw = await fs.readFile(configPath, 'utf8');
             const parsed = JSON.parse(raw);
-            
+
             if (!parsed.subAgents) parsed.subAgents = [];
 
             const subAgentIndex = parsed.subAgents.findIndex(a => a.id === payload.subAgentId);

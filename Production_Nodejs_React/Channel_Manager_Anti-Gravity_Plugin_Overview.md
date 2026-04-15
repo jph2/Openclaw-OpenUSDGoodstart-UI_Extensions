@@ -14,9 +14,9 @@ created: "2026-04-12T01:07:00Z"
 last_modified: "2026-04-12T01:07:00Z"
 author: "TARS"
 provenance:
-  git_repo: "Openclaw-OpenUSDGoodtstart-Extension"
+  git_repo: "OpenClaw_Control_Center"
   git_branch: "main"
-  git_path: "Prodution_Nodejs_React/Channel_Manager_Anti-Gravity_Plugin_Overview.md"
+  git_path: "Production_Nodejs_React/Channel_Manager_Anti-Gravity_Plugin_Overview.md"
 tags: [plugins, ide_integration, agentclaw]
 tags: [plugins, ide_integration, agentclaw, best_practices, stabilization]
 ---
@@ -29,7 +29,7 @@ tags: [plugins, ide_integration, agentclaw, best_practices, stabilization]
 **Framework:** Horizon Studio Framework  
 **Status:** active (Installed & Verified)
 
-**Git:** Repo: Openclaw-OpenUSDGoodtstart-Extension | Branch: main | Path: Prodution_Nodejs_React/Channel_Manager_Anti-Gravity_Plugin_Overview.md | Commit: 05dfe99
+**Git:** Repo: OpenClaw_Control_Center | Branch: main | Path: Production_Nodejs_React/Channel_Manager_Anti-Gravity_Plugin_Overview.md | Commit: 05dfe99
 
 **Tag block:**
 #plugins #ide_integration #agentclaw #best_practices #stabilization

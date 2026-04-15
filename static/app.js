@@ -46,7 +46,7 @@ const ROOT_MAP = {
   workspace: '/home/claw-agentbox/.openclaw/workspace',
   openclaw: '/media/claw-agentbox/data/9999_LocalRepo/openclaw',
   'studio-framework': '/media/claw-agentbox/data/9999_LocalRepo/Studio_Framework',
-  'ui-extensions': '/media/claw-agentbox/data/9999_LocalRepo/Openclaw-OpenUSDGoodtstart-Extension',
+  'ui-extensions': '/media/claw-agentbox/data/9999_LocalRepo/OpenClaw_Control_Center',
 };
 
 // Dynamically load workspaces from Channel Manager
@@ -765,7 +765,7 @@ function applyDocumentContent(doc, value, options = {}) {
   updateSummary();
   updateNavButtons();
   renderTree();
-  loadDocsIndex().catch(() => {});
+  loadDocsIndex().catch(() => { });
   updateDebugStatus();
   scheduleAutosave(doc);
 }
@@ -815,7 +815,7 @@ function restoreUndoState(doc, step) {
   updateSummary();
   updateNavButtons();
   renderTree();
-  loadDocsIndex().catch(() => {});
+  loadDocsIndex().catch(() => { });
   updateDebugStatus(step < 0 ? 'undo' : 'redo');
 }
 
@@ -1133,7 +1133,7 @@ async function loadFile(filePath, mode = state.currentMode, options = {}) {
   renderTree();
   updateUrl();
   updateNavButtons();
-  loadDocsIndex().catch(() => {});
+  loadDocsIndex().catch(() => { });
   if (!options.skipHistory) pushHistory({ root: state.currentRoot, path: filePath, mode });
 }
 
@@ -1510,7 +1510,7 @@ async function saveDocument(doc = currentDoc(), options = {}) {
   updateSummary();
   updateNavButtons();
   renderTree();
-  loadDocsIndex().catch(() => {});
+  loadDocsIndex().catch(() => { });
   updateDebugStatus(`file saved (${options.trigger || 'manual'})`);
   return true;
 }
@@ -1531,7 +1531,7 @@ function revertRawFile() {
   updateSummary();
   updateNavButtons();
   renderTree();
-  loadDocsIndex().catch(() => {});
+  loadDocsIndex().catch(() => { });
   updateDebugStatus('reverted to saved');
 }
 
@@ -1850,7 +1850,7 @@ window.addEventListener('beforeunload', (event) => {
   syncDocumentFromEditor();
   const doc = currentDoc();
   if (doc && state.autosave && isDocumentDirty(doc)) {
-    saveDocument(doc, { trigger: 'autosave' }).catch(() => {});
+    saveDocument(doc, { trigger: 'autosave' }).catch(() => { });
   }
   if (dirtyDocumentCount() > 0) {
     event.preventDefault();

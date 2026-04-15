@@ -1,6 +1,6 @@
 # OpenClaw Workbench IDE: Architecture & Hardening Documentation
 **Date:** 10.04.2026, 12:30 Uhr  
-**Component:** OpenClaw-OpenUSDGoodtstart-Extension / Production_Nodejs_React  
+**Component:** OpenClaw_Control_Center / Production_Nodejs_React  
 
 Dieses Dokument protokolliert alle tiefgreifenden architektonischen Anpassungen, die während der massiven System-Hardening und UX-Refinement-Phase der Workbench IDE implementiert wurden.
 

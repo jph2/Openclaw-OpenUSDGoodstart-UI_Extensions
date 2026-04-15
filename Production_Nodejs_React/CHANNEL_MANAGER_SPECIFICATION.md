@@ -16,9 +16,9 @@ created: "2026-04-12T01:07:00Z"
 last_modified: "2026-04-13T20:55:00Z"
 author: "AntiGravity"
 provenance:
-  git_repo: "Openclaw-OpenUSDGoodtstart-Extension"
+  git_repo: "OpenClaw_Control_Center"
   git_branch: "main"
-  git_path: "Prodution_Nodejs_React/CHANNEL_MANAGER_SPECIFICATION.md"
+  git_path: "Production_Nodejs_React/CHANNEL_MANAGER_SPECIFICATION.md"
 tags: [specification, channel_manager, requirements, private-ecosystem, zod-hardening]
 ---
 
@@ -37,7 +37,7 @@ Die Architektur wird konsequent als **geschlossenes, privates Ökosystem** defin
 
 *   **Unified Brain Policy:** TARS (Chat-Interface) und CASE (IDE-Interface) nutzen zwingend denselben Agent-Workspace und dieselbe `MEMORY.md`. 
 *   **Wissen ohne Grenzen:** Informationen bluten gewollt zwischen den Sessions, um einen nahtlosen Wechsel zwischen Code-Entwicklung und Chat-Reflektion zu ermöglichen.
-*   **Mirroring vs. Bridging:** Während Telegram als **Bridge** (punktueller Kontext) fungiert, operiert dieses System als **Mirror** (Zustands-Replikation) des OpenClaw Gateways. [[DISCOVERY.md]](file:///media/claw-agentbox/data/9999_LocalRepo/Openclaw-OpenUSDGoodtstart-Extension/Prodution_Nodejs_React/CHANNEL_MANAGER_TelegramSync_DISCOVERY.md)
+*   **Mirroring vs. Bridging:** Während Telegram als **Bridge** (punktueller Kontext) fungiert, operiert dieses System als **Mirror** (Zustands-Replikation) des OpenClaw Gateways. [[DISCOVERY.md]](file:///media/claw-agentbox/data/9999_LocalRepo/OpenClaw_Control_Center/Production_Nodejs_React/CHANNEL_MANAGER_TelegramSync_DISCOVERY.md)
 
 ---
 
@@ -105,7 +105,7 @@ Alle Konfigurations-Änderungen müssen vor dem Schreiben durch eine **Normalisi
 graph LR
     subgraph "Root"
         Root["Openclaw...Extension/"]
-        Prod["Prodution_Nodejs_React/"]
+        Prod["Production_Nodejs_React/"]
     end
 
     subgraph "Backend (/backend)"
@@ -156,7 +156,7 @@ To ensure **Context Continuity** between the Channel Manager, Anti-Gravity IDE, 
 1. **Mapping Pattern**: `agent:main:telegram:group:<ID>`
 2. **Physical Storage**: Matches the `Session ID` metadata in `/workspace/memory/*.md`.
 3. **Deep Links**: Direct navigation to `http://<HOST>:18789/chat?session=<KEY>`.
-4. **Context Trap Awareness**: Das System muss zwischen dem **Transcript-Zustand** (was im UI sichtbar ist) und dem **Prompt-Zustand** (was der Agent aktuell im Bearbeitungs-Buffer hat) unterscheiden. [[RESEARCH.md]](file:///media/claw-agentbox/data/9999_LocalRepo/Openclaw-OpenUSDGoodtstart-Extension/Prodution_Nodejs_React/CHANNEL_MANAGER_TelegramSync_RESEARCH.md)
+4. **Context Trap Awareness**: Das System muss zwischen dem **Transcript-Zustand** (was im UI sichtbar ist) und dem **Prompt-Zustand** (was der Agent aktuell im Bearbeitungs-Buffer hat) unterscheiden. [[RESEARCH.md]](file:///media/claw-agentbox/data/9999_LocalRepo/OpenClaw_Control_Center/Production_Nodejs_React/CHANNEL_MANAGER_TelegramSync_RESEARCH.md)
 
 Any channel configuration change in `openclaw.json` must preserve these keys to prevent "Context Amnesia".
 

@@ -6,9 +6,9 @@ Wants=network.target
 [Service]
 Type=forking
 User=claw-agentbox
-WorkingDirectory=/media/claw-agentbox/data/9999_LocalRepo/Openclaw-OpenUSDGoodtstart-Extension
-ExecStart=/media/claw-agentbox/data/9999_LocalRepo/Openclaw-OpenUSDGoodtstart-Extension/start-extension.sh start
-ExecStop=/media/claw-agentbox/data/9999_LocalRepo/Openclaw-OpenUSDGoodtstart-Extension/start-extension.sh stop
+WorkingDirectory=/media/claw-agentbox/data/9999_LocalRepo/OpenClaw_Control_Center
+ExecStart=/media/claw-agentbox/data/9999_LocalRepo/OpenClaw_Control_Center/start-extension.sh start
+ExecStop=/media/claw-agentbox/data/9999_LocalRepo/OpenClaw_Control_Center/start-extension.sh stop
 Restart=on-failure
 RestartSec=10
 

@@ -17,9 +17,9 @@ created: '2026-04-13T20:20:00Z'
 last_modified: '2026-04-13T20:35:00Z'
 author: "AntiGravity"
 provenance:
-  git_repo: "Openclaw-OpenUSDGoodtstart-Extension"
+  git_repo: "OpenClaw_Control_Center"
   git_branch: "main"
-  git_path: "Prodution_Nodejs_React/CHANNEL_MANAGER_TelegramSync_RESEARCH.md"
+  git_path: "Production_Nodejs_React/CHANNEL_MANAGER_TelegramSync_RESEARCH.md"
 tags: [research, telegram-hub, session-sync, zod-hardening, implementation-spec, private-ecosystem]
 ---
 

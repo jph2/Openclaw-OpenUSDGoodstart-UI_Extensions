@@ -32,18 +32,18 @@ Da wir die Architektur radikal auf das **Gateway-First** Pattern (FS-Chokidar-Li
 - [x] **Schritt 5:** Unser lokales Backend erkennt den File-Change und streamt die Antwort und den ToolCall von TARS sauber in dein React Interface.
 - [x] **Schritt 6:** Konsolen-Check: Es dürfen im Backend-Terminal keine `[Telegraf] 409 Conflict` Abstürze mehr auftauchen. *(Erfolgreich! Zudem wurden die `[Violation] 'message' handler took [X]ms` Frontend-Warnungen behoben, indem `React.memo` mit einem Custom-ID-Check abgesichert wurde, was massives Re-Rendering bei Vite HMR Hot-Reloads blockiert).*
 
-## 3. Der Relay-Sende-Test (Asymmetrie-Verifizierung)
-**Ziel:** Sicherstellen, dass das native React-Interface weiterhin Nachrichten absenden kann und CASE diesen Job erfolgreich übernimmt.
+## 3. Local Gateway Injection Test (Human In The Loop)
+**Ziel:** Sicherstellen, dass das native React-Interface Eingaben als authentische User-Nachrichten an TARS überbringt, ohne dass der Telegram Bot-Filter (Bots ignorieren Bots) die Kommunikation blockiert.
 
 - [x] **Schritt 1:** Sende eine Nachricht aus dem Frontend-UI.
-- [x] **Schritt 2:** Das Backend empfängt den Request und leitet ihn über den `RELAY_BOT_TOKEN` an Telegram weiter. *(Routing-Bug für TG000_General_Chat -> -1003752539559 behoben)*
-- [x] **Schritt 3:** Die Nachricht erscheint in deiner Chat-App und wird, da TARS dort zuhört, wieder im OpenClaw-Netzwerk registriert.
-- [x] **Schritt 4:** Der Scanner bringt die End-Nachricht zurück ins UI.
+- [x] **Schritt 2:** Das Backend nutzt NICHT mehr das Telegram Bot Token (Relay). Stattdessen wird die OpenClaw CLI (`openclaw agent --message`) getriggert, um die Nachricht als nativer Mensch (Jan) einzuschleusen.
+- [x] **Schritt 3:** TARS verarbeitet die Nachricht ("Gesehen. Test kommt sauber an.") direkt im lokalen Memory, umgeht den blinden Fleck auf Telegram komplett.
+- [ ] **Schritt 4:** Der Chokidar-Scanner liest die resultierenden .jsonl und streamt die Antwort und die Tool-Meldungen sauber in dein React Interface zurück.
 
 ## 4. Der Sovereign MCP-Bridge Test (Phase 7)
 **Ziel:** Verifizieren, dass die IDE (AntiGravity) die Channel Manager Umgebung als "Sovereign Context" via stdio adaptiert, Memory abrufen und Tools bedienen kann.
 
-- [ ] **Schritt 1:** AntiGravity Neustart. Prüfen, ob der Server `sovereign-channel-bridge` von der IDE via `mcp_config.json` erfolgreich geladen wird (grüner Status in IDE).
+- [x] **Schritt 1:** AntiGravity Neustart. Prüfen, ob der Server `MCP-ChannelManager` von der IDE via `mcp_config.json` erfolgreich geladen wird (grüner Status in IDE).
 - [ ] **Schritt 2 (Resource Hydration):** In AntiGravity ("als CASE") eine Prompt eingeben wie: *"Lies den Context von config://channels und sage mir, welche Agenten aktiv sind."*
 - [ ] **Schritt 3 (Per-Channel Permissions):** Die Ressource `config://{telegram_id}` (z. B. `config://-1003752539559`) von AntiGravity ansteuern lassen. Verifizieren, ob CASE korrekt die Whitelist seiner `caseSkills` erkennt.
 - [ ] **Schritt 4 (Tool Execution):** AntiGravity instruieren: *"Schicke eine Telegram Reply über dein Tool `send_telegram_reply` in den Channel -1003752539559 mit dem Text: 'Sovereign Bridge online!'."*

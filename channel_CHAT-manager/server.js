@@ -31,7 +31,7 @@ const WORKSPACES = [
     },
     {
         name: 'UI Extensions',
-        path: '/media/claw-agentbox/data/9999_LocalRepo/Openclaw-OpenUSDGoodtstart-Extension',
+        path: '/media/claw-agentbox/data/9999_LocalRepo/OpenClaw_Control_Center',
         host: '100.89.176.89',
         type: 'local'
     },
@@ -46,7 +46,7 @@ const WORKSPACES = [
 // Scan for available workspaces
 function scanWorkspaces() {
     const available = [];
-    
+
     for (const ws of WORKSPACES) {
         try {
             if (ws.type === 'local') {
@@ -73,7 +73,7 @@ function scanWorkspaces() {
             console.log(`Workspace ${ws.name} not available: ${e.message}`);
         }
     }
-    
+
     return available;
 }
 
@@ -139,23 +139,23 @@ function readChannelConfig() {
 // Scan skills directories
 function scanSkills() {
     const skills = new Map();
-    
+
     for (const dir of SKILLS_DIRS) {
         if (!fs.existsSync(dir)) continue;
-        
+
         try {
             const entries = fs.readdirSync(dir);
             for (const entry of entries) {
                 const skillPath = path.join(dir, entry);
                 const stat = fs.statSync(skillPath);
-                
+
                 if (stat.isDirectory()) {
                     const skillMdPath = path.join(skillPath, 'SKILL.md');
                     if (fs.existsSync(skillMdPath)) {
                         const content = fs.readFileSync(skillMdPath, 'utf8');
                         const name = parseSkillName(content) || entry;
                         const description = parseSkillDescription(content);
-                        
+
                         if (!skills.has(name)) {
                             skills.set(name, {
                                 name,
@@ -170,7 +170,7 @@ function scanSkills() {
             console.error(`Failed to scan ${dir}:`, e.message);
         }
     }
-    
+
     return Array.from(skills.values()).sort((a, b) => a.name.localeCompare(b.name));
 }
 
@@ -190,15 +190,15 @@ function parseSkillDescription(content) {
 function readSkillContent(skillName) {
     const skills = scanSkills();
     const skill = skills.find(s => s.name === skillName);
-    
+
     if (!skill) {
         return null;
     }
-    
+
     try {
         const content = fs.readFileSync(path.join(skill.path, 'SKILL.md'), 'utf8');
         const files = fs.readdirSync(skill.path);
-        
+
         return {
             name: skill.name,
             content,
@@ -213,7 +213,7 @@ function readSkillContent(skillName) {
 function buildSkillTree() {
     const config = readChannelConfig();
     const skills = scanSkills();
-    
+
     const agents = config.channels.map((channel, index) => ({
         id: channel.id,
         name: channel.name,
@@ -223,7 +223,7 @@ function buildSkillTree() {
         model: channel.model,
         require_mention: channel.require_mention
     }));
-    
+
     // Build skill usage map
     const skillUsage = new Map();
     for (const agent of agents) {
@@ -234,14 +234,14 @@ function buildSkillTree() {
             skillUsage.get(skill).push(agent.id);
         }
     }
-    
+
     const skillNodes = skills.map(skill => ({
         id: `skill-${skill.name}`,
         name: skill.name,
         description: skill.description,
         agents: skillUsage.get(skill.name) || []
     }));
-    
+
     return { agents, skills: skillNodes };
 }
 
@@ -254,18 +254,18 @@ function getColor(index) {
 const server = http.createServer((req, res) => {
     const url = new URL(req.url, `http://localhost:${PORT}`);
     const pathname = url.pathname;
-    
+
     // CORS headers
     res.setHeader('Access-Control-Allow-Origin', '*');
     res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
     res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
-    
+
     if (req.method === 'OPTIONS') {
         res.writeHead(200);
         res.end();
         return;
     }
-    
+
     // API Routes
     if (pathname === '/api/config') {
         if (req.method === 'GET') {
@@ -291,32 +291,32 @@ const server = http.createServer((req, res) => {
         }
         return;
     }
-    
+
     if (pathname === '/api/skills') {
         const skills = scanSkills();
         res.writeHead(200, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify(skills));
         return;
     }
-    
+
     if (pathname === '/api/skill-tree') {
         const tree = buildSkillTree();
         res.writeHead(200, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify(tree));
         return;
     }
-    
+
     if (pathname === '/api/workspaces') {
         const workspaces = scanWorkspaces();
         res.writeHead(200, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify(workspaces));
         return;
     }
-    
+
     if (pathname.startsWith('/api/skills/')) {
         const skillName = decodeURIComponent(pathname.replace('/api/skills/', ''));
         const skillData = readSkillContent(skillName);
-        
+
         if (skillData) {
             res.writeHead(200, { 'Content-Type': 'application/json' });
             res.end(JSON.stringify(skillData));
@@ -326,7 +326,7 @@ const server = http.createServer((req, res) => {
         }
         return;
     }
-    
+
     if (pathname === '/api/save-config' && req.method === 'POST') {
         let body = '';
         req.on('data', chunk => body += chunk);
@@ -345,14 +345,14 @@ const server = http.createServer((req, res) => {
         });
         return;
     }
-    
+
     // Static Files
     let filePath = pathname === '/' ? '/index.html' : pathname;
     filePath = path.join(__dirname, filePath);
-    
+
     const ext = path.extname(filePath).toLowerCase();
     const contentType = MIME_TYPES[ext] || 'application/octet-stream';
-    
+
     fs.readFile(filePath, (err, content) => {
         if (err) {
             if (err.code === 'ENOENT') {
@@ -372,10 +372,10 @@ const server = http.createServer((req, res) => {
 server.listen(PORT, '0.0.0.0', () => {
     console.log(`Channel Manager running at http://127.0.0.1:${PORT}`);
     console.log(`Config path: ${CONFIG_PATH}`);
-    
+
     const skills = scanSkills();
     console.log(`Found ${skills.length} skills`);
-    
+
     const config = readChannelConfig();
     console.log(`Loaded ${config.channels.length} channels`);
 });

@@ -21,9 +21,9 @@ directives:
   - "NEVER DELETE, SUMMARIZE OR TRUNCATE raw dump sources."
 author: "AntiGravity"
 provenance:
-  git_repo: "Openclaw-OpenUSDGoodtstart-Extension"
+  git_repo: "OpenClaw_Control_Center"
   git_branch: "main"
-  git_path: "Prodution_Nodejs_React/CHANNEL_MANAGER_TelegramSync_DISCOVERY.md"
+  git_path: "Production_Nodejs_React/CHANNEL_MANAGER_TelegramSync_DISCOVERY.md"
 tags: [discovery, architecture, telegram-hub, zod, stabilization, context-continuity, private-ecosystem]
 ---
 
@@ -65,7 +65,7 @@ In running text, cite linked claims as `[[N]](#link-N)`.
 **Subject:** Sovereign Channel Manager & Telegram Hub
 **Purpose:** Analyse und Härtung des zweigleisigen Relay-Systems zur Umgehung von Telegram-Limits.
 **Research Framework:**
-- **Location:** `Prodution_Nodejs_React/`
+- **Location:** `Production_Nodejs_React/`
 - **Next Phase:** Konvertiert zu RESEARCH
 
 ---
