@@ -6,6 +6,8 @@ import { fileURLToPath } from 'url';
 const execAsync = promisify(exec);
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
+/** Repo root (Production_Nodejs_React and Backend_MCP live one level up from Prototyp). */
+const REPO_ROOT = path.resolve(__dirname, '..');
 
 const PORTS = {
     BACKEND: 3000,
@@ -17,19 +19,19 @@ const SERVICES = [
     {
         name: 'Backend (Channel Manager)',
         port: PORTS.BACKEND,
-        cwd: path.join(__dirname, 'Production_Nodejs_React', 'backend'),
+        cwd: path.join(REPO_ROOT, 'Production_Nodejs_React', 'backend'),
         command: 'npm',
         args: ['run', 'dev']
     },
     {
         name: 'Frontend (Vite UI)',
         port: PORTS.FRONTEND,
-        cwd: path.join(__dirname, 'Production_Nodejs_React', 'frontend'),
+        cwd: path.join(REPO_ROOT, 'Production_Nodejs_React', 'frontend'),
         command: 'npm',
         args: ['run', 'dev']
     },
     {
-        name: 'Workbench (Root)',
+        name: 'Workbench (Prototyp)',
         port: PORTS.WORKBENCH,
         cwd: __dirname,
         command: 'npm',
@@ -109,5 +111,5 @@ if (arg === 'status') {
     await stop();
     await start();
 } else {
-    console.log('Usage: node occ-ctl.mjs [status|start|stop|restart]');
+    console.log('Usage: node Prototyp/occ-ctl.mjs [status|start|stop|restart]   (from repo root)');
 }

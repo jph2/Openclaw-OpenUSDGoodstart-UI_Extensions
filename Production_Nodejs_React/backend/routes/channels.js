@@ -49,7 +49,7 @@ const configEvents = new EventEmitter();
 let _cachedConfigPath = null;
 const getResolvedConfigPath = async () => {
     if (_cachedConfigPath) return _cachedConfigPath;
-    const { resolved } = await resolveSafe(process.env.WORKSPACE_ROOT, 'OpenClaw_Control_Center/channel_CHAT-manager/channel_config.json');
+    const { resolved } = await resolveSafe(process.env.WORKSPACE_ROOT, 'OpenClaw_Control_Center/Prototyp/channel_CHAT-manager/channel_config.json');
     _cachedConfigPath = resolved;
     return resolved;
 };
@@ -160,7 +160,7 @@ const UpdateSubAgentSchema = z.object({
  */
 const getConfigPath = async () => {
     // Legacy configs are stored in the prototypes folder
-    const { resolved } = await resolveSafe(process.env.WORKSPACE_ROOT, 'OpenClaw_Control_Center/channel_CHAT-manager/channel_config.json');
+    const { resolved } = await resolveSafe(process.env.WORKSPACE_ROOT, 'OpenClaw_Control_Center/Prototyp/channel_CHAT-manager/channel_config.json');
     return resolved;
 };
 

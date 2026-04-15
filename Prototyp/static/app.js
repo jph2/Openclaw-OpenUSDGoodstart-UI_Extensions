@@ -52,8 +52,8 @@ const ROOT_MAP = {
 // Dynamically load workspaces from Channel Manager
 async function loadWorkspaces() {
   try {
-    // Use same host as current page, but port 3401 for Channel Manager
-    const channelManagerUrl = `${window.location.protocol}//${window.location.hostname}:3401/api/workspaces`;
+    // Use same host as current page, aligned with start-extension.sh (Channel Manager port 3402)
+    const channelManagerUrl = `${window.location.protocol}//${window.location.hostname}:3402/api/workspaces`;
     const response = await fetch(channelManagerUrl);
     if (response.ok) {
       const workspaces = await response.json();

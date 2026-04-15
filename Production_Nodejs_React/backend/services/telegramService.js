@@ -45,9 +45,11 @@ const CHAT_ID_ALIASES = new Map([
 function hydrateChannelAliasesFromDiskSync() {
     const tryPaths = [];
     if (process.env.WORKSPACE_ROOT) {
-        tryPaths.push(path.join(process.env.WORKSPACE_ROOT, 'OpenClaw_Control_Center', 'channel_CHAT-manager', 'channel_config.json'));
+        tryPaths.push(
+            path.join(process.env.WORKSPACE_ROOT, 'OpenClaw_Control_Center', 'Prototyp', 'channel_CHAT-manager', 'channel_config.json')
+        );
     }
-    tryPaths.push(path.join(process.cwd(), '..', '..', 'channel_CHAT-manager', 'channel_config.json'));
+    tryPaths.push(path.join(process.cwd(), '..', '..', 'Prototyp', 'channel_CHAT-manager', 'channel_config.json'));
 
     for (const configPath of tryPaths) {
         try {

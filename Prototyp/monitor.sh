@@ -42,7 +42,7 @@ restart_service() {
             log "✅ Workbench restarted"
             ;;
         channel-manager)
-            cd "$SCRIPT_DIR/channel-manager" && node server.js > /tmp/channel-manager.log 2>&1 &
+            cd "$SCRIPT_DIR/channel_CHAT-manager" && CHANNEL_MANAGER_PORT=3402 node server.js > /tmp/channel-manager.log 2>&1 &
             echo $! > "$PID_DIR/channel-manager.pid"
             log "✅ Channel Manager restarted"
             ;;
@@ -59,7 +59,7 @@ log "=== Service Monitor Started ==="
 
 while true; do
     check_and_restart "workbench" 4260
-    check_and_restart "channel-manager" 3401
+    check_and_restart "channel-manager" 3402
     check_and_restart "landing" 8080
     
     sleep 10

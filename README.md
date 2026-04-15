@@ -1,140 +1,77 @@
-# OpenClaw OpenUSDGoodstart UI Extensions
+# OpenClaw Control Center
 
-Read-only workbench MVP for browsing laptop-hosted OpenClaw-related repositories from a browser.
+Repository layout (top level, intentionally minimal):
 
-## Components
+| Folder | Role |
+|--------|--------|
+| **`Production_Nodejs_React/`** | Main product: Control Center backend (Express), frontend (Vite/React), and Channel Manager features backed by this stack. |
+| **`Backend_MCP/`** | MCP server and related backend tooling integrated with the Control Center. |
+| **`Prototyp/`** | Legacy / prototype surfaces: workbench MVP (Express + static UI), landing hub, old `channel_CHAT-manager` UI, mobile workbench prototype, and helper scripts (`occ-ctl.mjs`, `start-extension.sh`, etc.). |
 
-- **Landing Page** (`index.html`) - Central hub with links to all tools
-- **Workbench** (`workbench/`) - Classic folder tree document browser
-- **Channel Manager** (`channel-manager/`) - Telegram channel config UI with Skill Tree visualization
-- **Workbench Mobile** (`workbench/mobile/`) - React Native iOS/Android app
+Prototype assets were consolidated here so the repository root stays easy to navigate; production code paths that still read `channel_config.json` and related files now use **`Prototyp/channel_CHAT-manager/`**.
 
-## Quick Start
+## Production app
 
 ```bash
-# Start all services and open landing page
-./start-extension.sh start
-
-# Or start individually:
-npm start                    # Workbench only (port 4260)
-cd channel-manager && ./channel-manager.sh start  # Channel Manager only (port 3401)
+cd Production_Nodejs_React/backend && npm install && npm run dev   # API (default 3000)
+cd Production_Nodejs_React/frontend && npm install && npm run dev    # Vite (default 5173)
 ```
 
-Open: `file:///media/claw-agentbox/data/9999_LocalRepo/OpenClaw_Control_Center/index.html`
-
-## Auto-Start with OpenClaw
-
-### Option 1: Systemd Service (Recommended)
+Optional: run backend + frontend + prototype workbench together from the repo root:
 
 ```bash
-sudo cp openclaw-extensions.service /etc/systemd/system/
+node Prototyp/occ-ctl.mjs start
+node Prototyp/occ-ctl.mjs status
+node Prototyp/occ-ctl.mjs stop
+```
+
+`Prototyp/occ-ctl.mjs` resolves `Production_Nodejs_React/` and `Prototyp/` relative to the repository root.
+
+## Prototype stack (Workbench + landing + legacy Channel Manager UI)
+
+```bash
+cd Prototyp
+npm install           # once — Express + marked for the workbench server
+./start-extension.sh start   # workbench :4260, channel_CHAT-manager :3402, landing :8080
+```
+
+Or workbench only:
+
+```bash
+cd Prototyp && npm start    # http://localhost:4260
+```
+
+Open the landing page directly:
+
+`file:///media/claw-agentbox/data/9999_LocalRepo/OpenClaw_Control_Center/Prototyp/index.html`
+
+### systemd (optional)
+
+After moving paths, point the unit at `Prototyp`:
+
+```bash
+sudo cp Prototyp/openclaw-extensions.service /etc/systemd/system/
+sudo systemctl daemon-reload
 sudo systemctl enable openclaw-extensions
 sudo systemctl start openclaw-extensions
 ```
 
-### Option 2: OpenClaw Hook
+### OpenClaw hook
 
-The hook script is automatically called when OpenClaw starts (if `.auto-start-enabled` exists):
-
-```bash
-touch .auto-start-enabled  # Enable auto-start
-./openclaw-hook.sh         # Manual trigger
-```
-
-## Workbench Features
-
-- approved root selection:
-  - workspace
-  - openclaw
-  - studio-framework
-  - ui-extensions
-- classic folder tree view with nested open/close navigation
-- separate scrolling for navigation vs document reading
-- open file by URL
-- raw markdown/text view
-- rendered markdown preview
-- mermaid rendering in preview mode
-- stable browser URL parameters
-- latest docs list aggregated across all enabled roots
-- editable absolute + relative path fields
-- filename search within the selected root with kind/age/size filters
-- image preview with scalable overview controls
-- PDF preview
-- resizable sidebar and outline pane
-- markdown heading outline panel
-
-## Channel Manager
-
-Web UI for managing OpenClaw Telegram channels with persistent model and skill assignments.
+If you use `.auto-start-enabled` beside `start-extension.sh`, it lives under **`Prototyp/`**. Example manual run:
 
 ```bash
-cd channel-manager
-./channel-manager.sh start  # Start server on port 3401
-./channel-manager.sh open   # Open browser
+touch Prototyp/.auto-start-enabled
+./Prototyp/openclaw-hook.sh
 ```
 
-Features:
-- Channel list with model dropdown
-- Per-channel skill assignment
-- Interactive Skill Tree visualization (force-directed graph)
-- Persistent configuration
-
-See [channel-manager/README.md](channel-manager/README.md) for details.
-
-## Landing Page
-
-Central hub at `index.html` showing:
-- Status of all services (Workbench + Channel Manager)
-- Quick-start buttons
-- Links to all tools
-- Server logs
-
-## Why this exists
-
-The current OpenClaw chat/web surface is good for conversation but weak as a collaborative artifact browser. This MVP adds a separate workbench surface so referenced docs are actually readable and navigable from another machine.
-
-## Run
-
-```bash
-npm install
-npm start
-```
-
-Default URL:
-- `http://localhost:4260`
-
-## Example links
-
-- workspace docs folder:
-  - `http://localhost:4260/?root=workspace&dir=docs`
-- a specific markdown file in preview mode:
-  - `http://localhost:4260/?root=workspace&path=docs/openclaw-four-repo-strategy-v1.md&mode=preview`
-- raw mode:
-  - `http://localhost:4260/?root=workspace&path=docs/openclaw-four-repo-strategy-v1.md&mode=raw`
+**Note:** Update `EXTENSION_DIR` in `Prototyp/openclaw-hook.sh` if your clone path differs.
 
 ## Repository (Git remote)
-
-Canonical GitHub repository (current name: **OpenClaw_Control_Center**):
 
 - **SSH:** `git@github.com:jph2/OpenClaw_Control_Center.git`
 - **HTTPS:** `https://github.com/jph2/OpenClaw_Control_Center.git`
 
-If a clone still uses the legacy remote (`Openclaw-OpenUSDGoodstart-UI_Extensions` or similar), Git may print GitHub’s *repository moved* hint. Point `origin` at the URL above to clear it:
-
-```bash
-git remote set-url origin git@github.com:jph2/OpenClaw_Control_Center.git
-git remote -v
-```
-
 ## Safety notes
 
-This MVP is intentionally read-only and restricts file access to approved root directories.
-
-## Next likely improvements
-
-- latest-docs landing page
-- heading outline / table of contents
-- recent files
-- image and PDF preview
-- OpenClaw chat integration hooks for clickable document links
-- optional annotation/review layer
+The prototype workbench restricts file access to approved root directories. The production app enforces its own path-safety rules on `/api/workbench/*` routes.
