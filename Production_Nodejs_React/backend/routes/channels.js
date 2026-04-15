@@ -155,6 +155,10 @@ const UpdateSubAgentSchema = z.object({
     inactiveSkills: z.array(z.string()).nullish()
 }).passthrough();
 
+const ReorderMainAgentsSchema = z.object({
+    orderedAgentIds: z.array(z.string().min(1))
+});
+
 /**
  * Helper to safely get the config path.
  */
@@ -535,6 +539,58 @@ router.post('/updateSubAgent', async (req, res, next) => {
             const finalState = ChannelConfigSchema.parse(parsed);
             await fs.writeFile(configPath, JSON.stringify(finalState, null, 2), 'utf8');
             res.json({ ok: true, message: 'SubAgent configuration updated atomically.' });
+        } finally {
+            await release();
+        }
+    } catch (error) {
+        if (error instanceof z.ZodError) error.status = 400;
+        next(error);
+    }
+});
+
+/**
+ * POST /api/channels/reorderMainAgents
+ * Persists display order for the Agents tab (order of `agents` in channel_config.json).
+ */
+router.post('/reorderMainAgents', async (req, res, next) => {
+    try {
+        const payload = ReorderMainAgentsSchema.parse(req.body);
+        const configPath = await getConfigPath();
+        await ensureConfigExists(configPath);
+        const release = await lockfile.lock(configPath, { retries: 5 });
+
+        try {
+            const raw = await fs.readFile(configPath, 'utf8');
+            const parsed = JSON.parse(raw);
+            if (!parsed.agents || !Array.isArray(parsed.agents)) parsed.agents = [];
+
+            const agents = parsed.agents;
+            const existingIds = new Set(agents.map((a) => a.id));
+            const incoming = payload.orderedAgentIds;
+
+            if (incoming.length !== existingIds.size) {
+                return res.status(400).json({
+                    ok: false,
+                    error: 'orderedAgentIds must contain each main agent id exactly once.'
+                });
+            }
+            const dup = new Set();
+            for (const id of incoming) {
+                if (dup.has(id)) {
+                    return res.status(400).json({ ok: false, error: 'Duplicate id in orderedAgentIds.' });
+                }
+                dup.add(id);
+                if (!existingIds.has(id)) {
+                    return res.status(400).json({ ok: false, error: `Unknown agent id: ${id}` });
+                }
+            }
+
+            const byId = new Map(agents.map((a) => [a.id, a]));
+            parsed.agents = incoming.map((id) => byId.get(id));
+
+            const finalState = ChannelConfigSchema.parse(parsed);
+            await fs.writeFile(configPath, JSON.stringify(finalState, null, 2), 'utf8');
+            res.json({ ok: true, message: 'Main agent order updated.' });
         } finally {
             await release();
         }

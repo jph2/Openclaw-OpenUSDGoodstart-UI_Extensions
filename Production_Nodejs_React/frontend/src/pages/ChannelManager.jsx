@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Download, Upload, RefreshCw, Save, Check } from 'lucide-react';
+import { Download, Upload, RefreshCw, Save, Check, ChevronUp, ChevronDown } from 'lucide-react';
 import TelegramChat from '../components/TelegramChat';
 import { useWorkbenchStore } from './Workbench.jsx';
 
@@ -154,6 +154,19 @@ export default function ChannelManager() {
         onSettled: () => queryClient.invalidateQueries({ queryKey: ['channels'] })
     });
 
+    const reorderMainAgentsMutation = useMutation({
+        mutationFn: async (orderedAgentIds) => {
+            const res = await fetch('/api/channels/reorderMainAgents', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ orderedAgentIds })
+            });
+            if (!res.ok) throw new Error('Reorder failed');
+            return res.json();
+        },
+        onSettled: () => queryClient.invalidateQueries({ queryKey: ['channels'] })
+    });
+
     const backendAgents = configData?.data?.agents || [];
     const backendSubAgents = configData?.data?.subAgents || [];
     
@@ -173,6 +186,17 @@ export default function ChannelManager() {
             return `${workspaceSkillsRoot}/${id}`;
         }
         return `${bundledOpenclawSkillsRoot}/${id}`;
+    };
+
+    const moveMainAgent = (agentId, direction) => {
+        const ids = backendAgents.map((a) => a.id);
+        const i = ids.indexOf(agentId);
+        if (i < 0) return;
+        const j = direction === 'up' ? i - 1 : i + 1;
+        if (j < 0 || j >= ids.length) return;
+        const next = [...ids];
+        [next[i], next[j]] = [next[j], next[i]];
+        reorderMainAgentsMutation.mutate(next);
     };
 
     const navigateToAgent = (agentId) => {
@@ -797,9 +821,14 @@ export default function ChannelManager() {
     const renderAgentsTab = () => (
         <div style={{ padding: '24px 0' }}>
             <h2 style={{ marginBottom: '24px' }}>Main Agents</h2>
+            <p style={{ fontSize: '12px', color: 'var(--text-secondary)', marginTop: '-12px', marginBottom: '20px' }}>
+                Order is saved to config and used for this list. Use the arrows to move a card up or down.
+            </p>
             <div style={{ display: 'grid', gap: '16px', marginBottom: '40px' }}>
-                {backendAgents.map(agent => (
+                {backendAgents.map((agent, agentIndex) => (
                     <div key={agent.id} id={`agent-card-${agent.id}`} className="agent-card main" style={{ borderColor: agent.color, transition: 'box-shadow 0.3s' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '16px' }}>
+                            <div style={{ flex: 1, minWidth: 0 }}>
                         <h3 style={{ color: agent.color }}>{agent.name}</h3>
                         <div className="agent-role" style={{ color: agent.color, marginBottom: '8px' }}>{agent.role}</div>
                         
@@ -835,6 +864,59 @@ export default function ChannelManager() {
                             <option value="">+ Add skill...</option>
                             {Object.keys(SKILL_METADATA).map(s => <option key={s} value={s}>{s} {SKILL_METADATA[s]?.desc ? `| ${SKILL_METADATA[s].desc}` : ''}</option>)}
                         </select>
+                            </div>
+                            <div
+                                style={{
+                                    display: 'flex',
+                                    flexDirection: 'column',
+                                    gap: '4px',
+                                    flexShrink: 0,
+                                    paddingTop: '2px'
+                                }}
+                                title="Reorder main agents"
+                            >
+                                <button
+                                    type="button"
+                                    disabled={agentIndex === 0 || reorderMainAgentsMutation.isPending}
+                                    onClick={() => moveMainAgent(agent.id, 'up')}
+                                    style={{
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        justifyContent: 'center',
+                                        width: '34px',
+                                        height: '30px',
+                                        borderRadius: '6px',
+                                        border: '1px solid var(--border-color)',
+                                        background: agentIndex === 0 ? 'rgba(255,255,255,0.03)' : 'rgba(255,255,255,0.06)',
+                                        color: agentIndex === 0 ? 'var(--text-secondary)' : 'var(--text-primary)',
+                                        cursor: agentIndex === 0 ? 'not-allowed' : 'pointer'
+                                    }}
+                                    aria-label={`Move ${agent.name} up`}
+                                >
+                                    <ChevronUp size={18} />
+                                </button>
+                                <button
+                                    type="button"
+                                    disabled={agentIndex >= backendAgents.length - 1 || reorderMainAgentsMutation.isPending}
+                                    onClick={() => moveMainAgent(agent.id, 'down')}
+                                    style={{
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        justifyContent: 'center',
+                                        width: '34px',
+                                        height: '30px',
+                                        borderRadius: '6px',
+                                        border: '1px solid var(--border-color)',
+                                        background: agentIndex >= backendAgents.length - 1 ? 'rgba(255,255,255,0.03)' : 'rgba(255,255,255,0.06)',
+                                        color: agentIndex >= backendAgents.length - 1 ? 'var(--text-secondary)' : 'var(--text-primary)',
+                                        cursor: agentIndex >= backendAgents.length - 1 ? 'not-allowed' : 'pointer'
+                                    }}
+                                    aria-label={`Move ${agent.name} down`}
+                                >
+                                    <ChevronDown size={18} />
+                                </button>
+                            </div>
+                        </div>
                     </div>
                 ))}
             </div>
