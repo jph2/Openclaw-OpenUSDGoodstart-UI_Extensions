@@ -13,7 +13,7 @@ agent_index:
     stabilization: "#2-stabilisierungs-meilensteine-14042026"
     anti_patterns: "#anti-patterns--architektonische-fallstricke"
 created: "2026-04-13T20:45:00Z"
-last_modified: "2026-04-15T12:00:00Z"
+last_modified: "2026-04-15T14:00:00Z"
 author: "AntiGravity"
 provenance:
   git_repo: "OpenClaw_Control_Center"
@@ -24,7 +24,7 @@ tags: [master-docs, architecture, zod, telegram-hub, private-ecosystem, anti-pat
 
 # OpenClaw Channel Manager: Master Documentation
 
-**Version**: 2.2.0 | **Date**: 15.04.2026 | **Time**: 12:00 | **GlobalID**: 20260415_1200_MASTER_DOC_v2
+**Version**: 2.3.0 | **Date**: 15.04.2026 | **Time**: 14:00 | **GlobalID**: 20260415_1400_MASTER_DOC_v2
 
 **Status:** active | **Source Registry:** Consolidated from Docs 10.04., 14.04. & **15.04.2026** (Gateway-Delivery, MCP/Cursor).
 
@@ -94,11 +94,22 @@ Es wurde final beschlossen, den Channel Manager um einen **Sovereign MCP Server*
 
 **Repo:** Verzeichnis **`Production_Nodejs_React/`** (Schreibweise korrigiert; früher `Prodution_*`).
 
-### 2.7 CASE-Identität in Cursor (15.04.2026)
+### 2.7 Harness / IDE-Kontext in Cursor (15.04.2026, Regelnamen 15.04. aktualisiert)
 
-- **`AGENTS.md`** im OpenClaw-Workspace listet **CASE** explizit unter **Cursor IDE** (nicht nur Anti-Gravity).
-- **Cursor Rule (immer aktiv):** `~/.openclaw/workspace/.cursor/rules/case-cursor-identity.mdc` (`alwaysApply: true`) — weist den Agenten an, bei Arbeit in diesem Workspace **`CASE_SOUL.md`** zu lesen und sich von **TARS**-Ton zu unterscheiden.
-- **Studio_Framework:** `Studio_Framework/.cursor/rules/openclaw-channel-gems-context.mdc` — bei Edits in **`A075_Channel_Gems/**` Alignment mit Control-Center-Specs und CASE-/Soul-Kontext.
+- **`AGENTS.md`** / **`SOUL.md`** im OpenClaw-Workspace: Triade **TARS · MARVIN · CASE** (SONIC → CASE); IDE primär **TARS**, Personas wechselbar. **`CASE_SOUL.md`** deprecated (Pointer).
+- **Cursor Rule (workspace, immer aktiv):** `~/.openclaw/workspace/.cursor/rules/openclaw-workspace-context.mdc` (`alwaysApply: true`) — Verweis auf die Kanon-Dateien oben. (Alt: `case-cursor-identity.mdc`.)
+- **Cursor Rule (global):** `~/.cursor/rules/openclaw-harness-hint.mdc` — kurzer Hinweis; Kanon bleibt `AGENTS.md`/`SOUL.md`. (Alt: `case-global-identity.mdc`.)
+- **Studio_Framework:** `Studio_Framework/.cursor/rules/openclaw-channel-gems-context.mdc` — bei Edits in **`A075_Channel_Gems/**` Alignment mit Control-Center-Specs und Harness-Kontext.
+
+### 2.8 Native Chat: Bilder & Medien — Roadmap (15.04.2026)
+
+**Status:** *Upcoming* — bewusst **nicht** implementiert im aktuellen Release.
+
+| Referenz | Inhalt |
+|----------|--------|
+| **Spec §6.3** | `CHANNEL_MANAGER_SPECIFICATION.md` — Ist-Zustand (nur Text-Outbound), Zielbild (multipart/`sendPhoto` o. ä.), UI-Paste/Drop. |
+| **Plan Sub-Task 6.9** | `CHANNEL_MANAGER_IMPLEMENTATION_PLAN.md` — Backend-/Frontend-Arbeiten als Checkbox offen. |
+| **Bis zur Umsetzung** | Channel Manager bleibt **textorientiert**; Fotos primär in **Telegram nativ**; UI zeigt bei Bild-Paste nur einen Hinweis. |
 
 ---
 
@@ -182,10 +193,11 @@ Die Windows-`mcp.json` (`E:\`, `cmd /c`, `.exe`) in **Remote-SSH** nach `~/.curs
 | **Outbound CM** | `openclaw agent --channel telegram --to … --message … --deliver` (Zustellung explizit). |
 | **MCP Channel Manager** | `Backend_MCP/` mit stdio; Windows: SSH zum Laptop; Remote-SSH: `node` + Pfad auf dem Laptop. |
 | **IDE** | Cursor und AntiGravity parallel denkbar; MCP-Config ist **pro Host** (Windows vs. Linux) zu pflegen. |
-| **CASE in Cursor** | Rule `~/.openclaw/workspace/.cursor/rules/case-cursor-identity.mdc` + `AGENTS.md` / `CASE_SOUL.md`. |
+| **Harness in Cursor** | `~/.openclaw/workspace/.cursor/rules/openclaw-workspace-context.mdc` + `AGENTS.md` / `SOUL.md` (Alt: `case-cursor-identity.mdc`). |
 | **Repo-Pfad** | `Production_Nodejs_React/` unter `OpenClaw_Control_Center`. |
+| **Medien (Bilder) im CM** | Roadmap: Spec §6.3, Plan 6.9 — **nicht** umgesetzt; nur Text-API. |
 
 ---
 
 **Ende der konsolidierten Master-Dokumentation.**
-*Zusammengeführt 14.04.2026 (AntiGravity); Abschnitt 2.6, AP-17 und Summary 15.04.2026 ergänzt.*
+*Zusammengeführt 14.04.2026 (AntiGravity); Abschnitte 2.6–2.8, AP-17 und Summary 15.04.2026 ergänzt.*

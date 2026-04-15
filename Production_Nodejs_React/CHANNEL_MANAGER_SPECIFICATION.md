@@ -6,26 +6,26 @@ type: TECHNICAL
 status: active
 trust_level: 3
 agent_index:
-  context: "Finalized specification for the Sovereign Telegram Hub with focus on context continuity, Zod-hardening, and system-wide data flow."
+  context: "Gateway-first Channel Manager: configuration plane, OpenClaw transcript mirror, session-bound routing, Zod-hardening, Studio A070 bridge."
   maturation: 3
   routing:
-    hub: "#3-zielbild-der-architektur-private-hub-and-spoke"
-    logic: "#6-datenfluss--design-entscheidungen"
-    risks: "#8-architektur-risiken--audit-härtung"
+    hub: "#3-zielbild-der-architektur-gateway-first-konfigurationsspiegel--studio-bridges"
+    logic: "#5-datenfluss--design-entscheidungen"
+    risks: "#6-architektur-risiken--audit-härtung"
 created: "2026-04-12T01:07:00Z"
-last_modified: "2026-04-15T12:00:00Z"
+last_modified: "2026-04-15T22:00:00Z"
 author: "AntiGravity"
 provenance:
   git_repo: "OpenClaw_Control_Center"
   git_branch: "main"
   git_path: "Production_Nodejs_React/CHANNEL_MANAGER_SPECIFICATION.md"
-tags: [specification, channel_manager, requirements, private-ecosystem, zod-hardening]
+tags: [specification, channel_manager, gateway-first, requirements, zod-hardening]
 ---
 
-# Spezifikation & Kernanforderungen: Sovereign Channel Management (V1.5)
+# Spezifikation & Kernanforderungen: Sovereign Channel Management (V2.0)
 
-**Version**: 1.8.0 | **Date**: 15.04.2026 | **Status**: Sovereign | **Context**: IDE Agnosticism (Cursor / AntiGravity Parity)
-20260415_1200_SPECIFICATION_v1.8
+**Version**: 2.0.0 | **Date**: 15.04.2026 | **Status**: Sovereign | **Context**: Gateway-First, CM als Konfigurationsspiegel, Triade (TARS · MARVIN · CASE)
+20260415_2200_SPECIFICATION_v2.0
 
 **Status:** active | **Master Source:** Horizon Studio Framework
 
@@ -33,104 +33,142 @@ tags: [specification, channel_manager, requirements, private-ecosystem, zod-hard
 
 ## 1. Einleitung & Vision: Das Private Ökosystem
 
-Die Architektur wird konsequent als **geschlossenes, privates Ökosystem** definiert. Ziel ist die maximale Wissens-Kontinuität für den Nutzer (Jan).
+Die Architektur bleibt ein **geschlossenes, privates Ökosystem** mit maximaler Kontinuität zwischen Telegram, OpenClaw-Gateway und lokaler Arbeit.
 
-*   **Unified Brain Policy:** TARS (Chat-Interface) und CASE (IDE-Interface) nutzen zwingend denselben Agent-Workspace und dieselbe `MEMORY.md`.
-*   **CASE in Cursor (Operational):** Für IDE-Sitzungen in **Cursor** ist die Verhaltensquelle **`CASE_SOUL.md`** im OpenClaw-Workspace; **`AGENTS.md`** benennt CASE explizit für Cursor. Eine **Cursor Rule** (`~/.openclaw/workspace/.cursor/rules/case-cursor-identity.mdc`, `alwaysApply: true`) stellt sicher, dass der Agent nicht versehentlich die TARS-Stimme für IDE-Aufgaben übernimmt. 
-*   **Wissen ohne Grenzen:** Informationen bluten gewollt zwischen den Sessions, um einen nahtlosen Wechsel zwischen Code-Entwicklung und Chat-Reflektion zu ermöglichen.
-*   **Mirroring vs. Bridging:** Während Telegram als **Bridge** (punktueller Kontext) fungiert, operiert dieses System als **Mirror** (Zustands-Replikation) des OpenClaw Gateways. [[DISCOVERY.md]](file:///media/claw-agentbox/data/9999_LocalRepo/OpenClaw_Control_Center/Production_Nodejs_React/CHANNEL_MANAGER_TelegramSync_DISCOVERY.md)
+*   **Gateway-First:** **OpenClaw (Harness)** — Web-UI, Sessions, `openclaw.json`, Workspace-`memory/` — ist die **Quelle der Wahrheit** für Telegram-Agentenverkehr. Der Channel Manager **spiegelt** Konfiguration und Transkripte; er ersetzt **nicht** den Gateway-Chat als alleinige Oberfläche (keine parallele Absicht → keine Doppelreaktionen). Siehe [CHANNEL_MANAGER_SCOPE_MVP_2026-04-15.md](CHANNEL_MANAGER_SCOPE_MVP_2026-04-15.md).
+*   **Triade (Harness):** **TARS** · **MARVIN** · **CASE** (ersetzt SONIC). Gleiche Rollen in **IDE** und **Telegram/Web**; **Persona ist wechselbar** — **CASE** ist **nicht** „nur IDE-Spur“. Veraltete Parallel-**CASE**-SOUL → Workspace-Archiv (keine zweite aktive Harness-Identität).
+*   **Studio Framework:** Strukturierter Rückfluss (u. a. **A070_ide_cursor_summaries**) ist **Studio**-Seite; **Bridges** verbinden Harness ↔ Projekt-Repos (`080` im Horizon-Modell).
+*   **Wissen ohne Grenzen:** Sessions teilen sich den Workspace; **MEMORY.md** / Memory-Dateien bleiben die langfristige Spur — **getrennt** vom **Transcript**, das das UI filtert und anzeigt.
+*   **Mirroring vs. Bridging:** Telegram liefert **Bridge**-Kontext; der Channel Manager **spiegelt** Gateway-Zustand (SSE aus Session-/Transkript-Pfaden), statt Telegram-`getUpdates` als Primärquelle zu nutzen.
 
----
+### 1.1 MVP Scope (15.04.2026) — Channel Manager Rolle
 
-## 2. Kommunikations-Protokoll (Asymmetric Relay)
-
-Zur Umgehung von Telegram-API-Kollisionen (HTTP 409) wird eine asymmetrische Topologie eingesetzt:
-*   **TARS (Listener):** Fungiert als passives "Ohr". Empfängt alle Nachrichten via Polling/Webhooks.
-*   **CASE (Relay):** Fungiert als aktive "Hand". Sendet alle Nutzer-Eingaben aus der UI/IDE an die Telegram-Gruppen.
-*   **Souveräner Status:** Beide Identitäten sind Teil derselben privaten Gruppen. Der Split ist rein technisch motiviert, nicht isolationistisch.
+Der Channel Manager bleibt **Konfigurations-Hub** und **OpenClaw-Chat-Spiegel**; er wird **nicht** als alleinige Chat-Oberfläche genutzt, die dieselbe Absicht parallel an IDE und Gateway sendet (Vermeidung von Doppelreaktionen). Geplante Tabs: **Configuration** | **OpenClaw Chat** | **Cursor Summary**. **Verbindliche Kurzfassung:** [CHANNEL_MANAGER_SCOPE_MVP_2026-04-15.md](CHANNEL_MANAGER_SCOPE_MVP_2026-04-15.md).
 
 ---
 
-## 3. Zielbild der Architektur (Private Hub-and-Spoke)
+## 2. Kommunikations-Protokoll (Asymmetric Relay + Gateway-First)
+
+**Ziel:** Keine HTTP-409-Kollisionen durch konkurrierendes **`getUpdates`**; **Lesepfad** läuft über **Gateway / Session** statt Bot-Polling als „Source of Truth“.
+
+*   **Asymmetric Relay (Bots):** Wo weiterhin getrennte Bot-Identitäten vorkommen, bleibt der **technische** Split (z. B. Listener vs. Relay) — **ohne** dass das UI dieselbe Absicht parallel an IDE **und** Gateway **und** Telegram sendet (MVP: **ein** klarer Sendepfad über **`openclaw agent`** mit `--deliver`).
+*   **Inbound (UI):** Transkripte aus dem **Workspace-/Session-Modell** des Gateways (File-Change / SSE), **nicht** primär Live-Polling aller Telegram-Kanäle durch das Node-Backend.
+*   **Outbound (UI):** **`openclaw agent --channel telegram --to … --message … --deliver`** — CLI-Default **`--deliver`** ist `false`; Zustellung muss explizit gesetzt werden.
+*   **Routing:** Nachrichten sind **kanal- und session gebunden** (`conversation_label`, Chat-ID, Session-Key); kein Fan-out aller Gateway-Events auf alle UI-Kanäle.
+
+---
+
+## 3. Zielbild der Architektur (Gateway-First, Konfigurationsspiegel & Studio-Bridges)
+
+**Kein „Private Hub-and-Spoke“ mehr im Sinne von:** UI + IDE als gleichwertige **zweite** Sendezentrale direkt in Telegram **parallel** zum Gateway. **Zielbild 2026:** **Harness (Gateway)** zentral für Agenten; **Channel Manager** = **Konfiguration** + **Spiegel** + optional **Cursor Summary**; **Projekte / IDE** hängen an **Bridges** und MCP, nicht als zweiter Telegram-Hub.
+
+### 3.1 Rollen im Bild
+
+| Schicht | Rolle |
+|--------|--------|
+| **OpenClaw Harness** | Gateway, Sessions, Web-Chat, `openclaw.json`, Workspace-`memory/` — **governing layer**. |
+| **Channel Manager** | **Laufzeit:** `openclaw.json` / Kanäle lesen-schreiben, SSE, Chat-Spiegel **OpenClaw Chat**, Tab **Cursor Summary** (Verdichtung, nicht zweiter Live-Chat). |
+| **Telegram** | Private Gruppen / Topics — **Anbindung** über Gateway; **kein** alleiniges `getUpdates`-Backend als SoT. |
+| **Projects \| IDE** | Cursor / Repos; **MCP** zum Channel Manager; **kein** paralleles „alles nochmal an Telegram senden“ im MVP. |
+| **Studio Framework** | Artefakte, u. a. **`A070_ide_cursor_summaries`** — Rückfluss der IDE-Verdichtung in die Studio-Struktur (Horizon `050` / `080`). |
+
+### 3.2 Diagramm
 
 ```mermaid
-graph TD
-    %% 1. Der zentrale Kommunikations-Hub
-    TG["Telegram Hub (Private Groups)"]
-
-    %% 2. Die unabhängigen Clients
-    UI["Channel Manager UI"]
-    IDE["IDE (Cursor / AntiGravity)"]
-
-    %% 3. Das Unified Brain
-    subgraph Brain ["Unified Agent Brain"]
-        WORKSPACE["Workspace / Filesystem"]
-        MEMORY["Unified MEMORY.md"]
-    end
-    
-    %% Datenfluss: Getrennte Bot-Kanäle
-    subgraph Relay ["Asymmetric Relay"]
-        direction TB
-        TARS_L["TARS (Listener)"]
-        CASE_R["CASE (Relay)"]
+graph TB
+    subgraph Harness["OpenClaw Harness"]
+        GW[Gateway Web + Sessions]
+        WS[Workspace / memory]
     end
 
-    %% Inbound path
-    TARS_L -- "Reads Context" --> UI & IDE
-    
-    %% Outbound path
-    UI & IDE -- "Sends via" --> CASE_R --> TG
-    
-    %% Unified Memory Integration
-    WORKSPACE <--> MEMORY
-    UI & IDE & TARS_L & CASE_R <--> WORKSPACE
+    subgraph TG["Telegram"]
+        TGG[Private Groups / Topics]
+    end
+
+    subgraph CM["Channel Manager"]
+        CFG[Tab: Configuration]
+        CHAT[Tab: OpenClaw Chat Spiegel]
+        SUM[Tab: Cursor Summary]
+    end
+
+    subgraph IDE["Projects | IDE"]
+        CUR[Cursor / Repos]
+    end
+
+    subgraph Studio["Studio Framework optional"]
+        A070[A070 IDE Summaries]
+    end
+
+    GW <--> TGG
+    GW --> WS
+    CFG <-->|config| GW
+    GW -->|SSE transcript mirror| CHAT
+    CFG -->|openclaw agent send| GW
+    SUM -.->|Markdown path| A070
+    CUR -.->|MCP stdio| CFG
 ```
+
+### 3.3 MVP-Tab-Modell (Scope-of-Record)
+
+| Tab | Funktion |
+|-----|----------|
+| **Configuration** | Kanäle, Modelle, Skills, Agenten — **verbindliche** Laufzeitquelle. |
+| **OpenClaw Chat** | **Spiegel** des gateway-gestützten Verlaufs (SSE), gebunden an gewählte Gruppe / Session. Chat kann paralel über diese Interface geführt werden, (derzeit keine Bilder...) |
+| **Cursor Summary** | **Kein** zweiter Live-Chat; **verdichtete** IDE-/Projektspur — Quelle u. a. `Studio_Framework/050_Artifacts/A070_ide_cursor_summaries/`. |
+
+**Verbindlich:** [CHANNEL_MANAGER_SCOPE_MVP_2026-04-15.md](CHANNEL_MANAGER_SCOPE_MVP_2026-04-15.md).
 
 ---
 
 ## 4. Kernanforderungen (Requirements)
 
 ### R1: Deterministische Konfiguration
-Eine im Channel Manager gesetzte Konfiguration ist die systemweit verbindliche Laufzeitquelle. Änderungen werden via SSE sofort an alle Clients (IDE/UI) gestreamt.
+Eine im Channel Manager gesetzte Konfiguration ist die **verbindliche Laufzeitquelle** für Kanäle / Skills / (MCP-Policies (Domain-Ownership auf `openclaw.json` o. Ä.)). Änderungen werden via **SSE** und Cache-Invalidierung an die UI propagiert; **Gateway** bleibt SoT für **laufenden** Telegram-Agentenverkehr.
 
 ### R2: Wissens-Kontinuität & History (System Transparency)
-Das System muss sicherstellen, dass Aktionen aller Relay-Teilnehmer (Jan via CASE, TARS) im `MEMORY.md` persistent dokumentiert werden. Die History-Hydration im UI erfolgt primär über dieses lokale Gedächtnis. 
-**Neu (Gateway-First):** Da das UI nun ein tiefes "Röntgenbild" auf den Agenten-Speicher wirft (Transparenz, Heartbeats, System-Prompts), muss im UI ein zuschaltbarer **Message-Filter Layer** implementiert werden, um zwischen reinen Chat-Nachrichten und internen Hintergrundaufgaben separieren zu können.
+**Memory** (`MEMORY.md` / `workspace/memory/*.md`) bleibt die **langfristige** Spur; **Chat-UI** zeigt **Transkripte** (Gateway-Session), getrennt davon. **Gateway-First:** Das UI kann Heartbeats, Metadaten und System-Nachrichten sehen — **Message-Filter Layer** (Toggle) **muss** Chat vs. interne/systemische Zeilen trennen können.
 
 ### R3: Zod Integrity Protocol
 Alle Konfigurations-Änderungen müssen vor dem Schreiben durch eine **Normalisierungs-Schicht** und ein gehärtetes Zod-Schema validiert werden.
 
-#### R4: Technische Verzeichnisstruktur
+### R4: Technische Verzeichnisstruktur
+
+Repo-Root → `Production_Nodejs_React/` → `backend/` und `frontend/`. Mermaid ohne Klammern/`&` (bessere Renderer-Kompatibilität).
 
 ```mermaid
 graph LR
-    subgraph "Root"
-        Root["Openclaw...Extension/"]
-        Prod["Production_Nodejs_React/"]
+    subgraph root
+        R0[Repo root]
+        PR[Production_Nodejs_React]
     end
 
-    subgraph "Backend (/backend)"
-        BE["backend/"]
-        BERoutes["routes/"]
-        BEServices["services/"]
-        BEServer["index.js"]
+    subgraph be
+        BE[backend]
+        IX[index.js]
+        RT[routes]
+        SV[services]
     end
 
-    subgraph "Frontend (/frontend)"
-        FE["frontend/"]
-        FESrc["src/"]
-        FEComponents["components/"]
-        FEApp["App.jsx"]
+    subgraph fe
+        FE[frontend]
+        SRC[src]
+        CMP[components]
+        APP[App.jsx]
     end
 
-    Root --> Prod
-    Prod --> BE & FE
-    BE --> BEServer --> BERoutes & BEServices
-    FE --> FESrc --> FEComponents & FEApp
+    R0 --> PR
+    PR --> BE
+    PR --> FE
+    BE --> IX
+    IX --> RT
+    IX --> SV
+    FE --> SRC
+    SRC --> CMP
+    SRC --> APP
 ```
 
 ### R5: MCP Governance & Whitelisting 
-Eine granulare Steuerungs- und Berechtigungsebene (Whitelisting), über welche festgelegt wird, auf welche der lokal im Target-Environment (IDE: Cursor, AntiGravity) installierten MCP-Server der agentische Teilnehmer (z. B. CASE) im Kontext eines bestimmten Channels Zugriff hat.
+Eine granulare Steuerungs- und Berechtigungsebene (Whitelisting), über welche festgelegt wird, auf welche der lokal im Target-Environment (IDE: **Cursor**, ggf. AntiGravity) installierten MCP-Server die **Harness-Persona** (z. B. **CASE** bei Telegram-Antworten über MCP) im Kontext eines bestimmten Channels Zugriff hat.
 - **Konzept:** Anstelle der aktiven Prozess-Administration (Start/Stop) aus dem Channel Manager heraus, operiert der Manager ausschließlich auf der **Policy-Ebene**. Er listet die erkannten Server aus der Konfiguration der Host-Umgebung (`mcp_config.json`) auf.
 - **Visualisierung:** Die Verwaltung der MCP Permissions findet via farblich abgehobenem "+ Add MCP" Dropdown (z.B. gelbes Accent-Color) kanalbezogen statt. Die aktivierten MCPs werden im Channel-Modell mit Tags wie "INHERITED BY IDE" versehen.
 - **Data Flow:** Die Whitelists ("Welche Server dürfen im Channel angesteuert werden?") fließen als dedizierte Ressource (z. B. `allowedMCPs` über `config://{telegram_id}`) zur Laufzeit als limitierendes Instruktionsset in den System-Prompt des ausführenden Agenten ein.
@@ -139,16 +177,18 @@ Eine granulare Steuerungs- und Berechtigungsebene (Whitelisting), über welche f
 
 ## 5. Datenfluss & Design Entscheidungen
 
-### 5.1 Architektur Diagramm (Neu)
-(Folgt nach Fertigstellung des MCP / Unified Memory System)
+### 5.1 Architekturüberblick
+Siehe **§3 Zielbild** (Gateway-First, Konfigurationsspiegel, Tabs, Studio-Bridges). **Datenfluss:** Konfiguration CM ↔ Dateisystem; Transkripte Gateway → Workspace → SSE → UI; **Senden** UI → `openclaw agent` → Gateway/Telegram.
 
 ### 5.2 Key Design Decisions
 
 | Aspekt | Entscheidung | Begründung |
 |--------|----------|-----------|
+| **Source of Truth (Telegram-Agent)** | OpenClaw Gateway / Sessions | Vermeidet 409-Polling-Konflikte; Transkripte aus Workspace-Pfaden. |
+| **Channel Manager Rolle** | Konfiguration + Spiegel + Summary-Tab | Kein paralleler „All-Chat“-Hub; MVP Scope [CHANNEL_MANAGER_SCOPE_MVP_2026-04-15.md](CHANNEL_MANAGER_SCOPE_MVP_2026-04-15.md). |
 | **State Management** | Zustand + React Query | Trennung von UI-Zustand und Server-Cache. |
 | **Validation** | Zod (Hardened) | Laufzeit-Schutz gegen unvollständige JSONs. |
-| **Communication** | SSE (Server-Sent Events) | Unidirektionales Hot-Reloading ohne Polling-Overhead. |
+| **Communication** | SSE (Server-Sent Events) | Hot-Reload für Konfiguration und Transkript-Stream ohne Telegram-Polling. |
 | **Persistence** | Domain-Driven Ownership | Vermeidung von File-Locks durch exklusive Zuständigkeiten. |
 
 ### 5.3 Rosetta Stone: Session Mapping Logic
@@ -161,18 +201,17 @@ To ensure **Context Continuity** between the Channel Manager, Anti-Gravity IDE, 
 
 Any channel configuration change in `openclaw.json` must preserve these keys to prevent "Context Amnesia".
 
-### 5.4 The CASE Bridge: Model Context Protocol (MCP) Server Architecture
-Die fundamentale Frage bezüglich der Steuerung von CASE im Anti-Gravity IDE durch den Channel Manager löst sich durch einen dedizierten **Sovereign MCP Server**, der direkt in den Channel Manager integriert wird.
+### 5.4 MCP: IDE ↔ Channel Manager (Cursor / Host)
 
-Wie erlangt CASE (AntiGravity) die Autonomie und den Kontext?
-1. **MCP Resources (Context Hydration):** Wenn Anti-Gravity startet, verbindet es sich mit dem lokalen Channel-Manager MCP-Server (`openclaw-channel-mcp`). Dieser Server exponiert virtuelle Ressourcen (z.B. `memory://{telegram_id}` sowie `config://{telegram_id}`), welche die Chat-Transkripte und zugewiesenen Channel-Skills in Echtzeit als Kontext für CASE injizieren.
-2. **MCP Tools (Governance Actions):** Das Senden von Telegram-Nachrichten aus der IDE heraus erfordert keine lokalen Bot-Tokens in der IDE! Der MCP Server exponiert ein Tool `send_telegram_reply(channel_id, message)`. Wenn CASE (die IDE) antworten muss, ruft sie dieses Tool auf, und das Channel Manager Backend (als Gateway) führt den API-Call über das zentrale CASE Token (`TELEGRAM_CASE_BOT_TOKEN`) sicher aus.
-3. **Agentic Identity Switching:** Durch den injizierten `config://` Context weiß Anti-Gravity explizit: *"Du agierst in dieser Session als CASE. Hier sind die Dir im Channel zugewiesenen Skills..."*
+Die **IDE** (primär **Cursor**, optional **AntiGravity**) verbindet sich mit dem **Channel-Manager-MCP** (`Backend_MCP/`, stdio), **ohne** Bot-Tokens in der IDE-Config leaken zu müssen.
 
-Benötigen wir ACP (Agent Communication Protocol) noch?
-Während ACP in Zukunft für dezentrale Agent-zu-Agent ("Swarm") Kommunikation interessant wird, ist **MCP** präzise für dieses Frontend-Model (IDE als Frontend) zu lokaler Engine-Infrastruktur konzipiert. MCP ist die offiziell gewählte Bridge-Architektur.
+1. **MCP Resources (Context Hydration):** Ressourcen wie `memory://{telegram_id}` und `config://{telegram_id}` spiegeln Transkripte und kanalbezogene Policies/Skills — Kontext für **Harness-Personas** (z. B. **CASE** bei Telegram-Antworten über MCP) im jeweiligen Channel.
+2. **MCP Tools (Governance Actions):** z. B. `send_telegram_reply(channel_id, message)` — Backend führt den **sicheren** Versand aus (zentral verwaltete Tokens / `openclaw agent` je nach Implementierung).
+3. **Persona / Modus:** Wechsel zwischen **TARS**, **MARVIN**, **CASE** ist **Harness-Logik**; **SONIC** ist durch **CASE** ersetzt. Tools (falls vorhanden) müssen **nicht** eine veraltete „nur CASE“-IDE-Fiktion verfestigen — **Triade** gilt für IDE und Gateway.
 
-Der Channel Manager orchestriert somit nicht nur die Metadaten, sondern agiert über seinen MCP Server als vollwertiger **Gateway-Broker** für AntiGravity und das gesamte lokale Workspace File System.
+**ACP:** Für **dezentrale** Agent-Agent-Kommunikation später relevant; **MCP** ist die gewählte **IDE↔lokale Engine**-Bridge.
+
+Der Channel Manager bleibt **Policy- und Konfigurationsebene** + **MCP-Server**; **kein** Ersatz für das **OpenClaw Gateway** als Telegram-SoT.
 
 ---
 
@@ -197,15 +236,6 @@ sequenceDiagram
     RQ-->>React: Invalidate Cache
     React-->>User: UI Update
 ```
-
-### 5.2 Key Design Decisions
-
-| Aspekt | Entscheidung | Begründung |
-|--------|----------|-----------|
-| **State Management** | Zustand + React Query | Trennung von UI-Zustand und Server-Cache. |
-| **Validation** | Zod (Hardened) | Laufzeit-Schutz gegen unvollständige JSONs. |
-| **Communication** | SSE (Server-Sent Events) | Unidirektionales Hot-Reloading ohne Polling-Overhead. |
-| **Persistence** | Domain-Driven Ownership | Vermeidung von File-Locks durch exklusive Zuständigkeiten. |
 
 ---
 
@@ -234,5 +264,17 @@ Der Channel-Manager-MCP (`Backend_MCP/MCP-ChannelManager.mjs`) nutzt **stdio**. 
 
 Eine **Projekt**-`.cursor/mcp.json` mit derselben **Server-ID** wie die User-Datei erzeugt **doppelte** MCP-Einträge — pro Server-ID nur eine Quelle.
 
+### 6.3 Native Chat: Bilder & Medien (Upcoming — aktuell nicht implementiert)
+
+**Status:** Backlog / Roadmap. **Nicht** Teil des aktuellen Stands (V2.0).
+
+| Thema | Ist-Zustand | Ziel (später) |
+|--------|-------------|----------------|
+| **Outbound** | `POST /api/telegram/send` akzeptiert nur **Text**; Outbound via `openclaw agent --message "…"`. | Erweiterung um Medienpfad: z. B. `multipart/form-data` oder Base64-Body, Backend speichert temporär, dann Telegram **`sendPhoto`** / OpenClaw-CLI mit Medienparameter — je nach offizieller OpenClaw-API. |
+| **UI** | `TelegramChat.jsx`: mehrzeiliges Textfeld; Bild-Paste wird erkannt und mit Hinweis abgewiesen (kein Upload). | Paste/Drop von Bildern, optionale Vorschau, Fortschritt, Fehlerbehandlung. |
+| **Inbound** | Gateway-Transkripte im UI sind textzentriert. | Anzeige eingegangener Bilder aus Sessions, falls Gateway sie im Transcript abbildet. |
+
+**Abgrenzung:** Bis zur Umsetzung bleiben **Fotos und Screenshots** der primäre Kanal **Telegram nativ**; der Channel Manager bleibt textorientiert.
+
 ---
-*Status: V1.8 — ergänzt um Outbound-CLI (`--deliver`), MCP-Dual-Config und Cursor-Remote-SSH.*
+*Status: V2.0 — Zielbild §3 auf Gateway-First + Konfigurationsspiegel + Triade + MVP-Tabs überarbeitet; doppelte §5.2 entfernt; §1/§2/§4/R5/§5.4 angepasst.*

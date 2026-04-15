@@ -26,6 +26,97 @@ export const telegramEvents = new EventEmitter();
 const messageBuffer = new Map();
 const MAX_BUFFER_SIZE = 500;
 
+/** Maps OpenClaw session file UUID → canonical Telegram group id (numeric string). */
+const sessionToCanonicalChat = new Map();
+
+/** UI / legacy aliases → canonical Telegram chat id (same numeric id as openclaw --to). */
+const CHAT_ID_ALIASES = new Map([
+    ['TTG000_General_Chat', '-1003752539559'],
+    ['TG000_General_Chat', '-1003752539559'],
+    ['TSG003_General_Chat', '-1003752539559'],
+    ['tg000_general_chat', '-1003752539559'],
+    ['-3736210177', '-1003752539559']
+]);
+
+/**
+ * Loads `name` → `id` from channel_config.json so labels (e.g. TTG001_Idea_Capture) map to the
+ * real group id in this install — never a stale hardcoded id.
+ */
+function hydrateChannelAliasesFromDiskSync() {
+    const tryPaths = [];
+    if (process.env.WORKSPACE_ROOT) {
+        tryPaths.push(path.join(process.env.WORKSPACE_ROOT, 'OpenClaw_Control_Center', 'channel_CHAT-manager', 'channel_config.json'));
+    }
+    tryPaths.push(path.join(process.cwd(), '..', '..', 'channel_CHAT-manager', 'channel_config.json'));
+
+    for (const configPath of tryPaths) {
+        try {
+            if (!fs.existsSync(configPath)) continue;
+            const raw = fs.readFileSync(configPath, 'utf8');
+            const parsed = JSON.parse(raw);
+            let n = 0;
+            for (const c of parsed.channels || []) {
+                if (c?.id == null || !c?.name) continue;
+                const id = String(c.id).trim();
+                const name = String(c.name).trim();
+                CHAT_ID_ALIASES.set(name, id);
+                CHAT_ID_ALIASES.set(name.toLowerCase(), id);
+                n++;
+            }
+            console.log(`[TelegramService] Hydrated ${n} channel id aliases from ${configPath}`);
+            return;
+        } catch (e) {
+            console.warn(`[TelegramService] Could not hydrate aliases from ${configPath}:`, e.message);
+        }
+    }
+    console.warn('[TelegramService] No channel_config.json found for alias hydration; label→id may be incomplete.');
+}
+
+/**
+ * Single storage key per Telegram group so SSE and buffers stay consistent.
+ * Exported for the telegram route (SSE backlog + live) to match the same key.
+ */
+export function normalizeChatIdForBuffer(chatId) {
+    const s = String(chatId ?? '').trim();
+    if (!s) return s;
+    return CHAT_ID_ALIASES.get(s) || s;
+}
+
+function extractSessionUuidFromPath(filePath) {
+    if (!filePath || typeof filePath !== 'string') return null;
+    const m = filePath.match(/[/\\]sessions[/\\]([a-f0-9-]{36})\.jsonl$/i);
+    return m ? m[1].toLowerCase() : null;
+}
+
+/**
+ * Reads Telegram group id from OpenClaw user envelope (Conversation info JSON).
+ */
+function extractTelegramGroupIdFromUserPayload(data) {
+    const role = data.message?.role;
+    if (role !== 'user') return null;
+    const blocks = data.message.content || [];
+    let fullText = '';
+    for (const b of blocks) {
+        if (b.type === 'text' && b.text) fullText += b.text;
+    }
+    const jsonMatch = fullText.match(/Conversation info \(untrusted metadata\):\s*```json\s*([\s\S]*?)\s*```/);
+    if (!jsonMatch) return null;
+    try {
+        const meta = JSON.parse(jsonMatch[1]);
+        if (meta.chat_id != null && String(meta.chat_id).trim() !== '') {
+            return String(meta.chat_id).trim();
+        }
+        const label = meta.conversation_label;
+        if (typeof label === 'string') {
+            const idMatch = label.match(/\bid:(-?\d+)/);
+            if (idMatch) return idMatch[1];
+        }
+    } catch {
+        return null;
+    }
+    return null;
+}
+
 let bot = null;         // TARS (Inbound)
 let relayBot = null;    // CASE / Shedly (Outbound)
 
@@ -33,6 +124,8 @@ let relayBot = null;    // CASE / Shedly (Outbound)
 const fileOffsets = new Map();
 
 export const initTelegramService = () => {
+    hydrateChannelAliasesFromDiskSync();
+
     const token = process.env.TELEGRAM_BOT_TOKEN;
     const relayToken = process.env.RELAY_BOT_TOKEN || process.env.SHEDLY_BOT_TOKEN;
 
@@ -50,13 +143,13 @@ export const initTelegramService = () => {
     scanHistory().then(historyMap => {
         console.log(`[TelegramService] Hydrated history for ${historyMap.size} chats.`);
         for (const [chatId, messages] of historyMap) {
-            if (!messageBuffer.has(chatId)) {
-                messageBuffer.set(chatId, messages);
+            const key = normalizeChatIdForBuffer(chatId);
+            if (!messageBuffer.has(key)) {
+                messageBuffer.set(key, messages);
             } else {
-                const existing = messageBuffer.get(chatId);
-                // Simple merge: historical first, then existing
+                const existing = messageBuffer.get(key);
                 const merged = [...messages, ...existing].sort((a,b) => a.date - b.date);
-                messageBuffer.set(chatId, merged.slice(-MAX_BUFFER_SIZE));
+                messageBuffer.set(key, merged.slice(-MAX_BUFFER_SIZE));
             }
         }
     });
@@ -94,7 +187,7 @@ export const initTelegramService = () => {
                     try {
                         const parsed = JSON.parse(line);
                         if (parsed.type === 'message' && parsed.message) {
-                            processGatewayMessage(parsed, true); // true = init phase (don't emit yet)
+                            processGatewayMessage(parsed, true, filePath);
                         }
                     } catch(e) { }
                 }
@@ -126,7 +219,7 @@ export const initTelegramService = () => {
                         try {
                             const parsed = JSON.parse(line);
                             if (parsed.type === 'message' && parsed.message) {
-                                processGatewayMessage(parsed, false);
+                                processGatewayMessage(parsed, false, filePath);
                             }
                         } catch(e) { }
                     }
@@ -145,7 +238,7 @@ export const initTelegramService = () => {
     }
 };
 
-const processGatewayMessage = (data, isInit = false) => {
+const processGatewayMessage = (data, isInit = false, filePath = '') => {
     const role = data.message.role;
     const contentBlocks = data.message.content || [];
     let text = '';
@@ -164,8 +257,25 @@ const processGatewayMessage = (data, isInit = false) => {
     text = text.trim();
     if (!text) return;
 
-    const targetChatIds = ['-1003752539559', '-3736210177', 'TG000_General_Chat', 'TSG003_General_Chat', 'TG001_Idea_Capture'];
-    
+    const sessionUuid = extractSessionUuidFromPath(filePath);
+    let telegramFromUser = extractTelegramGroupIdFromUserPayload(data);
+    if (telegramFromUser) {
+        telegramFromUser = normalizeChatIdForBuffer(telegramFromUser);
+        if (sessionUuid) sessionToCanonicalChat.set(sessionUuid, telegramFromUser);
+    }
+
+    let canonicalChatId = null;
+    if (telegramFromUser) {
+        canonicalChatId = telegramFromUser;
+    } else if (sessionUuid && sessionToCanonicalChat.has(sessionUuid)) {
+        canonicalChatId = sessionToCanonicalChat.get(sessionUuid);
+    }
+
+    // No Telegram routing for this line (e.g. IDE-only session) → do not mirror into any channel buffer.
+    if (!canonicalChatId) {
+        return;
+    }
+
     const msgObj = {
         id: data.id || `gen_${Math.random()}`,
         text: text,
@@ -177,40 +287,35 @@ const processGatewayMessage = (data, isInit = false) => {
         model: data.message.model || ''
     };
 
-    targetChatIds.forEach(chatId => {
-        if (!messageBuffer.has(chatId)) messageBuffer.set(chatId, []);
-        const chatBuffer = messageBuffer.get(chatId);
-        
-        // Prevent duplicates from multiple files holding the same message ID
-        if (!chatBuffer.find(m => m.id === msgObj.id)) {
-            chatBuffer.push(msgObj);
-            // Keep buffer sorted and pruned
-            chatBuffer.sort((a,b) => a.date - b.date);
-            if (chatBuffer.length > MAX_BUFFER_SIZE) {
-                chatBuffer.splice(0, chatBuffer.length - MAX_BUFFER_SIZE);
-            }
-            
-            // Only emit live SSE if it is NOT the initialization phase
-            if (!isInit) {
-                telegramEvents.emit('newMessage', { chatId, message: msgObj });
-            }
+    const chatId = canonicalChatId;
+    if (!messageBuffer.has(chatId)) messageBuffer.set(chatId, []);
+    const chatBuffer = messageBuffer.get(chatId);
+
+    if (!chatBuffer.find(m => m.id === msgObj.id)) {
+        chatBuffer.push(msgObj);
+        chatBuffer.sort((a,b) => a.date - b.date);
+        if (chatBuffer.length > MAX_BUFFER_SIZE) {
+            chatBuffer.splice(0, chatBuffer.length - MAX_BUFFER_SIZE);
         }
-    });
+
+        if (!isInit) {
+            telegramEvents.emit('newMessage', { chatId, message: msgObj });
+        }
+    }
 };
 
 export const getMessagesForChat = (chatId) => {
-    return messageBuffer.get(chatId.toString()) || [];
+    const key = normalizeChatIdForBuffer(chatId.toString());
+    return messageBuffer.get(key) || [];
 };
 
 export const sendMessageToChat = async (chatId, text) => {
-    // Resolving internal UI names to actual Telegram IDs for OpenClaw injection
-    let realChatId = chatId;
-    if (realChatId === 'TG000_General_Chat' || realChatId === 'TSG003_General_Chat' || realChatId === '-3736210177') realChatId = '-1003752539559';
-    else if (realChatId === 'TG001_Idea_Capture') realChatId = '-1002047804899'; // fallback
+    const realChatId = normalizeChatIdForBuffer(String(chatId));
+    const bufferKey = realChatId;
 
-    const bufferKey = String(chatId);
     logOpenclawCli('inject_start', {
         bufferKey,
+        rawChatId: String(chatId),
         realChatId: String(realChatId),
         textLen: String(text).length
     });
@@ -222,7 +327,34 @@ export const sendMessageToChat = async (chatId, text) => {
         return { message_id: `ui-empty-${Date.now()}` };
     }
 
-    // Manually push to local buffer so the UI sees it immediately as "You"
+    const cmd = `export PATH=$PATH:/home/claw-agentbox/.npm-global/bin && openclaw agent --channel telegram --to "${realChatId}" --message "${safeText}" --deliver`;
+
+    try {
+        const { stdout, stderr } = await execAsync(cmd, { maxBuffer: 10 * 1024 * 1024 });
+        logOpenclawCli('inject_ok', {
+            realChatId: String(realChatId),
+            stdoutLen: (stdout || '').length,
+            stderrLen: (stderr || '').length,
+            stdoutPreview: clip(stdout, 800),
+            stderrPreview: clip(stderr, 400)
+        });
+        console.log('[TelegramService] openclaw agent finished (exit 0).');
+    } catch (err) {
+        logOpenclawCli('inject_err', {
+            realChatId: String(realChatId),
+            message: clip(err?.message, 400),
+            stderrPreview: clip(err?.stderr, 400),
+            stdoutPreview: clip(err?.stdout, 400)
+        });
+        console.error('[TelegramService] openclaw agent failed:', err.message);
+        const fail = new Error(
+            `OpenClaw CLI failed for chat ${realChatId}: ${clip(err?.message, 200)}`
+        );
+        fail.status = 502;
+        fail.cause = err;
+        throw fail;
+    }
+
     const localId = `ui-${Date.now()}`;
     const uiMsg = {
         id: localId,
@@ -236,31 +368,6 @@ export const sendMessageToChat = async (chatId, text) => {
     if (!messageBuffer.has(bufferKey)) messageBuffer.set(bufferKey, []);
     messageBuffer.get(bufferKey).push(uiMsg);
     telegramEvents.emit('newMessage', { chatId: bufferKey, message: uiMsg });
-
-    // Gateway injection: --deliver is required for replies to be sent back to Telegram (CLI default is false).
-    // Docs: https://docs.openclaw.ai/cli/agent
-    const cmd = `export PATH=$PATH:/home/claw-agentbox/.npm-global/bin && openclaw agent --channel telegram --to "${realChatId}" --message "${safeText}" --deliver`;
-
-    execAsync(cmd, { maxBuffer: 10 * 1024 * 1024 })
-        .then(({ stdout, stderr }) => {
-            logOpenclawCli('inject_ok', {
-                realChatId: String(realChatId),
-                stdoutLen: (stdout || '').length,
-                stderrLen: (stderr || '').length,
-                stdoutPreview: clip(stdout, 800),
-                stderrPreview: clip(stderr, 400)
-            });
-            console.log('[TelegramService] openclaw agent finished (exit 0).');
-        })
-        .catch((err) => {
-            logOpenclawCli('inject_err', {
-                realChatId: String(realChatId),
-                message: clip(err?.message, 400),
-                stderrPreview: clip(err?.stderr, 400),
-                stdoutPreview: clip(err?.stdout, 400)
-            });
-            console.error('[TelegramService] openclaw agent failed:', err.message);
-        });
 
     return { message_id: localId };
 };

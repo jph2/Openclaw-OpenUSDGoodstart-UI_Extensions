@@ -13,7 +13,7 @@ agent_index:
     phase5: "#5-phase-ui-polishing-persistence--unified-brain"
     phase6: "#6-phase-native-ide-telegram-integration-anti-gravity"
 created: "2026-04-12T01:07:00Z"
-last_modified: "2026-04-15T12:00:00Z"
+last_modified: "2026-04-15T23:30:00Z"
 author: "AntiGravity"
 provenance:
   git_repo: "OpenClaw_Control_Center"
@@ -27,7 +27,7 @@ tags: [implementation, channel_manager, telegram-hub, zod, private-ecosystem]
 **Release**: V1.5 | **Status**: Phase 6 & 8 (teilweise), MCP/Cursor operational | **Focus**: Rosetta-Sync, Gateway-Delivery & IDE-MCP
 **GlobalID**: 20260415_1200_IMPLEMENTATION_v1.5
 
-**Last Updated:** 15.04.2026 12:00  
+**Last Updated:** 15.04.2026 23:30  
 **Framework:** Horizon Studio Framework  
 **Status:** active
 
@@ -43,6 +43,12 @@ tags: [implementation, channel_manager, telegram-hub, zod, private-ecosystem]
 ## 2. Phase: Skill-Synchronisation ("Marvin"-Sync) (Abgeschlossen ✅)
 - [x] **Sub-Task 2.1**: Fix der `sync_skills.py`.
 - [x] **Sub-Task 2.2**: Hegel-Sync Implementierung.
+- [x] **Sub-Task 2.3: Workspace Skills Registry (Filesystem → Channel Manager)** (15.04.2026)  
+  - **Spec:** [CHANNEL_MANAGER_SKILLS_REGISTRY_SPEC.md](CHANNEL_MANAGER_SKILLS_REGISTRY_SPEC.md).  
+  - **Backend:** `scanWorkspaceSkillsCatalog()` lädt `OPENCLAW_WORKSPACE/skills/<id>/SKILL.md`, merged mit `BUNDLED_SKILL_CATALOG` in `GET /api/channels` → `metadata.skills`.  
+  - **Live:** Chokidar auf dem Skills-Baum feuert bei `SKILL.md`-Änderungen dasselbe SSE wie Channel-Config (`CONFIG_UPDATED`).  
+  - **Frontend:** unverändert außer bestehendem `src: workspace` / Workbench-Pfad (bereits unterstützt).  
+  - **Follow-up (UX):** Sub-Task **6.11** (Phase 6) — Filter, Sortierung, Reihenfolge; Spec: [CHANNEL_MANAGER_SKILLS_REGISTRY_SPEC.md](CHANNEL_MANAGER_SKILLS_REGISTRY_SPEC.md).
 
 ## 3. Phase: Direct Telegram Conversation Stream (Abgeschlossen ✅)
 - [x] **Sub-Task 3.1**: Telegram-Backend-Service via Telegraf.
@@ -82,6 +88,28 @@ Ziel: Bedienkomfort verbessern, Architektur-Lecks schließen und Wissens-Kontinu
 - [ ] **Sub-Task 6.6**: **Session Visibility**: Anzeige der `sessionKey` oder eines Parity-Indikators in der UI.
 - [x] **Sub-Task 6.7**: Agent Quick-Navigation (Scroll-Into-View).
 - [x] **Sub-Task 6.8**: IDE Override Toggle.
+- [ ] **Sub-Task 6.9: Native Chat — Bilder & Medien (Upcoming, nicht implementiert)**  
+  **Geplant, nicht in Arbeit:** End-to-End für Bilder aus dem Channel Manager (Paste/Drop, Upload, Telegram-Zustellung).  
+  - **Backend:** Neuer Endpoint oder Erweiterung von `POST /api/telegram/send` um multipart/Base64; ggf. Telegram Bot API `sendPhoto` oder OpenClaw-CLI sobald Medien offiziell unterstützt werden.  
+  - **Frontend:** Vorschau, Fortschritt, Fehler; Entfernen des reinen „nicht unterstützt“-Hinweises zugunsten echter Übertragung.  
+  - **Spec:** §6.3 in `CHANNEL_MANAGER_SPECIFICATION.md`.  
+  **Bis dahin:** Nur Text; UI-Hinweis bei Bild-Paste bleibt.
+
+- [ ] **Sub-Task 6.10: Cursor Summary Tab + Studio A070 (MVP)**  
+  **Hier wird die Funktionalität aus Scope/Spec „sichergestellt“ (Implementierung + Abnahme).** Verbindlich: [CHANNEL_MANAGER_SCOPE_MVP_2026-04-15.md](CHANNEL_MANAGER_SCOPE_MVP_2026-04-15.md), [CHANNEL_MANAGER_SPECIFICATION.md](CHANNEL_MANAGER_SPECIFICATION.md) §3, [README_A070_IDE_Summaries.md](../../Studio_Framework/050_Artifacts/A070_ide_cursor_summaries/README_A070_IDE_Summaries.md) (Studio-Repo).  
+  - **Frontend:** Dritter **Sub-Tab** (oder gleichwertiger Tab) pro Kanal/Zeile: **Cursor Summary** — liest **konfigurierbaren** Basis-Pfad (Default: Studio `050_Artifacts/A070_ide_cursor_summaries/`), filtert nach TG/Projekt, listet/rendert Markdown-Summaries; optional „Speichern“ = neue MD unter A070-Konvention oder Notiz im Backend.  
+  - **Backend (optional MVP):** `GET`/`POST` oder statischer File-Read über erlaubten Pfad (Env `STUDIO_FRAMEWORK_ROOT` o. Ä.); keine Doppel-Send-Logik an Telegram.  
+  - **Pipeline IDE → A070:** Kann **Skill** (`ide-openclaw-memory-sync` = `TARS_MEMORY.md` nur) **oder** separates Verdichtungs-Skript/Cron ergänzen; **kanonische** Studio-Ablage bleibt **A070**.  
+  - **Promotion → `memory/` / `MEMORY.md`:** Eigener Follow-up (Cron/Skill), nicht Teil von 6.10 Minimum.
+
+- [ ] **Sub-Task 6.11: Skills-Tab — Filter, Sortierung, Reihenfolge, Suche**  
+  **Spec:** [CHANNEL_MANAGER_SKILLS_REGISTRY_SPEC.md](CHANNEL_MANAGER_SKILLS_REGISTRY_SPEC.md) § *Filtering, ordering, and display (planned)*.  
+  - **Filter:** Kategorie (`cat`), optional nach Quelle (`src`: bundled / managed / workspace), Volltext über ID + Beschreibung (+ optional `origin`); Toggle „nur DEFAULT“ (`def`).  
+  - **Sortierung:** Name A–Z/Z–A, Kategorie, Quelle; optional „zuletzt geändert“, wenn Backend `mtime` von `SKILL.md` mitliefert.  
+  - **Eigene Reihenfolge:** persistente ID-Liste (Drag-and-Drop oder Hoch/Runter), Merge-Regel für neu hinzugekommene Skills; „Zurück auf alphabetisch“. Speicherort: Top-Level in `channel_config.json` oder Sidecar `channel_manager_ui.json` (Implementierungsentscheid).  
+  - **Technik:** Filter/Sort primär clientseitig aus `metadata.skills`; Persistenz lesen/schreiben über bestehende Config-API oder kleinen UI-Settings-Endpunkt.  
+  - **SSE:** bei Registry-Update benutzerdefinierte Reihenfolge bereinigen (unbekannte IDs entfernen).  
+  - **Extras (optional):** gespeicherte Filter-Presets; Gruppierung einklappbar nach Kategorie.
 
 ## 7. Phase: Model Context Protocol (MCP) Server Integration (IDE Bridge) 🚀
 Ziel: Anbindung der IDE (AntiGravity / **Cursor**) an den Channel Manager über einen MCP-Server (stdio), sodass CASE ohne Bot-Tokens in der IDE in den Telegram-Kontext injizieren kann.
@@ -102,9 +130,10 @@ Ziel: Anbindung der IDE (AntiGravity / **Cursor**) an den Channel Manager über 
   - **`C:\Users\<User>\.cursor\mcp.json` (Windows):** `openclaw-channel-manager` via `ssh -T laptop … run-mcp.sh`.
   - **`~/.cursor/mcp.json` (Laptop):** gleicher Server-ID mit direktem `/usr/bin/node …/MCP-ChannelManager.mjs` (kein `E:\`).
   - **Projekt**-`.cursor/mcp.json` mit identischer Server-ID entfernt (Doppel-Einträge vermieden).
-- [x] **Sub-Task 7.6: CASE-Identität in Cursor (Stand 15.04.2026)**
-  - **`~/.openclaw/workspace/.cursor/rules/case-cursor-identity.mdc`** (`alwaysApply: true`) — Session-Start: CASE lesen (`CASE_SOUL.md`), nicht TARS-Stimme für IDE-Aufgaben.
-  - **`AGENTS.md`:** Agent-Tabelle CASE → **Cursor IDE**.
+- [x] **Sub-Task 7.6: Harness / IDE context in Cursor (Stand 15.04.2026, renamed 15.04.2026)**
+  - **`~/.openclaw/workspace/.cursor/rules/openclaw-workspace-context.mdc`** (`alwaysApply: true`) — points agents to **`AGENTS.md`** + **`SOUL.md`** (triad; not CASE-only). Legacy: `case-cursor-identity.mdc`.
+  - **`~/.cursor/rules/openclaw-harness-hint.mdc`** — global short reminder; canonical: workspace files. Legacy: `case-global-identity.mdc`.
+  - **`AGENTS.md`:** Harness personas; IDE uses TARS by default; CASE_SOUL deprecated.
   - **`Studio_Framework/.cursor/rules/openclaw-channel-gems-context.mdc`** — Kontext für Edits unter `A075_Channel_Gems/`.
 
 ## 8. Phase: Gateway & MCP Port-Stabilisierung (AKTIVE PHASE 🛠️)
@@ -153,4 +182,4 @@ Ziel: Umbenennung des Repositories in `OpenClaw_Control_Center` und Ablösung ha
 - [x] **Sub-Task 11.5: Ordner `Production_Nodejs_React` (15.04.2026):** Tippfehler `Prodution_Nodejs_React` → **`Production_Nodejs_React`** im Repo bereinigt.
 
 ---
-*Status: Phasen 1–5 erweitert (5.3 Outbound), Phase 6–8 teilweise, Phase 7 inkl. Cursor/SSH, Phase 10/11 teilweise. Letzte Sync-Doku: 15.04.2026.*
+*Status: Phasen 1–5 erweitert (5.3 Outbound), Phase 6–8 teilweise, Phase 7 inkl. Cursor/SSH, Phase 10/11 teilweise. Sub-Task 6.9 Medien = Roadmap. Letzte Sync-Doku: 15.04.2026.*

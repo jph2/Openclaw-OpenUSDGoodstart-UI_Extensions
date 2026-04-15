@@ -1,6 +1,6 @@
 import express from 'express';
 import { z } from 'zod';
-import { telegramEvents, getMessagesForChat, sendMessageToChat, getChatBots } from '../services/telegramService.js';
+import { telegramEvents, getMessagesForChat, sendMessageToChat, getChatBots, normalizeChatIdForBuffer } from '../services/telegramService.js';
 import { apiLimiter } from '../utils/rateLimiter.js';
 
 const router = express.Router();
@@ -15,7 +15,7 @@ const SendMessageSchema = z.object({
  * SSE endpoint for live telegram messages for a specific chat
  */
 router.get('/stream/:chatId', (req, res) => {
-    const { chatId } = req.params;
+    const normalized = normalizeChatIdForBuffer(req.params.chatId);
 
     res.setHeader('Content-Type', 'text/event-stream');
     res.setHeader('Cache-Control', 'no-cache');
@@ -23,14 +23,14 @@ router.get('/stream/:chatId', (req, res) => {
     res.flushHeaders();
 
     // Send initial backlog of messages
-    const backlog = getMessagesForChat(chatId);
+    const backlog = getMessagesForChat(normalized);
     if (backlog.length > 0) {
         res.write(`data: ${JSON.stringify({ type: 'INIT', messages: backlog })}\n\n`);
     }
 
     // Listener for new live messages
     const onNewMessage = (payload) => {
-        if (payload.chatId === chatId) {
+        if (normalizeChatIdForBuffer(payload.chatId) === normalized) {
             res.write(`data: ${JSON.stringify({ type: 'MESSAGE', message: payload.message })}\n\n`);
         }
     };
@@ -55,15 +55,7 @@ router.post('/send', apiLimiter, async (req, res, next) => {
     try {
         let { chatId, text } = SendMessageSchema.parse(req.body);
         console.log(`[API POST /send] Parsed values -> chatId: ${chatId}, textLength: ${text.length}`);
-        
-        // Auto-fix legacy generic OpenClaw aliases to the real telegram Chat ID
-        if (chatId === '-3736210177' || chatId === 'TG000_General_Chat' || chatId === 'TSG003_General_Chat') {
-            console.log(`[API POST /send] Auto-correcting alias ${chatId} to -1003752539559`);
-            chatId = '-1003752539559';
-        } else if (chatId === 'TG001_Idea_Capture') {
-            chatId = '-1002047804899'; // Assuming this is correct from common openclaw usages, adjust if needed
-        }
-        
+        // Resolution to numeric Telegram id + buffer keys: sendMessageToChat + normalizeChatIdForBuffer
         const result = await sendMessageToChat(chatId, text);
         console.log(`[API POST /send] Success! messageId: ${result.message_id}`);
         // Return telegram response structure to UI

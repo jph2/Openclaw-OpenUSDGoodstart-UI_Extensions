@@ -2,7 +2,7 @@
   "channels": [
     {
       "id": "-1003752539559",
-      "name": "TG000_General_Chat",
+      "name": "TTG000_General_Chat",
       "model": "moonshot/kimi-k2.5",
       "skills": [
         "weather",
@@ -17,31 +17,36 @@
     },
     {
       "id": "-5168034995",
-      "name": "TG001_Idea_Capture",
+      "name": "TTG001_Idea_Capture",
       "model": "local-pc/google/gemma-4-26b-a4b",
       "skills": [],
       "assignedAgent": "tars"
     },
     {
       "id": "-5116743354",
-      "name": "TG010_General_Discovery_Plus_Research",
+      "name": "TTG010_General_Discovery_Plus_Research",
       "model": "local-pc/google/gemma-4-26b-a4b",
       "skills": [],
       "assignedAgent": "tars"
     },
     {
       "id": "-5024908938",
-      "name": "TG020_omniUSD",
+      "name": "TTG020_omniUSD",
       "model": "moonshot/kimi-k2.5",
       "skills": [
         "omniverse-extension-development",
         "usd-development"
       ],
-      "assignedAgent": "sonic"
+      "assignedAgent": "tars",
+      "ideOverride": false,
+      "inactiveSubAgents": [],
+      "inactiveSkills": [],
+      "caseSkills": [],
+      "inactiveCaseSkills": []
     },
     {
       "id": "-5275137502",
-      "name": "TG030_DCC_CAD",
+      "name": "TTG030_DCC_CAD",
       "model": "local-pc/google/gemma-4-26b-a4b",
       "skills": [
         "usd-development"
@@ -50,28 +55,28 @@
     },
     {
       "id": "-5034730971",
-      "name": "TG040_WebDev_Backend",
+      "name": "TTG040_WebDev_Backend",
       "model": "local-pc/google/gemma-4-26b-a4b",
       "skills": [],
       "assignedAgent": "sonic"
     },
     {
       "id": "-5159996212",
-      "name": "TG050_WebDev_Frontend",
+      "name": "TTG050_WebDev_Frontend",
       "model": "local-pc/google/gemma-4-26b-a4b",
       "skills": [],
       "assignedAgent": "sonic"
     },
     {
       "id": "-1003968061817",
-      "name": "TG060_Social_Media",
+      "name": "TTG060_Social_Media",
       "model": "local-pc/google/gemma-4-26b-a4b",
       "skills": [],
       "assignedAgent": "tars"
     },
     {
       "id": "-5103615103",
-      "name": "TG070_QA_Plus_Security",
+      "name": "TTG070_QA_Plus_Security",
       "model": "local-pc/google/gemma-4-26b-a4b",
       "skills": [
         "healthcheck"
@@ -80,7 +85,7 @@
     },
     {
       "id": "-5272630186",
-      "name": "TG500_OpenClaw_Governance",
+      "name": "TTG500_OpenClaw_Governance",
       "model": "local-pc/google/gemma-4-26b-a4b",
       "skills": [
         "node-connect"
@@ -89,28 +94,28 @@
     },
     {
       "id": "-5169316413",
-      "name": "TG510_Upcoming_Skills",
+      "name": "TTG510_Upcoming_Skills",
       "model": "local-pc/google/gemma-4-26b-a4b",
       "skills": [],
       "assignedAgent": "tars"
     },
     {
       "id": "-5155708359",
-      "name": "TG520_Agentic_Intelligence",
+      "name": "TTG520_Agentic_Intelligence",
       "model": "local-pc/google/gemma-4-26b-a4b",
       "skills": [],
       "assignedAgent": "tars"
     },
     {
       "id": "-5197370693",
-      "name": "TG700_Studio_Framework",
+      "name": "TTG700_Studio_Framework",
       "model": "local-pc/google/gemma-4-26b-a4b",
       "skills": [],
       "assignedAgent": "tars"
     },
     {
       "id": "-5012559503",
-      "name": "TG800_Experimental_Box",
+      "name": "TTG800_Experimental_Box",
       "model": "local-pc/google/gemma-4-26b-a4b",
       "skills": [
         "clawflow"
@@ -119,7 +124,7 @@
     },
     {
       "id": "-5228979198",
-      "name": "TG900_troubleshooting",
+      "name": "TTG900_troubleshooting",
       "model": "local-pc/google/gemma-4-26b-a4b",
       "skills": [],
       "assignedAgent": "marvin"

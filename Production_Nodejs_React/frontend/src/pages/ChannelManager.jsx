@@ -164,6 +164,17 @@ export default function ChannelManager() {
     const SUB_AGENTS = activeMetadata.subAgentsDict || {};
     const SKILL_METADATA = activeMetadata.skills || {};
 
+    const workspaceSkillsRoot = '/home/claw-agentbox/.openclaw/workspace/skills';
+    const bundledOpenclawSkillsRoot = '/home/claw-agentbox/.npm-global/lib/node_modules/openclaw/skills';
+
+    /** Local on-disk path for Workbench links; workspace copies vs bundled openclaw/skills. */
+    const resolveSkillFsPath = (id, skill) => {
+        if (skill?.src === 'workspace' || id === 'omniverse-extension-development' || id === 'usd-development') {
+            return `${workspaceSkillsRoot}/${id}`;
+        }
+        return `${bundledOpenclawSkillsRoot}/${id}`;
+    };
+
     const navigateToAgent = (agentId) => {
         setActiveTab('agents');
         setTimeout(() => {
@@ -707,6 +718,7 @@ export default function ChannelManager() {
                 {Object.entries(SKILL_METADATA).map(([id, skill]) => {
                     let colorCode = '#50e3c2'; // BUNDLED
                     if (skill.src === 'managed') colorCode = '#e3c450';
+                    if (skill.src === 'workspace') colorCode = '#6e9cff';
                     if (skill.src === 'custom' || skill.src === 'modified') colorCode = '#e35050';
 
                     return (
@@ -733,25 +745,23 @@ export default function ChannelManager() {
                                         {id === 'web_search' && "Utilizes Google Search API for robust data grounding. Highly effective for breaking news, fact-checking, and general knowledge expansion beyond the model's training cutoff."}
                                         {id === 'notion' && "Bi-directional sync with Notion workspaces. Create pages, update databases, and query knowledge bases. Ideal for structured documentation."}
                                         {id === 'omniverse-extension-development' && "Deep integration with NVIDIA Omniverse. Can scaffold extensions, write Python UI scripts, and interface with the Kit SDK."}
+                                        {id === 'ide-openclaw-memory-sync' && "Appends curated gems and short session summaries from Cursor (and similar IDEs) to TARS_MEMORY.md for triad / harness continuity; optional read-back at session start."}
                                     </div>
 
                                     <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                                         {/* Local Web Source Path & Action */}
                                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                                             <div className="tg-id" style={{ marginTop: '0', background: 'rgba(255,255,255,0.05)', padding: '4px 8px', borderRadius: '4px', fontSize: '10px' }}>
-                                                {id === 'omniverse-extension-development' ? `/home/claw-agentbox/.openclaw/workspace/skills/${id}` : `/home/claw-agentbox/.npm-global/lib/node_modules/openclaw/skills/${id}`}
+                                                {resolveSkillFsPath(id, skill)}
                                             </div>
                                             <a 
-                                                href={`/workbench?path=${encodeURIComponent(id === 'omniverse-extension-development' ? `/home/claw-agentbox/.openclaw/workspace/skills/${id}` : `/home/claw-agentbox/.npm-global/lib/node_modules/openclaw/skills/${id}`)}`}
+                                                href={`/workbench?path=${encodeURIComponent(resolveSkillFsPath(id, skill))}`}
                                                 target="_blank"
                                                 rel="noreferrer"
                                                 className="btn-open"
                                                 style={{ textDecoration: 'none', background: 'rgba(255,255,255,0.1)', border: '1px solid var(--border-color)', color: '#fff', padding: '4px 12px', fontSize: '11px', borderRadius: '4px' }}
                                                 onClick={() => {
-                                                    // Synchronize with local store if navigating inside SPA without full reload
-                                                    const skillPath = id === 'omniverse-extension-development' 
-                                                        ? `/home/claw-agentbox/.openclaw/workspace/skills/${id}`
-                                                        : `/home/claw-agentbox/.npm-global/lib/node_modules/openclaw/skills/${id}`;
+                                                    const skillPath = resolveSkillFsPath(id, skill);
                                                     useWorkbenchStore.getState().addWorkspace(skillPath);
                                                     useWorkbenchStore.getState().setCurrentRoot(skillPath);
                                                 }}

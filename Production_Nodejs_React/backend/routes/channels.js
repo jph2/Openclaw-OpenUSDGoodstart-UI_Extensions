@@ -6,8 +6,22 @@ import { z } from 'zod';
 import chokidar from 'chokidar';
 import { EventEmitter } from 'events';
 import { resolveSafe } from '../utils/security.js';
+import { scanWorkspaceSkillsCatalog, resolveWorkspaceSkillsDir } from '../services/workspaceSkillRegistry.js';
 
 const OPENCLAW_JSON_PATH = process.env.OPENCLAW_CONFIG_PATH || '/home/claw-agentbox/.openclaw/openclaw.json';
+
+/** Bundled / managed catalog entries; merged at request time with filesystem scan under OPENCLAW_WORKSPACE/skills (see workspaceSkillRegistry.js). */
+const BUNDLED_SKILL_CATALOG = {
+    weather: { desc: 'Get current weather and forecasts for any location', origin: 'openclaw/skills', cat: 'utility', src: 'bundled', def: true },
+    web_search: { desc: 'Search the web using Google Search grounding', origin: 'openclaw/skills', cat: 'research', src: 'bundled', def: true },
+    web_fetch: { desc: 'Fetch and extract content from URLs', origin: 'openclaw/skills', cat: 'research', src: 'bundled', def: true },
+    healthcheck: { desc: 'System security hardening and risk assessment', origin: 'openclaw/skills', cat: 'system', src: 'bundled', def: false },
+    'node-connect': { desc: 'Diagnose OpenClaw node connection failures', origin: 'openclaw/skills', cat: 'system', src: 'bundled', def: false },
+    notion: { desc: 'Create and manage Notion pages and databases', origin: 'clawhub', cat: 'integration', src: 'managed', def: false },
+    clawflow: { desc: 'ClawFlow workflow orchestration and job management', origin: 'openclaw/skills', cat: 'orchestration', src: 'bundled', def: true },
+    'skill-creator': { desc: 'Create, edit and audit AgentSkills', origin: 'openclaw/skills', cat: 'development', src: 'bundled', def: false },
+    clawhub: { desc: 'Search, install and publish agent skills', origin: 'openclaw/skills', cat: 'utility', src: 'bundled', def: false }
+};
 
 async function syncToOpenClawState(channelId, updates) {
     try {
@@ -57,6 +71,27 @@ setTimeout(async () => {
         console.log(`[Chokidar] Active and watching: ${configPath}`);
     } catch (err) {
         console.warn('[Chokidar] Failed to initialize watcher:', err.message);
+    }
+}, 0);
+
+// Workspace skills: re-scan when SKILL.md is added/changed/deleted → same SSE as config (CONFIG_UPDATED).
+setTimeout(() => {
+    try {
+        const skillsDir = resolveWorkspaceSkillsDir();
+        const skillWatcher = chokidar.watch(skillsDir, {
+            persistent: true,
+            ignoreInitial: true,
+            depth: 3,
+            awaitWriteFinish: { stabilityThreshold: 400, pollInterval: 100 }
+        });
+        skillWatcher.on('all', (event, p) => {
+            if (!p || !p.includes(`${path.sep}SKILL.md`)) return;
+            console.log(`[Chokidar] Workspace skill file ${event}: ${p}`);
+            configEvents.emit('configChange');
+        });
+        console.log(`[Chokidar] Watching workspace skills: ${skillsDir}`);
+    } catch (err) {
+        console.warn('[Chokidar] Workspace skills watcher failed:', err.message);
     }
 }, 0);
 
@@ -300,6 +335,9 @@ router.get('/', async (req, res, next) => {
             desc: id.includes('local-pc') ? 'Sovereign Local Agent' : 'Cloud Connected Agent'
         }));
 
+        const workspaceSkills = await scanWorkspaceSkillsCatalog();
+        const mergedSkills = { ...BUNDLED_SKILL_CATALOG, ...workspaceSkills };
+
         const metadata = {
             models: dynamicModels,
             mainAgents: {
@@ -315,17 +353,7 @@ router.get('/', async (req, res, next) => {
                 documenter: { name: "Documenter", parent: "tars", additionalSkills: ["notion"] },
                 tester: { name: "Tester", parent: "marvin", additionalSkills: ["healthcheck"] }
             },
-            skills: {
-                "weather": { desc: "Get current weather and forecasts for any location", origin: "openclaw/skills", cat: "utility", src: "bundled", def: true },
-                "web_search": { desc: "Search the web using Google Search grounding", origin: "openclaw/skills", cat: "research", src: "bundled", def: true },
-                "web_fetch": { desc: "Fetch and extract content from URLs", origin: "openclaw/skills", cat: "research", src: "bundled", def: true },
-                "healthcheck": { desc: "System security hardening and risk assessment", origin: "openclaw/skills", cat: "system", src: "bundled", def: false },
-                "node-connect": { desc: "Diagnose OpenClaw node connection failures", origin: "openclaw/skills", cat: "system", src: "bundled", def: false },
-                "notion": { desc: "Create and manage Notion pages and databases", origin: "clawhub", cat: "integration", src: "managed", def: false },
-                "clawflow": { desc: "ClawFlow workflow orchestration and job management", origin: "openclaw/skills", cat: "orchestration", src: "bundled", def: true },
-                "skill-creator": { desc: "Create, edit and audit AgentSkills", origin: "openclaw/skills", cat: "development", src: "bundled", def: false },
-                "clawhub": { desc: "Search, install and publish agent skills", origin: "openclaw/skills", cat: "utility", src: "bundled", def: false }
-            }
+            skills: mergedSkills
         };
 
         const availableModels = openclawState?.agents?.defaults?.models || {};

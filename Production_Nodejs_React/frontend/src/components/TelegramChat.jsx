@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Send, Copy } from 'lucide-react';
+import { Send, Copy, Image } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 
@@ -82,6 +82,7 @@ export default function TelegramChat({ channelId, channelName }) {
     const [inputValue, setInputValue] = useState('');
     const [isSending, setIsSending] = useState(false);
     const [showSystemMessages, setShowSystemMessages] = useState(false);
+    const [pasteHint, setPasteHint] = useState(null);
     const containerRef = useRef(null);
 
     // Auto-scroll to bottom
@@ -183,9 +184,6 @@ export default function TelegramChat({ channelId, channelName }) {
                 body: JSON.stringify({ chatId: channelId, text: textToSend })
             });
             if (!res.ok) throw new Error('Send failed');
-            // Optimistic update is not strictly needed because the bot will broadcast it back via SSE
-            // Actually, bots don't receive their own outgoing messages natively via telegraf unless specified,
-            // but let's see. If not, we can push an optimistic message. For safety, let's push an optimistic one:
             setMessages(prev => [...prev, { id: Date.now(), text: textToSend, sender: 'You (Frontend)', senderId: 'me', date: Date.now()/1000, isBot: false }]);
         } catch (err) {
             console.error(err);
@@ -193,6 +191,26 @@ export default function TelegramChat({ channelId, channelName }) {
             setInputValue(textToSend); // restore on fail
         } finally {
             setIsSending(false);
+        }
+    };
+
+    const handlePaste = (e) => {
+        const items = e.clipboardData?.items;
+        if (!items) return;
+        for (let i = 0; i < items.length; i++) {
+            if (items[i].type.startsWith('image/')) {
+                e.preventDefault();
+                setPasteHint('Bilder: noch nicht angebunden (API sendet nur Text). Fotos bitte direkt in Telegram oder später: Backend sendPhoto / OpenClaw-Media).');
+                window.setTimeout(() => setPasteHint(null), 7000);
+                return;
+            }
+        }
+    };
+
+    const handleKeyDown = (e) => {
+        if (e.key === 'Enter' && !e.shiftKey) {
+            e.preventDefault();
+            handleSendMessage();
         }
     };
 
@@ -241,34 +259,74 @@ export default function TelegramChat({ channelId, channelName }) {
             </div>
 
             {/* Input Area */}
-            <div style={{ padding: '16px', borderTop: '1px solid var(--border-color)', background: '#1a1b26' }}>
-                <div style={{ display: 'flex', background: '#13141c', border: '1px solid var(--border-color)', borderRadius: '6px', padding: '6px 12px', alignItems: 'center' }}>
-                    <input 
-                        type="text" 
+            <div style={{ padding: '12px 16px 16px', borderTop: '1px solid var(--border-color)', background: '#1a1b26', flexShrink: 0 }}>
+                <div style={{
+                    position: 'relative',
+                    background: '#13141c',
+                    border: '1px solid var(--border-color)',
+                    borderRadius: '8px',
+                    minHeight: '120px'
+                }}>
+                    <textarea
                         value={inputValue}
                         onChange={e => setInputValue(e.target.value)}
-                        onKeyDown={e => { if (e.key === 'Enter') handleSendMessage(); }}
-                        placeholder={`Message ${channelName}...`}
+                        onKeyDown={handleKeyDown}
+                        onPaste={handlePaste}
+                        placeholder={`Message ${channelName}… (Shift+Enter Zeilenumbruch)`}
                         disabled={isSending}
+                        rows={5}
                         style={{
-                            flex: 1, background: 'transparent', border: 'none', 
-                            color: '#fff', outline: 'none', padding: '4px'
-                        }} 
-                    />
-                    <button 
-                        onClick={handleSendMessage}
-                        disabled={isSending || !inputValue.trim()} 
-                        style={{ 
-                            background: inputValue.trim() ? '#50e3c2' : '#2a2b36', 
+                            width: '100%',
+                            minHeight: '100px',
+                            maxHeight: '220px',
+                            boxSizing: 'border-box',
+                            background: 'transparent',
                             border: 'none',
-                            color: inputValue.trim() ? '#000' : 'var(--text-muted)', 
-                            padding: '6px 14px', borderRadius: '4px', cursor: inputValue.trim() ? 'pointer' : 'not-allowed',
-                            fontWeight: 'bold', fontSize: '13px', marginLeft: '8px', transition: 'all 0.2s'
+                            color: '#fff',
+                            outline: 'none',
+                            padding: '12px 44px 12px 12px',
+                            resize: 'vertical',
+                            fontSize: '14px',
+                            lineHeight: '1.45',
+                            fontFamily: 'inherit'
+                        }}
+                    />
+                    <button
+                        type="button"
+                        onClick={handleSendMessage}
+                        disabled={isSending || !inputValue.trim()}
+                        title="Senden (Enter)"
+                        aria-label="Senden"
+                        style={{
+                            position: 'absolute',
+                            bottom: '8px',
+                            right: '8px',
+                            width: '32px',
+                            height: '32px',
+                            padding: 0,
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            background: inputValue.trim() ? '#50e3c2' : '#2a2b36',
+                            border: 'none',
+                            borderRadius: '6px',
+                            color: inputValue.trim() ? '#000' : 'var(--text-muted)',
+                            cursor: inputValue.trim() && !isSending ? 'pointer' : 'not-allowed',
+                            transition: 'background 0.15s ease'
                         }}
                     >
-                        Send
+                        <Send size={16} strokeWidth={2.5} />
                     </button>
                 </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '8px', color: '#666', fontSize: '11px' }}>
+                    <Image size={12} />
+                    <span>Text per Paste ok; Bilder aus der Zwischenablage: noch nicht unterstützt (nur Text-API).</span>
+                </div>
+                {pasteHint && (
+                    <div style={{ marginTop: '8px', fontSize: '12px', color: '#e0a030', lineHeight: 1.4 }}>
+                        {pasteHint}
+                    </div>
+                )}
             </div>
         </div>
     );

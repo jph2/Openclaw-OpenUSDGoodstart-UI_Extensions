@@ -19,7 +19,7 @@ export async function scanHistory(memoryDir = '/home/claw-agentbox/.openclaw/wor
             if (parsed.length > 0) {
                 // Determine chatId from filename or content?
                 // Sub-Task 6.3 says: "Abgleich der agent:main:telegram:group:<ID> Keys mit den Markdown-Metadaten"
-                // For now, we will map to TG000_General_Chat or similar if not specified.
+                // For now, we will map to TTG000_General_Chat (or legacy TG000_) if not specified.
                 // But let's look for session info in the header.
                 const chatId = extractChatId(content) || '-1003752539559'; // Default to general chat for testing
                 
