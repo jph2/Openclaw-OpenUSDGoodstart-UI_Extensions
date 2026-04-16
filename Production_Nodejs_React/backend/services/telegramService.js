@@ -29,6 +29,44 @@ const MAX_BUFFER_SIZE = 500;
 /** Maps OpenClaw session file UUID → canonical Telegram group id (numeric string). */
 const sessionToCanonicalChat = new Map();
 
+/**
+ * From OpenClaw `sessions.json`: session UUID → Telegram group id (from key agent:main:telegram:group:<id>).
+ * Fills gaps when JSONL lines are webchat/UI-only and never embed `Conversation info` + chat_id.
+ */
+const sessionUuidToTelegramGroupId = new Map();
+
+const DEFAULT_SESSIONS_JSON = () =>
+    path.join(process.env.HOME || '/home/claw-agentbox', '.openclaw/agents/main/sessions/sessions.json');
+
+/**
+ * Re-read OpenClaw session index so gateway lines can resolve group id without per-line metadata.
+ */
+function hydrateOpenclawSessionIndex() {
+    const sessionsPath = process.env.OPENCLAW_SESSIONS_JSON_PATH || DEFAULT_SESSIONS_JSON();
+    try {
+        if (!fs.existsSync(sessionsPath)) {
+            console.warn(`[TelegramService] sessions.json not found at ${sessionsPath} (set OPENCLAW_SESSIONS_JSON_PATH if non-default).`);
+            return;
+        }
+        const raw = fs.readFileSync(sessionsPath, 'utf8');
+        const parsed = JSON.parse(raw);
+        let n = 0;
+        sessionUuidToTelegramGroupId.clear();
+        for (const [sessionKey, entry] of Object.entries(parsed)) {
+            if (!entry || typeof entry !== 'object') continue;
+            const m = sessionKey.match(/^agent:main:telegram:group:(-?\d+)$/);
+            if (!m) continue;
+            const sid = entry.sessionId;
+            if (!sid || typeof sid !== 'string') continue;
+            sessionUuidToTelegramGroupId.set(sid.toLowerCase(), m[1]);
+            n++;
+        }
+        console.log(`[TelegramService] Hydrated OpenClaw session→Telegram group map: ${n} sessions (${sessionsPath}).`);
+    } catch (e) {
+        console.warn('[TelegramService] Failed to hydrate sessions.json:', e.message);
+    }
+}
+
 /** UI / legacy aliases → canonical Telegram chat id (same numeric id as openclaw --to). */
 const CHAT_ID_ALIASES = new Map([
     ['TTG000_General_Chat', '-1003752539559'],
@@ -127,6 +165,7 @@ const fileOffsets = new Map();
 
 export const initTelegramService = () => {
     hydrateChannelAliasesFromDiskSync();
+    hydrateOpenclawSessionIndex();
 
     const token = process.env.TELEGRAM_BOT_TOKEN;
     const relayToken = process.env.RELAY_BOT_TOKEN || process.env.SHEDLY_BOT_TOKEN;
@@ -166,7 +205,21 @@ export const initTelegramService = () => {
         // PHASE 7: Gateway-First Filesystem Bridge
         // ==========================================
         const agentsDir = path.resolve(process.env.HOME || '/home/claw-agentbox', '.openclaw/agents');
-        
+        const sessionsJsonPath = process.env.OPENCLAW_SESSIONS_JSON_PATH || path.join(agentsDir, 'main/sessions/sessions.json');
+
+        if (fs.existsSync(sessionsJsonPath)) {
+            chokidar
+                .watch(sessionsJsonPath, {
+                    persistent: true,
+                    ignoreInitial: true,
+                    awaitWriteFinish: { stabilityThreshold: 400, pollInterval: 100 }
+                })
+                .on('add', () => hydrateOpenclawSessionIndex())
+                .on('change', () => hydrateOpenclawSessionIndex());
+        } else {
+            console.warn(`[TelegramService] sessions.json not found yet at ${sessionsJsonPath}; session→group map will stay empty until file exists.`);
+        }
+
         console.log(`[TelegramService] Initializing Chokidar Gateway Listener on ${agentsDir} ...`);
         
         const watcher = chokidar.watch(agentsDir, {
@@ -271,6 +324,9 @@ const processGatewayMessage = (data, isInit = false, filePath = '') => {
         canonicalChatId = telegramFromUser;
     } else if (sessionUuid && sessionToCanonicalChat.has(sessionUuid)) {
         canonicalChatId = sessionToCanonicalChat.get(sessionUuid);
+    } else if (sessionUuid && sessionUuidToTelegramGroupId.has(sessionUuid)) {
+        canonicalChatId = normalizeChatIdForBuffer(sessionUuidToTelegramGroupId.get(sessionUuid));
+        sessionToCanonicalChat.set(sessionUuid, canonicalChatId);
     }
 
     // No Telegram routing for this line (e.g. IDE-only session) → do not mirror into any channel buffer.
