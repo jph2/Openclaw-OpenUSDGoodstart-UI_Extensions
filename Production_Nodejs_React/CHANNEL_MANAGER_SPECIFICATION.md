@@ -13,7 +13,7 @@ agent_index:
     logic: "#5-datenfluss--design-entscheidungen"
     risks: "#6-architektur-risiken--audit-härtung"
 created: "2026-04-12T01:07:00Z"
-last_modified: "2026-04-17T23:30:00Z"
+last_modified: "2026-04-18T12:00:00Z"
 author: "AntiGravity"
 provenance:
   git_repo: "OpenClaw_Control_Center"
@@ -24,8 +24,8 @@ tags: [specification, channel_manager, gateway-first, requirements, zod-hardenin
 
 # Spezifikation & Kernanforderungen: Sovereign Channel Management (V2.1)
 
-**Version**: 2.4.0 | **Date**: 17.04.2026 | **Status**: Sovereign | **Context**: Gateway-First, CM als Konfigurationsspiegel, Triade (TARS · MARVIN · CASE), Workbench multi-root, Skill-Herkunft-UX, TTG bulk & Sub-Agent-CRUD, Integrations-Roadmap, TTG strict env, **Chat = Session-Stream (Option A)**
-20260417_2330_SPECIFICATION_v2.4
+**Version**: 2.4.1 | **Date**: 18.04.2026 | **Status**: Sovereign | **Context**: Gateway-First, CM als Konfigurationsspiegel, Triade (TARS · MARVIN · CASE), Workbench multi-root, Skill-Herkunft-UX, TTG bulk & Sub-Agent-CRUD, Integrations-Roadmap, TTG strict env, **Chat = Session-Stream (Option A)**, **Session-Key stabil / UUID ephemer**
+20260418_1200_SPECIFICATION_v2.4.1
 
 **Status:** active | **Master Source:** Horizon Studio Framework
 
@@ -158,6 +158,18 @@ graph TB
 
 **Architekturentscheid — Tab „OpenClaw Chat“ (verbindlich, 17.04.2026):**  
 Für jeden Kanal soll der Channel Manager **denselben inhaltlichen Stream zeigen wie das OpenClaw-Chatfenster** (Control-UI / Webchat), sobald **dieselbe Telegram-Gruppe / dieselbe gebundene OpenClaw-Session** gemeint ist — **Option A: realer Session-Stream** der aktuell zugeordneten Session (JSONL-/Gateway-Pfad), **nicht** Option B (nur „als Telegram erkannte“ Ereignisse) und **nicht** Option C (Mischsicht ohne Spezifikation). Die **Telegram-Gruppen-ID** allein ist kein hinreichender Alleinstellungs-„Stream“-Beweis; Zuordnung und Parity laufen über **Session-/Session-Key** (`agent:main:telegram:group:<id>`, `sessions.json` ↔ `.jsonl`) und **Validierung** gegen Routing-/Channel-Config bleiben **Nebenprüfungen** (Alias, TTG-Namen, Drift), nicht Ersatz für diese Zieldefinition.
+
+**Stabile vs. ephemere Identität (verbindlich, 18.04.2026):**
+
+| Stabil (persistieren / Config) | Ephemeral (nur Laufzeit, nicht als Primärschlüssel persistieren) |
+|--------------------------------|------------------------------------------------------------------|
+| **Telegram-**`group_id` (z. B. `-5168034995`) | **OpenClaw-**`sessionId` (UUID der konkreten Lauf-Session) |
+| **Session-Key** in OpenClaw: `agent:main:telegram:group:<group_id>` | Pfad **`sessionFile`** (`…/<uuid>.jsonl`) |
+| **TTG**-Anzeigename / Label (`TTG001_…`) in `channel_config.json` — gebunden an **`channels[].id`** (gleiche numerische ID wie Telegram-Gruppe) | — |
+
+- **Bindung:** Der **Kanal** ist über die **Telegram-Gruppen-ID** und den **Session-Key** `agent:main:telegram:group:<id>` definiert. Die **UUID** ist die **konkrete Session-Datei** dieser Laufzeit; sie kann sich **ändern** (neue Session, Reset, Rebind, interne OpenClaw-Wechsel). **Niemals** darf die Config dauerhaft **`TTG001 → sessionUuid`** lauten — nur **`TTG001` / `-5168034995`** (bzw. `channels[].id` = Gruppen-ID).  
+- **Laufzeit-Auflösung:** `group_id` → Eintrag in `sessions.json` unter Key `agent:main:telegram:group:<group_id>` → aktuelle **`sessionId`** und **`sessionFile`** → **Stream** aus genau dieser **JSONL-Datei**.  
+- **Rebind:** Wenn sich `sessions.json` ändert und der Kanal auf eine **neue** `sessionFile` zeigt, muss der Stream **nicht** an einer beim ersten Connect eingefrorenen UUID hängen bleiben. **Mindestanforderung (Variante A):** bei jedem neuen SSE-Connect die aktuelle Session neu auflösen. **Zielbild (Variante B):** `sessions.json` weiter beobachten; bei Wechsel der `sessionFile` Gateway-Listener/Datei-Offset auf die neue Datei umhängen und den Client optional per SSE-Event (z. B. `SESSION_REBOUND`) informieren — siehe Implementierungsplan §12.
 
 **Verbindlich:** [CHANNEL_MANAGER_SCOPE_MVP_2026-04-15.md](CHANNEL_MANAGER_SCOPE_MVP_2026-04-15.md).
 
