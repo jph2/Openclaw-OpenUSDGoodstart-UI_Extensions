@@ -13,20 +13,24 @@ agent_index:
     stabilization: "#2-stabilisierungs-meilensteine-14042026"
     anti_patterns: "#anti-patterns--architektonische-fallstricke"
 created: "2026-04-13T20:45:00Z"
-last_modified: "2026-04-15T14:00:00Z"
+last_modified: "2026-04-17T10:00:00Z"
 author: "AntiGravity"
 provenance:
   git_repo: "OpenClaw_Control_Center"
   git_branch: "main"
-  git_path: "Production_Nodejs_React/CHANNEL_MANAGER_DOCUMENTATION_14-04-2026.md"
+  git_path: "Production_Nodejs_React/CHANNEL_MANAGER_DOCUMENTATION_16-04-2026.md"
 tags: [master-docs, architecture, zod, telegram-hub, private-ecosystem, anti-patterns, mcp]
 ---
 
+
+
+
+
 # OpenClaw Channel Manager: Master Documentation
 
-**Version**: 2.3.0 | **Date**: 15.04.2026 | **Time**: 14:00 | **GlobalID**: 20260415_1400_MASTER_DOC_v2
+**Version**: 2.6.0 | **Date**: 17.04.2026 | **Time**: 12:00 | **GlobalID**: 20260417_1200_MASTER_DOC_v2.6
 
-**Status:** active | **Source Registry:** Consolidated from Docs 10.04., 14.04. & **15.04.2026** (Gateway-Delivery, MCP/Cursor).
+**Status:** active | **Source Registry:** Consolidated from Docs 10.04., 14.04., **15.04.** & **16.–17.04.2026** (IDE bridge, TARS-only Kanal-UI, IDE-Projekt-Summary-API, **Workbench multi-root**, **Skill-Herkunft-Labels**, **TTG bulk actions**, **Sub-Agent create/delete**, **Dev-Resilienz**).
 
 ---
 
@@ -111,6 +115,71 @@ Es wurde final beschlossen, den Channel Manager um einen **Sovereign MCP Server*
 | **Plan Sub-Task 6.9** | `CHANNEL_MANAGER_IMPLEMENTATION_PLAN.md` — Backend-/Frontend-Arbeiten als Checkbox offen. |
 | **Bis zur Umsetzung** | Channel Manager bleibt **textorientiert**; Fotos primär in **Telegram nativ**; UI zeigt bei Bild-Paste nur einen Hinweis. |
 
+### 2.9 IDE-Bridge, IDE-Projekt-Summary & Kanal-UI (16.04.2026)
+
+**IDE Bridge (Discovery & Code):**  
+Die Datei **[CHANNEL_MANAGER_IDE_BRIDGE_DISCOVERY.md](CHANNEL_MANAGER_IDE_BRIDGE_DISCOVERY.md)** beschreibt die **Projektion** von `channel_config.json` auf OpenClaw- vs. IDE-Artefakte. Im Backend existieren `ideConfigBridge.js`, Read-Only **`GET /api/exports/canonical`**, **`/openclaw`**, **`/ide`** (primär, `kind: ide_workbench_bundle`) sowie **`/cursor`** (Legacy-Alias, `kind: cursor_bundle`). Das Export-Skript `scripts/export-cursor-bundle.mjs` zieht **`/api/exports/ide`** mit Fallback auf **`/cursor`** und materialisiert Dateien unter einem **explizit angegebenen** Zielpfad.
+
+**IDE-Projekt-Summary (tool-agnostisch):**  
+Statt nur „Cursor“ im Namen: **`GET/POST /api/ide-project-summaries`** (Router identisch mit **`/api/summaries`**) — Studio-Pfad **`A070_ide_cursor_summaries`**, optional OpenClaw-**`memory/`** read-only. Dritter Zeilen-Tab: **„TARS in IDE · IDE project summary“** (`IdeProjectSummaryPanel`).
+
+**TARS-only auf Kanal-Ebene (MVP-UI):**  
+Das Dropdown **TARS / MARVIN / CASE** pro Kanal wurde **entfernt**. Die Harness-Triade bleibt in **SOUL / Konversation / zukünftigen Prompt-Injections**; im Channel Manager gilt **TARS als einzige sichtbare Engine-Zeile** für die Kanal-Konfiguration. **Future Feature (Spezifikation):** z. B. drei Gewichtungen (TARS / MARVIN / CASE) auf 100 %, die in Prompts injiziert werden — **nicht** im aktuellen UI.
+
+**Labels & Layout:**  
+- **„ACTIVE MEMBERS“** → **„Sub-agents“** (Checkboxen für Subagenten unter TARS).  
+- **„TARS in IDE“** (Relay-Skills, Datenfelder `caseSkills` / `inactiveCaseSkills` in `channel_config.json`): **„CASE-Engine“** im UI-Sinne = **nicht** die Auswahl eines anderen Kanal-Engines, sondern **technischer** Verweis auf die **Relay-Skill-Liste**, die historisch aus der **CASE**-Skill-Defaults-Kette gespeist wird; **MARVIN/CASE** als **Personas** sind **nicht** Kanal-Dropdowns.  
+- Linker **„TARS in IDE“**-Block: zusätzlich **Sub-agents**-Zeile (gleiche Toggles wie oben), damit die IDE-Spur dieselben Subagenten sieht.  
+- **Skill-Namen:** fett (**`.skill-name`**, `font-weight: 700`); **Dropdowns** nur **Skill-ID** mit **`title`** = Beschreibung (Tooltip).  
+- **Available Skills:** Filterzeile **ohne** erzwogene horizontale Scrollbar (`flex-wrap`, `max-width: 100%`).
+
+**Bots:** Platzhaltertext „No autonomous…“ entfernt; **getrennte** horizontale Linie links/rechts synchron (Trennung Hauptbereich / TARS-in-IDE-Block) mit `ResizeObserver`.
+
+### 2.10 Workbench (Dateizugriff) & Skill-Deep-Links (16.04.2026)
+
+**Problem (behoben):** Die Workbench-API nutzte nur `WORKSPACE_ROOT`; **absolute** Pfade (z. B. gebündelte OpenClaw-Skills unter `~/.npm-global/.../openclaw/skills/...`) liefen auf **403**. Zusätzlich überschrieb **Zustand persist** (`workbench-storage`) nach dem Laden die Query-Parameter **`?path=`** / **`?file=`** — **„EDIT in Workbench ➔“** im neuen Tab öffnete den Skill-Pfad nicht zuverlässig.
+
+**Backend (`backend/utils/security.js`, `routes/workbench.js`):**
+- **`getWorkbenchAllowedRoots()`** / **`resolveWorkbenchPath()`** — erlaubte Wurzeln: `WORKSPACE_ROOT`, optional **`WORKBENCH_EXTRA_ROOTS`** (kommasepariert), automatisch **`~/.npm-global/lib/node_modules/openclaw/skills`** wenn vorhanden (abschaltbar: `WORKBENCH_DISABLE_BUNDLED_SKILLS_ROOT`), **`homedir()`** für User-Home (abschaltbar: `WORKBENCH_DISABLE_HOME_ROOT`), optional **`/`** mit **`WORKBENCH_ALLOW_FS_ROOT=1`**.
+- Alle Workbench-Routen (tree, file, save, …) nutzen **`resolveWorkbenchPath`** statt nur `resolveSafe(WORKSPACE_ROOT, …)`.
+
+**Frontend (`Workbench.jsx`):**
+- **`normalizeWorkbenchDir`:** **`/`** bleibt Root (kein stilles Mapping auf Default-Workspace).
+- **`applyWorkbenchSearchParams`** — URL nach **`persist.onFinishHydration`** und bei SPA-Navigation; Root **`/`** setzt kein fiktives **`/SKILL.md`**.
+- Quick-Buttons: **Home (user)** (`USER_HOME_FALLBACK`), **Drive: data**, **Filesystem root (/)** (mit Hinweis auf Backend-Env).
+
+**Channel Manager — Skills-Liste (Konfiguration):**
+- Zusammenführung der Skills im Konfigurationstab: **Kanal** (ein Eintrag pro ID), dann **jede (Sub-Agent × Skill)-Paarung**, dann **jeder Hauptagent-Default** — **mehrere Zeilen** mit derselben Skill-ID möglich, jeweils mit Badge/Toggle für die konkrete Quelle (Spec §3.2c).
+- Badge-Text für Sub-Agent-Skills: **Inherited from {Sub-Agent-Name} · sub-agent** (Name aus `backendSubAgents`, nicht nur „INHERITED BY AGENT“).
+
+**Siehe:** `backend/.env.example`; Tests `backend/test/security.test.js` (Workbench-Pfadregeln).
+
+**Skills vs. OpenClaw-Subagents (Begriffe):** [CHANNEL_MANAGER_SKILLS_AND_OPENCLAW_SUBAGENTS_RESEARCH.md](CHANNEL_MANAGER_SKILLS_AND_OPENCLAW_SUBAGENTS_RESEARCH.md) — Research-Notiz: Lebenszyklus Studio ↔ Workspace, Import-Button (= Kanal-Config), externe Quellen (Doku, Issue #27038, Blog).
+
+### 2.11 TTG-Bulk-Aktionen, Sub-Agent-CRUD, Anzeige-Namen & Dev-UX (17.04.2026)
+
+**Verbindlich:** [CHANNEL_MANAGER_SPECIFICATION.md](CHANNEL_MANAGER_SPECIFICATION.md) **§3.5**; Umsetzung: [CHANNEL_MANAGER_IMPLEMENTATION_PLAN.md](CHANNEL_MANAGER_IMPLEMENTATION_PLAN.md) **Sub-Task 6.15**.
+
+**Header — vier Convenience-Buttons (Mitte):**  
+Im **sticky Header** ist die Mitte eine **Grid-Spalte** zwischen Navigation (links) und Export/Import/Reload/Save (rechts). Vier Buttons — **Collapse all**, **Configure all**, **Open Claw Chat all**, **TARS in IDE, all** — nutzen dieselbe **header-actions**-Stilistik wie die rechten Aktionen und bleiben **in einer Zeile** (`flex-wrap: nowrap` im Mittelblock; bei Bedarf **horizontal scroll** statt vertikalem Stack).
+
+**Zeilenhöhen:**  
+- **Collapse all:** ca. **260px** pro Kanalzeile; **alle** Zeilen-Sub-Tabs werden auf **Configuration** gesetzt (verhindert Überlappungs-Artefakte der linken Spalte, wenn vorher **OpenClaw Chat** oder **IDE project summary** aktiv war).  
+- **Die drei „expand all“-Varianten:** gemeinsame Zielhöhe (**aktuell 1160px**, Konstante `ROW_HEIGHT_EXPANDED` in `ChannelManager.jsx`; iterativ von 1760 → 1460 → 1160 reduziert für nutzbaren Platz auf dem Bildschirm) plus jeweils Sub-Tab **Configuration** / **OpenClaw Chat** / **summary** (TARS in IDE).  
+- Persistenz der Höhen: **`localStorage`**-Key **`ag-channel-row-heights`**.
+
+**TTG-Anzeige:**  
+Spaltenkopf **„TTG (Telegram Topic Group)“**. Anzeigenamen mit veraltetem Präfix **`TG`+Ziffer** werden in der UI als **`TTG`+Ziffer** dargestellt (`formatTtgChannelName.js`); **kein** automatischer Rewrite der JSON-`name`-Felder.
+
+**Sub-Agente (Config-Schicht):**  
+- **Create:** `POST /api/channels/createSubAgent`  
+- **Delete:** `POST /api/channels/deleteSubAgent` (inkl. Entfernen der ID aus **`channels[].inactiveSubAgents`**)  
+- **UI:** Tab **Agents** — „Sub-Agent anlegen“ (Modal), Destroy-**X** auf der Sub-Agent-Karte.
+
+**Dev / Betrieb:**  
+- **`GET /api/channels`:** React Query mit **Retries und Backoff** bei temporärem **502** (Vite-Proxy, wenn die API neu startet).  
+- **`TelegramChat` / SSE:** Reconnect mit **Backoff**, **gedrosseltes** Logging bei `EventSource`-Fehlern (Reconnect ist erwartbar).
+
 ---
 
 ## Anti-Patterns & Architektonische Fallstricke
@@ -185,7 +254,7 @@ Die Windows-`mcp.json` (`E:\`, `cmd /c`, `.exe`) in **Remote-SSH** nach `~/.curs
 
 ---
 
-## Summary (Stand 15.04.2026) — für Management / Onboarding
+## Summary (Stand 16.04.2026) — für Management / Onboarding
 
 | Thema | Kurz |
 |-------|------|
@@ -196,8 +265,13 @@ Die Windows-`mcp.json` (`E:\`, `cmd /c`, `.exe`) in **Remote-SSH** nach `~/.curs
 | **Harness in Cursor** | `~/.openclaw/workspace/.cursor/rules/openclaw-workspace-context.mdc` + `AGENTS.md` / `SOUL.md` (Alt: `case-cursor-identity.mdc`). |
 | **Repo-Pfad** | `Production_Nodejs_React/` unter `OpenClaw_Control_Center`. |
 | **Medien (Bilder) im CM** | Roadmap: Spec §6.3, Plan 6.9 — **nicht** umgesetzt; nur Text-API. |
+| **IDE Bridge** | [CHANNEL_MANAGER_IDE_BRIDGE_DISCOVERY.md](CHANNEL_MANAGER_IDE_BRIDGE_DISCOVERY.md); API: `/api/exports/ide`, `/api/ide-project-summaries`. |
+| **Kanal-UI** | TARS-only (kein Engine-Dropdown); Sub-agents; Tab „TARS in IDE · IDE project summary“. |
+| **Workbench** | Multi-Root (`resolveWorkbenchPath`); gebündelte Skills + User-Home; URL nach persist-Hydration; `.env.example` (`WORKBENCH_*`). |
+| **Skill-Badges** | Sub-Agent vor Hauptagent bei Duplikat-IDs; Label **Inherited from {Name} · sub-agent**. |
+| **TTG bulk / Sub-Agent CRUD** | §3.5 Spec; Header-Buttons, 260px / 1160px, `createSubAgent` / `deleteSubAgent`; §2.11 Master-Doku. |
 
 ---
 
 **Ende der konsolidierten Master-Dokumentation.**
-*Zusammengeführt 14.04.2026 (AntiGravity); Abschnitte 2.6–2.8, AP-17 und Summary 15.04.2026 ergänzt.*
+*Zusammengeführt 14.04.2026 (AntiGravity); Abschnitte 2.6–2.8, AP-17 und Summary 15.04.2026 ergänzt; **Abschnitt 2.9 und Summary 16.04.2026** (IDE-Bridge, TARS-only, Sub-agents, IDE-Summary-API); **Abschnitt 2.10 16.04.2026** (Workbench multi-root, Skill-Herkunft); **Abschnitt 2.11 17.04.2026** (TTG bulk, Sub-Agent create/delete, TTG-Anzeige, Dev-Resilienz).*

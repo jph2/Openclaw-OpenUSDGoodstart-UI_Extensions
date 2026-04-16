@@ -3,7 +3,7 @@ import fs from 'fs/promises';
 import path from 'path';
 import { z } from 'zod';
 import multer from 'multer';
-import { resolveSafe } from '../utils/security.js';
+import { resolveWorkbenchPath } from '../utils/security.js';
 import { apiLimiter, fsHeavyLimiter } from '../utils/rateLimiter.js';
 
 const router = express.Router();
@@ -43,12 +43,12 @@ function getFileKind(filePath) {
 
 /**
  * GET /api/workbench/list
- * Lists directory contents tightly controlled by G1 resolveSafe.
+ * Lists directory contents under allowed workbench roots (workspace + optional extras).
  */
 router.get('/list', apiLimiter, async (req, res, next) => {
     try {
         const { path: relPath } = ListDirectorySchema.parse(req.query);
-        const { resolved, relative } = await resolveSafe(process.env.WORKSPACE_ROOT, relPath);
+        const { resolved, relative } = resolveWorkbenchPath(relPath);
         
         let stat;
         try {
@@ -109,7 +109,7 @@ router.get('/list', apiLimiter, async (req, res, next) => {
 router.get('/tree', fsHeavyLimiter, async (req, res, next) => {
     try {
         const { path: relPath } = ListDirectorySchema.parse(req.query);
-        const { resolved, relative } = await resolveSafe(process.env.WORKSPACE_ROOT, relPath);
+        const { resolved, relative } = resolveWorkbenchPath(relPath);
         
         const maxDepth = 8; // Safely increased to support deeper project structures.
 
@@ -169,7 +169,7 @@ router.get('/tree', fsHeavyLimiter, async (req, res, next) => {
 router.get('/file', apiLimiter, async (req, res, next) => {
     try {
         const { path: relPath } = FileQuerySchema.parse(req.query);
-        const { resolved } = await resolveSafe(process.env.WORKSPACE_ROOT, relPath);
+        const { resolved } = resolveWorkbenchPath(relPath);
         
         const stat = await fs.stat(resolved);
         if (!stat.isFile()) return res.status(400).json({ error: true, message: 'Not a file' });
@@ -195,7 +195,7 @@ router.get('/file', apiLimiter, async (req, res, next) => {
 router.post('/save', apiLimiter, async (req, res, next) => {
     try {
         const { path: relPath, content } = WriteFileSchema.parse(req.body);
-        const { resolved } = await resolveSafe(process.env.WORKSPACE_ROOT, relPath);
+        const { resolved } = resolveWorkbenchPath(relPath);
         
         await fs.writeFile(resolved, content, 'utf8');
         res.json({ ok: true, message: 'File saved successfully.' });
@@ -213,7 +213,7 @@ const FsActionSchema = z.object({
 router.post('/mkdir', apiLimiter, async (req, res, next) => {
     try {
         const { path: relPath } = FsActionSchema.parse(req.body);
-        const { resolved } = await resolveSafe(process.env.WORKSPACE_ROOT, relPath);
+        const { resolved } = resolveWorkbenchPath(relPath);
         await fs.mkdir(resolved, { recursive: true });
         res.json({ ok: true, message: 'Directory created' });
     } catch (error) {
@@ -225,7 +225,7 @@ router.post('/mkdir', apiLimiter, async (req, res, next) => {
 router.post('/touch', apiLimiter, async (req, res, next) => {
     try {
         const { path: relPath } = FsActionSchema.parse(req.body);
-        const { resolved } = await resolveSafe(process.env.WORKSPACE_ROOT, relPath);
+        const { resolved } = resolveWorkbenchPath(relPath);
         await fs.writeFile(resolved, '');
         res.json({ ok: true, message: 'File created' });
     } catch (error) {
@@ -237,7 +237,7 @@ router.post('/touch', apiLimiter, async (req, res, next) => {
 router.post('/delete', apiLimiter, async (req, res, next) => {
     try {
         const { path: relPath } = FsActionSchema.parse(req.body);
-        const { resolved } = await resolveSafe(process.env.WORKSPACE_ROOT, relPath);
+        const { resolved } = resolveWorkbenchPath(relPath);
         await fs.rm(resolved, { recursive: true, force: true });
         res.json({ ok: true, message: 'Deleted successfully' });
     } catch (error) {
@@ -249,8 +249,8 @@ router.post('/delete', apiLimiter, async (req, res, next) => {
 router.post('/duplicate', apiLimiter, async (req, res, next) => {
     try {
         const { path: srcPath, dest: destPath } = FsActionSchema.parse(req.body);
-        const { resolved: srcResolved } = await resolveSafe(process.env.WORKSPACE_ROOT, srcPath);
-        const { resolved: destResolved } = await resolveSafe(process.env.WORKSPACE_ROOT, destPath);
+        const { resolved: srcResolved } = resolveWorkbenchPath(srcPath);
+        const { resolved: destResolved } = resolveWorkbenchPath(destPath);
         await fs.cp(srcResolved, destResolved, { recursive: true });
         res.json({ ok: true, message: 'Duplicated successfully' });
     } catch (error) {
@@ -263,7 +263,7 @@ router.post('/upload', apiLimiter, upload.single('file'), async (req, res, next)
     try {
         if (!req.file) throw new Error('No file uploaded');
         const relPath = req.body.path || req.file.originalname;
-        const { resolved } = await resolveSafe(process.env.WORKSPACE_ROOT, relPath);
+        const { resolved } = resolveWorkbenchPath(relPath);
         await fs.writeFile(resolved, req.file.buffer);
         res.json({ ok: true, message: 'File uploaded' });
     } catch (error) {

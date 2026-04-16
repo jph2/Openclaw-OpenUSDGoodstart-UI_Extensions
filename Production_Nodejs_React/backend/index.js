@@ -23,7 +23,7 @@ if (!process.env.WORKSPACE_ROOT.startsWith('/')) { // Simplistic check for posix
 }
 
 const app = express();
-const PORT = process.env.PORT || 4000;
+const PORT = process.env.PORT || 3000;
 
 // ============================================================================
 // PHASE 1: BACKEND FOUNDATION & SECURITY GATES (Base Layers)
@@ -42,11 +42,16 @@ app.get('/api/health', (req, res) => {
 import channelRoutes from './routes/channels.js';
 import workbenchRoutes from './routes/workbench.js';
 import telegramRoutes from './routes/telegram.js';
+import summariesRoutes from './routes/summaries.js';
+import exportsRoutes from './routes/exports.js';
 import { initTelegramService } from './services/telegramService.js';
 
 app.use('/api/channels', channelRoutes);
 app.use('/api/workbench', workbenchRoutes);
 app.use('/api/telegram', telegramRoutes);
+app.use('/api/summaries', summariesRoutes);
+app.use('/api/ide-project-summaries', summariesRoutes);
+app.use('/api/exports', exportsRoutes);
 
 // Sub-Task 3.1: Initialize Telegram Event Stream
 initTelegramService();

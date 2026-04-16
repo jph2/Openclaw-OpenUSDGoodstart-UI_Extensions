@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
@@ -77,6 +77,66 @@ const PaneHeader = ({ title }) => (
     </div>
 );
 
+/** Tree navigation must use a directory. File paths (e.g. …/SKILL.md) are coerced to their parent folder. */
+export function normalizeWorkbenchDir(p) {
+    if (p == null || p === '') return 'workspace';
+    if (p === 'workspace') return 'workspace';
+    const s = String(p);
+    // '/' must not become '' after stripping trailing slash (that mapped to workspace and broke the root picker)
+    if (s === '/') return '/';
+    const t = s.replace(/\/$/, '');
+    if (t === '') return '/';
+    const base = t.split('/').pop() || '';
+    const looksLikeFile = /\.[a-zA-Z0-9]{1,12}$/.test(base);
+    if (looksLikeFile) {
+        const parent = t.includes('/') ? t.slice(0, t.lastIndexOf('/')) : '';
+        return parent || 'workspace';
+    }
+    return t;
+}
+
+/** Align with Channel Manager skill paths; server must allow homedir (see backend WORKBENCH_*). */
+export const USER_HOME_FALLBACK = '/home/claw-agentbox';
+
+/**
+ * Apply ?path= / ?file= to the store (used after persist hydration so deep links win over localStorage).
+ */
+export function applyWorkbenchSearchParams(searchParams) {
+    const queryFile = searchParams.get('file');
+    const queryPath = searchParams.get('path');
+    const { addWorkspace, setCurrentRoot, setActiveFile } = useWorkbenchStore.getState();
+    if (queryFile) {
+        const filePath = decodeURIComponent(queryFile);
+        const parentDir = filePath.includes('/') ? filePath.slice(0, filePath.lastIndexOf('/')) : '';
+        const rootDir = normalizeWorkbenchDir(parentDir || filePath);
+        addWorkspace(rootDir);
+        setCurrentRoot(rootDir);
+        setActiveFile(filePath);
+        return;
+    }
+    if (queryPath) {
+        const decoded = decodeURIComponent(queryPath);
+        const raw = decoded === '/' ? '/' : decoded.replace(/\/$/, '');
+        if (!raw) return;
+        const baseName = raw.split('/').pop() || '';
+        const looksLikeFile = /\.[a-zA-Z0-9]{1,12}$/.test(baseName);
+        if (looksLikeFile) {
+            const parentDir = raw.includes('/') ? raw.slice(0, raw.lastIndexOf('/')) : '';
+            const rootDir = normalizeWorkbenchDir(parentDir || raw);
+            addWorkspace(rootDir);
+            setCurrentRoot(rootDir);
+            setActiveFile(raw);
+        } else {
+            const rootDir = normalizeWorkbenchDir(raw);
+            addWorkspace(rootDir);
+            setCurrentRoot(rootDir);
+            // Skill folders default to SKILL.md; filesystem root has no default file
+            if (rootDir === '/') setActiveFile(null);
+            else setActiveFile(`${rootDir}/SKILL.md`);
+        }
+    }
+}
+
 // --- Zustand Store ---
 export const useWorkbenchStore = create(persist((set) => ({
     viewMode: 'code', // 'code' | 'diff'
@@ -109,20 +169,36 @@ export const useWorkbenchStore = create(persist((set) => ({
     outlineMode: 'list', // 'list' | 'minimap'
     setOutlineMode: (mode) => set({ outlineMode: mode }),
 
-    // Workspaces
+    // Workspaces (always directory roots — never a .md file path)
     currentRoot: 'workspace',
-    setCurrentRoot: (root) => set({ currentRoot: root }),
+    setCurrentRoot: (root) => set({ currentRoot: normalizeWorkbenchDir(root) }),
     workspaces: ['workspace'],
-    addWorkspace: (ws) => set((state) => ({ workspaces: [...new Set([...state.workspaces, ws])] })),
+    addWorkspace: (ws) =>
+        set((state) => {
+            const dir = normalizeWorkbenchDir(ws);
+            if (dir === 'workspace') return state;
+            return { workspaces: [...new Set([...state.workspaces, dir])] };
+        }),
     removeWorkspace: (ws) => set((state) => {
         const fresh = state.workspaces.filter(w => w !== ws);
         return { workspaces: fresh.length ? fresh : ['workspace'], currentRoot: fresh.length ? fresh[0] : 'workspace' };
     })
-}), { 
+}), {
     name: 'workbench-storage',
-    partialize: (state) => Object.fromEntries(
-        Object.entries(state).filter(([key]) => !['localContent'].includes(key))
-    )
+    version: 2,
+    migrate: (persisted, fromVersion) => {
+        if (!persisted || typeof persisted !== 'object') return persisted;
+        const state = { ...persisted };
+        if (state.currentRoot === '' || state.currentRoot == null) state.currentRoot = 'workspace';
+        state.currentRoot = normalizeWorkbenchDir(state.currentRoot);
+        const ws = Array.isArray(state.workspaces)
+            ? [...new Set(state.workspaces.map(normalizeWorkbenchDir))].filter((w) => w && w !== 'workspace')
+            : [];
+        state.workspaces = ['workspace', ...ws];
+        return state;
+    },
+    partialize: (state) =>
+        Object.fromEntries(Object.entries(state).filter(([key]) => !['localContent'].includes(key)))
 }));
 
 // --- Proportional Scroll Hook ---
@@ -413,14 +489,24 @@ export default function Workbench() {
     
     const queryClient = useQueryClient();
     const [searchParams] = useSearchParams();
-    
+
+    const applyFromUrl = useCallback(() => {
+        applyWorkbenchSearchParams(searchParams);
+    }, [searchParams]);
+
     useEffect(() => {
-        const queryPath = searchParams.get('path');
-        if (queryPath) {
-            addWorkspace(queryPath);
-            setCurrentRoot(queryPath);
+        const run = () => applyWorkbenchSearchParams(new URLSearchParams(window.location.search));
+        const unsub = useWorkbenchStore.persist.onFinishHydration(run);
+        if (useWorkbenchStore.persist.hasHydrated()) {
+            run();
         }
-    }, [searchParams, addWorkspace, setCurrentRoot]);
+        return unsub;
+    }, []);
+
+    useEffect(() => {
+        if (!useWorkbenchStore.persist.hasHydrated()) return;
+        applyFromUrl();
+    }, [searchParams, applyFromUrl]);
 
     const [sidebarKey, setSidebarKey] = useState(0);
     const [mainKey, setMainKey] = useState(0);
@@ -671,13 +757,23 @@ export default function Workbench() {
                                 <div style={{ background: 'rgba(80, 227, 194, 0.1)', border: '1px solid rgba(80, 227, 194, 0.3)', padding: '6px 10px', borderRadius: '4px', fontSize: '10px', color: 'var(--accent)', lineHeight: 1.4, marginBottom: '4px' }}>
                                     <strong>INFO:</strong> The file tree crawls up to <strong>8 folders deep</strong> for performance. To access buried files, enter a deeper absolute folder path into the <em>Custom Path</em> field below and load it!
                                 </div>
-                                <div style={{ display: 'flex', gap: '8px' }}>
-                                    <button onClick={() => setCurrentRoot('/')} style={{ flex: 1, padding: '4px 6px', background: 'var(--bg-elevated)', color: 'var(--text-primary)', border: '1px solid var(--border-color)', borderRadius: '4px', fontSize: '11px', cursor: 'pointer' }}>Drive: Ubuntu (/)</button>
-                                    <button onClick={() => setCurrentRoot('/media/claw-agentbox/data')} style={{ flex: 1, padding: '4px 6px', background: 'var(--bg-elevated)', color: 'var(--text-primary)', border: '1px solid var(--border-color)', borderRadius: '4px', fontSize: '11px', cursor: 'pointer' }}>Drive: data</button>
+                                <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                                    <button type="button" onClick={() => setCurrentRoot(USER_HOME_FALLBACK)} style={{ flex: '1 1 45%', padding: '4px 6px', background: 'var(--bg-elevated)', color: 'var(--text-primary)', border: '1px solid var(--border-color)', borderRadius: '4px', fontSize: '11px', cursor: 'pointer' }} title="User home (needs backend homedir allowlist)">Home (user)</button>
+                                    <button type="button" onClick={() => setCurrentRoot('/media/claw-agentbox/data')} style={{ flex: '1 1 45%', padding: '4px 6px', background: 'var(--bg-elevated)', color: 'var(--text-primary)', border: '1px solid var(--border-color)', borderRadius: '4px', fontSize: '11px', cursor: 'pointer' }}>Drive: data</button>
+                                    <button type="button" onClick={() => setCurrentRoot('/')} style={{ flex: '1 1 100%', padding: '4px 6px', background: 'var(--bg-surface)', color: 'var(--text-secondary)', border: '1px solid var(--border-color)', borderRadius: '4px', fontSize: '10px', cursor: 'pointer' }} title="Set WORKBENCH_ALLOW_FS_ROOT=1 in backend .env">Filesystem root (/)</button>
                                 </div>
-                                <select value={workspaces.includes(currentRoot) ? currentRoot : ''} onChange={(e) => setCurrentRoot(e.target.value)} style={{ width: '100%', padding: '6px', background: 'var(--bg-surface)', border: '1px solid var(--border-color)', color: 'white', borderRadius: '4px', outline: 'none', fontSize: '11px' }}>
-                                    <option value="" disabled>Saved Workspaces...</option>
-                                    {workspaces.map(w => <option key={w} value={w}>{w}</option>)}
+                                <select
+                                    value={currentRoot}
+                                    onChange={(e) => setCurrentRoot(e.target.value)}
+                                    style={{ width: '100%', padding: '6px', background: 'var(--bg-surface)', border: '1px solid var(--border-color)', color: 'white', borderRadius: '4px', outline: 'none', fontSize: '11px' }}
+                                >
+                                    {[...new Set([...workspaces, currentRoot])]
+                                        .filter(Boolean)
+                                        .map((w) => (
+                                            <option key={w} value={w}>
+                                                {w}
+                                            </option>
+                                        ))}
                                 </select>
                                 <input value={currentRootText} onChange={e => setCurrentRootText(e.target.value)} style={{ width: '100%', padding: '6px', background: 'var(--bg-surface)', border: '1px solid var(--border-color)', color: 'white', borderRadius: '4px', outline: 'none', fontSize: '11px', fontFamily: 'monospace' }} placeholder="Custom Absolute Path..." />
                                 <div style={{ display: 'flex', gap: '8px' }}>

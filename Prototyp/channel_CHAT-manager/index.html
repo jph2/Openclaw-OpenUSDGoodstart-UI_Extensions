@@ -830,19 +830,19 @@
                 soul: "Zero-trust reviewer. Assumes everything is broken. Finds failures before they find you."
             },
             { 
-                id: "sonic", 
-                name: "SONIC", 
-                role: "Executor", 
-                description: "Fast implementation mode", 
+                id: "case", 
+                name: "CASE", 
+                role: "Synthesis", 
+                description: "Synthesis (SONIC → CASE): execution and IDE relay", 
                 color: "#e3c450",
-                defaultSkills: ["web_search", "web_fetch"],
-                soul: "Fast execution inside scope. Moves quick when plan is solid. Stops when reality diverges."
+                defaultSkills: ["clawflow", "web_search", "web_fetch"],
+                soul: "Synthesis in the harness triad; aligned with Studio_Framework README (SONIC → CASE)."
             }
         ];
         
         const SUB_AGENTS = [
             { id: "researcher", name: "Researcher", parent: "tars", description: "Web search and information gathering", additionalSkills: ["web_search", "web_fetch"] },
-            { id: "coder", name: "Coder", parent: "sonic", description: "Code implementation and debugging", additionalSkills: ["omniverse-extension-development", "usd-development"] },
+            { id: "coder", name: "Coder", parent: "case", description: "Code implementation and debugging", additionalSkills: ["omniverse-extension-development", "usd-development"] },
             { id: "reviewer", name: "Reviewer", parent: "marvin", description: "Code review and quality checks", additionalSkills: [] },
             { id: "documenter", name: "Documenter", parent: "tars", description: "Documentation and knowledge management", additionalSkills: ["notion"] },
             { id: "tester", name: "Tester", parent: "marvin", description: "Testing and validation", additionalSkills: ["healthcheck"] }

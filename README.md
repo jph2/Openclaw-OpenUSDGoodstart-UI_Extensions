@@ -27,6 +27,20 @@ node Prototyp/occ-ctl.mjs stop
 
 `Prototyp/occ-ctl.mjs` resolves `Production_Nodejs_React/` and `Prototyp/` relative to the repository root.
 
+**Backend env:** `Production_Nodejs_React/backend` expects **`WORKSPACE_ROOT`** (absolute path to the parent of `OpenClaw_Control_Center`, e.g. `…/9999_LocalRepo`). Set it in your shell or `.env` next to the backend so `occ-ctl`-spawned processes inherit it. Optional: **`STUDIO_FRAMEWORK_ROOT`** for `GET /api/summaries` and **`/api/ide-project-summaries`** (Alias, gleicher Router; defaults to `WORKSPACE_ROOT/Studio_Framework`).
+
+## Documentation map (Channel Manager & bridges)
+
+| Doc | Purpose |
+|-----|----------------|
+| [Production_Nodejs_React/CHANNEL_MANAGER_DOCUMENTATION_16-04-2026.md](Production_Nodejs_React/CHANNEL_MANAGER_DOCUMENTATION_16-04-2026.md) | Consolidated master documentation (architecture, stabilization, IDE bridge, TARS-only UI) |
+| [Production_Nodejs_React/CHANNEL_MANAGER_IMPLEMENTATION_PLAN.md](Production_Nodejs_React/CHANNEL_MANAGER_IMPLEMENTATION_PLAN.md) | Phased tasks, sub-task status |
+| [Production_Nodejs_React/CHANNEL_MANAGER_SPECIFICATION.md](Production_Nodejs_React/CHANNEL_MANAGER_SPECIFICATION.md) | Architecture, gateway-first, tabs |
+| [Production_Nodejs_React/CHANNEL_MANAGER_SCOPE_MVP_2026-04-15.md](Production_Nodejs_React/CHANNEL_MANAGER_SCOPE_MVP_2026-04-15.md) | MVP scope (Chat mirror / Summary) |
+| [Production_Nodejs_React/CHANNEL_MANAGER_IDE_BRIDGE_DISCOVERY.md](Production_Nodejs_React/CHANNEL_MANAGER_IDE_BRIDGE_DISCOVERY.md) | OpenClaw vs IDE workbench projections, `ideConfigBridge` |
+
+**Read-only APIs (production backend):** `GET /api/summaries`, `GET /api/ide-project-summaries`, `GET /api/summaries/file`, `GET /api/exports/canonical|openclaw|ide|cursor` — see Implementation Plan §6.10 / §6.12 and master doc §2.9.
+
 ## Prototype stack (Workbench + landing + legacy Channel Manager UI)
 
 ```bash

@@ -12,8 +12,9 @@ const checkPort = (port, name, path = '/') => new Promise((resolve) => {
 
 async function run() {
     console.log('Running Ping Smoke Tests...\n');
-    await checkPort(4000, 'Backend API Health', '/api/health');
-    await checkPort(4000, 'Backend API Tree Traversal', '/api/workbench/tree?path=');
+    const apiPort = Number(process.env.PORT || 3000);
+    await checkPort(apiPort, 'Backend API Health', '/api/health');
+    await checkPort(apiPort, 'Backend API Tree Traversal', '/api/workbench/tree?path=');
     await checkPort(5173, 'Frontend Vite Dev Server', '/');
 }
 run();

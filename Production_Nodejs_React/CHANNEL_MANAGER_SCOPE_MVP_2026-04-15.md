@@ -6,7 +6,7 @@ type: PRACTICAL
 status: active
 trust_level: 3
 created: "2026-04-15T18:00:00Z"
-last_modified: "2026-04-15T19:30:00Z"
+last_modified: "2026-04-16T21:00:00Z"
 author: "Studio + OpenClaw"
 provenance:
   git_repo: "OpenClaw_Control_Center"
@@ -23,18 +23,27 @@ tags: [channel_manager, mvp, scope, cursor, openclaw]
 
 Es gibt **zwei** konzeptionelle Zielbilder (A: IDE liefert Verdichtung; B: IDE wird vom CM bedient) plus eine **bisherige Mixtur**. Um **ohne Doppelreaktionen** produktiv zu werden, wird der **Channel Manager** im MVP **entschärft**: er bleibt **Konfigurations-Hub** und **Spiegel** der OpenClaw-Telegram-Welt — **nicht** die zentrale Chat-Oberfläche für „alles gleichzeitig“ (IDE + OpenClaw + Telegram).
 
-## Neu: Tab-Modell (geplant / UI)
+## Neu: Tab-Modell (Umsetzung Phase 1 / 16.04.2026)
 
 | Tab | Funktion |
 |-----|----------|
 | **Configuration** | Wie bisher: Kanäle (TG), Modelle, Skills, Agenten/Subagenten. |
-| **OpenClaw Chat** | Umbenennung des bisherigen Chats: zeigt den **Gateway-gespiegelten** Verlauf (SSE), gebunden an die gewählte Gruppe. |
-| **Cursor Summary** | **Neu:** Zeigt **keinen** zweiten Live-Chat, sondern **verdichtete** IDE-Historie / projektbezogene Spuren, die ins System zurückfließen (Markdown-Quelle: v. a. `Studio_Framework/050_Artifacts/A070_ide_cursor_summaries/` + ggf. OpenClaw Memory). *Implementierung folgt.* |
+| **OpenClaw Chat** | **Live:** Gateway-gespiegelter Verlauf (SSE), gebunden an die gewählte Gruppe — gleicher Stream wie OpenClaw Web; kein zweiter Sendepfad. |
+| **Cursor Summary** | **Teil-MVP:** Listet & zeigt Markdown aus **A070** (`GET /api/summaries` unter `STUDIO_FRAMEWORK_ROOT`); Filter optional per `telegramId` im Pfad. Schreiben/Promotion nach `memory/` weiterhin backlog. |
+
+**Zusatz:** Dual-Export-API (`/api/exports/*`) + `ideConfigBridge` für Projektionen nach OpenClaw vs Cursor — siehe [CHANNEL_MANAGER_IDE_BRIDGE_DISCOVERY.md](CHANNEL_MANAGER_IDE_BRIDGE_DISCOVERY.md).
+
+## UX-Ergänzungen (16.04.2026, MVP-kompatibel)
+
+| Thema | Kurz |
+|-------|------|
+| **Workbench** | Mehrere erlaubte Dateiwurzeln (Workspace, gebündelte OpenClaw-Skills, User-Home, optional `/`); Deep-Link `?path=` bleibt nach `localStorage`-Hydration gültig — **„EDIT in Workbench ➔“** öffnet den Skill zuverlässig. Siehe Master-Doku §2.10, Spec §3.2d. |
+| **Skill-Badges** | Effektive Liste: Kanal → **Sub-Agents** → Hauptagent; bei doppelter Skill-ID zeigt die UI die **Sub-Agent-Quelle** mit Namen (**Inherited from {Name} · sub-agent**). Spec §3.2c. |
 
 ## Rollen / Labels (Abgleich mit Harness)
 
 - **Triade (OpenClaw):** **TARS** (Thesis), **MARVIN** (Antithesis), **CASE** (Synthesis / Umsetzung). **SONIC** wird durch **CASE** ersetzt. In der **IDE** wird **TARS** normal genutzt; **Wechsel** zwischen Harness-Charakteren (TARS / MARVIN / CASE / …) ist möglich — **CASE** ist damit **nicht** „nur IDE-Spur“. Die früher **separat** geführte CASE-Parallel-Seele wird ins **OpenClaw-Workspace-Archiv** überführt (keine zweite aktive Harness-SOUL).  
-- UI-Label im Channel Manager: **„TARS in IDE“** / **„IDE / CASE“** — **nicht** „CASE SKILLS“ als verwirrender Parallel-Begriff, sobald die UI angepasst ist.
+- UI-Label im Channel Manager: **„TARS in IDE“** — **nicht** „CASE SKILLS“ / „CASE skills (relay)“ als verwirrender Parallel-Begriff. **Umsetzung:** dieselbe Bezeichnung erscheint (1) als **Abschnittstitel unter der Skill-Liste** im Configuration-Workspace (Relay-Skills für die IDE-Spur) und (2) als **Beschriftung unten links** in der Kanal-Spalte — damit ist klar definiert, welche Skills dort gemeint sind.
 
 
 
@@ -50,4 +59,4 @@ Es gibt **zwei** konzeptionelle Zielbilder (A: IDE liefert Verdichtung; B: IDE w
 3. Spec: `CHANNEL_MANAGER_SPECIFICATION.md` — Verweis auf dieses Dokument als **Scope-of-Record**.
 
 ---
-*Status: Scope-of-Record für MVP-Entscheidung; UI-Implementierung kann inkrementell folgen.*
+*Status: Scope-of-Record für MVP-Entscheidung; UI-Implementierung kann inkrementell folgen. **16.04.2026:** Workbench + Skill-Herkunft-UX in Spec/Doku/Plan referenziert (§2.10, §3.2c–d, R6, Sub-Task 6.14).*

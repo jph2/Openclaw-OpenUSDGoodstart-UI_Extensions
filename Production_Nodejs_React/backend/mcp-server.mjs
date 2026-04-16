@@ -43,8 +43,8 @@ server.setRequestHandler(ListResourceTemplatesRequestSchema, async () => {
             },
             {
                 uriTemplate: "config://{telegram_id}",
-                name: "Channel Config specific to CASE",
-                description: "Reads the allowed CASE SKILLS and metadata for a given telegram channel.",
+                name: "Channel Config (per Telegram id)",
+                description: "Reads relay/caseSkills and channel metadata for a given telegram channel (CASE relay skills when another engine is primary).",
                 mimeType: "application/json"
             }
         ]
@@ -109,7 +109,7 @@ server.setRequestHandler(ReadResourceRequestSchema, async (request) => {
                 }]
             };
         } catch (e) {
-            throw new Error(`[MCP] Failed to configure CASE channel context: ${e.message}`);
+            throw new Error(`[MCP] Failed to read channel config context: ${e.message}`);
         }
     }
 
@@ -134,12 +134,12 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
             },
             {
                 name: "change_agent_mode",
-                description: "Temporarily assigns a different Engine Agent (TARS, MARVIN, SONIC) to a specific channel via the Channel Manager.",
+                description: "Temporarily assigns a different engine (TARS, MARVIN, CASE) to a specific channel via the Channel Manager.",
                 inputSchema: {
                     type: "object",
                     properties: {
                         channel_id: { type: "string", description: "The telegram channel/chat numeric string ID" },
-                        agent_key: { type: "string", description: "The engine to assign (tars, marvin, sonic, case)" }
+                        agent_key: { type: "string", description: "Engine id: tars, marvin, or case (see Studio_Framework SONIC → CASE)" }
                     },
                     required: ["channel_id", "agent_key"]
                 }

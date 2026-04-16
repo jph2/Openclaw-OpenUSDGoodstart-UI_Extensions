@@ -1,44 +1,21 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Download, Upload, RefreshCw, Save, Check, ChevronUp, ChevronDown } from 'lucide-react';
+import { Download, Upload, RefreshCw, Save, Check, ChevronUp, ChevronDown, Plus, X } from 'lucide-react';
 import TelegramChat from '../components/TelegramChat';
+import ChannelManagerChannelRow from '../components/ChannelManagerChannelRow';
 import { useWorkbenchStore } from './Workbench.jsx';
+import { formatSkillOptionLabel } from '../utils/formatSkillOptionLabel.js';
 
 // Constants have been moved to the Node.js backend.
 // The UI acts purely as a consumer of configurations.
 
-const ActiveBotsList = ({ chatId }) => {
-    const { data: bots, isLoading } = useQuery({
-        queryKey: ['activeBots', chatId],
-        queryFn: async () => {
-            const res = await fetch(`/api/telegram/bots/${chatId}`);
-            if (!res.ok) return [];
-            const data = await res.json();
-            return data.bots || [];
-        },
-        staleTime: 60000
-    });
+const SKILL_LIST_FILTER_INITIAL = { q: '', cat: '', src: '', defOnly: false, sort: 'name-asc' };
 
-    return (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', marginTop: '12px', paddingTop: '12px', borderTop: '1px solid rgba(255,255,255,0.1)' }}>
-            {isLoading && <div style={{ fontSize: '10px', color: 'var(--text-secondary)' }}>Checking bots...</div>}
-            
-            {bots && bots.map(bot => (
-                <div key={bot.id} style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px', color: 'var(--text-secondary)' }}>
-                    <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#50e3c2' }}></div>
-                    <span>{bot.first_name} {bot.username && `(@${bot.username})`}</span>
-                </div>
-            ))}
-            
-            {(!isLoading && (!bots || bots.length === 0)) && (
-                <div style={{ fontSize: '11px', color: 'var(--text-secondary)', fontStyle: 'italic', padding: '4px 0' }}>
-                    No autonomous active integrated bots detected.
-                </div>
-            )}
-        </div>
-    );
-};
+/** Bulk row heights for Manage Channels (4K single-segment layout). */
+const ROW_HEIGHT_COLLAPSED = 260;
+/** Expanded height for bulk “all” actions (tuned for ~one viewport segment on 4K; was 1760 → 1460 → 1160). */
+const ROW_HEIGHT_EXPANDED = 1160;
 
 export default function ChannelManager() {
     const queryClient = useQueryClient();
@@ -80,15 +57,50 @@ export default function ChannelManager() {
 
     const [bulkSkill, setBulkSkill] = useState('');
 
-    // Fetch live backend channels
+    /** Create sub-agent modal (Agents tab) */
+    const [createSubAgentOpen, setCreateSubAgentOpen] = useState(false);
+    const [newSubAgentId, setNewSubAgentId] = useState('');
+    const [newSubAgentName, setNewSubAgentName] = useState('');
+    const [newSubAgentDescription, setNewSubAgentDescription] = useState('');
+    const [newSubAgentParent, setNewSubAgentParent] = useState('tars');
+    const [createSubAgentFormError, setCreateSubAgentFormError] = useState('');
+
+    /** Skills tab (6.11): client-side filter / sort over SKILL_METADATA */
+    const [skillListFilter, setSkillListFilter] = useState(() => ({ ...SKILL_LIST_FILTER_INITIAL }));
+
+    // Fetch live backend channels (retry/backoff helps when Vite proxy returns 502 while the API restarts after save/HMR)
     const { data: configData, isLoading, refetch } = useQuery({
         queryKey: ['channels'],
         queryFn: async () => {
             const res = await fetch('/api/channels');
-            if (!res.ok) throw new Error('Failed to load channels');
+            if (!res.ok) {
+                throw new Error(
+                    res.status === 502
+                        ? 'Backend vorübergehend nicht erreichbar (502).'
+                        : `Kanal-Konfiguration konnte nicht geladen werden (${res.status}).`
+                );
+            }
             return res.json();
-        }
+        },
+        retry: 4,
+        retryDelay: (attemptIndex) => Math.min(400 * 2 ** attemptIndex, 8000)
     });
+
+    /** Drop category/source if the skill catalog no longer contains that value (fixes “stuck” filters after reload). */
+    useEffect(() => {
+        const skills = configData?.data?.metadata?.skills;
+        if (!skills || typeof skills !== 'object') return;
+        const allCats = [...new Set(Object.values(skills).map((s) => s?.cat).filter(Boolean))];
+        const allSrcs = [...new Set(Object.values(skills).map((s) => s?.src).filter(Boolean))];
+        setSkillListFilter((f) => {
+            let cat = f.cat;
+            let src = f.src;
+            if (cat && !allCats.includes(cat)) cat = '';
+            if (src && !allSrcs.includes(src)) src = '';
+            if (cat === f.cat && src === f.src) return f;
+            return { ...f, cat, src };
+        });
+    }, [configData]);
 
     const mutation = useMutation({
         mutationFn: async (payload) => {
@@ -154,6 +166,41 @@ export default function ChannelManager() {
         onSettled: () => queryClient.invalidateQueries({ queryKey: ['channels'] })
     });
 
+    const createSubAgentMutation = useMutation({
+        mutationFn: async (payload) => {
+            const res = await fetch('/api/channels/createSubAgent', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            });
+            const data = await res.json().catch(() => ({}));
+            if (!res.ok) {
+                throw new Error(data.message || `Create failed (${res.status})`);
+            }
+            return data;
+        },
+        onSettled: () => queryClient.invalidateQueries({ queryKey: ['channels'] })
+    });
+
+    const deleteSubAgentMutation = useMutation({
+        mutationFn: async (subAgentId) => {
+            const res = await fetch('/api/channels/deleteSubAgent', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ subAgentId })
+            });
+            const data = await res.json().catch(() => ({}));
+            if (!res.ok) {
+                throw new Error(data.message || `Delete failed (${res.status})`);
+            }
+            return data;
+        },
+        onError: (err) => {
+            window.alert(err?.message || 'Sub-Agent konnte nicht gelöscht werden.');
+        },
+        onSettled: () => queryClient.invalidateQueries({ queryKey: ['channels'] })
+    });
+
     const reorderMainAgentsMutation = useMutation({
         mutationFn: async (orderedAgentIds) => {
             const res = await fetch('/api/channels/reorderMainAgents', {
@@ -174,13 +221,12 @@ export default function ChannelManager() {
     const activeMetadata = configData?.data?.metadata || { models: [], mainAgents: {}, subAgentsDict: {}, skills: {} };
     const AVAILABLE_MODELS = activeMetadata.models || [];
     const MAIN_AGENTS = activeMetadata.mainAgents || {};
-    const SUB_AGENTS = activeMetadata.subAgentsDict || {};
     const SKILL_METADATA = activeMetadata.skills || {};
 
     const workspaceSkillsRoot = '/home/claw-agentbox/.openclaw/workspace/skills';
     const bundledOpenclawSkillsRoot = '/home/claw-agentbox/.npm-global/lib/node_modules/openclaw/skills';
 
-    /** Local on-disk path for Workbench links; workspace copies vs bundled openclaw/skills. */
+    /** Skill folder on disk (Workbench root for that skill). */
     const resolveSkillFsPath = (id, skill) => {
         if (skill?.src === 'workspace' || id === 'omniverse-extension-development' || id === 'usd-development') {
             return `${workspaceSkillsRoot}/${id}`;
@@ -209,6 +255,60 @@ export default function ChannelManager() {
                 setTimeout(() => el.style.boxShadow = 'none', 1500);
             }
         }, 100);
+    };
+
+    const openCreateSubAgentModal = () => {
+        setCreateSubAgentFormError('');
+        setNewSubAgentId('');
+        setNewSubAgentName('');
+        setNewSubAgentDescription('');
+        const defaultParent =
+            backendAgents.find((a) => a.id === 'tars')?.id ||
+            backendAgents[0]?.id ||
+            'tars';
+        setNewSubAgentParent(defaultParent);
+        setCreateSubAgentOpen(true);
+    };
+
+    const submitCreateSubAgent = () => {
+        setCreateSubAgentFormError('');
+        const id = newSubAgentId.trim();
+        const name = newSubAgentName.trim();
+        if (!id || !name) {
+            setCreateSubAgentFormError('ID und Name sind erforderlich.');
+            return;
+        }
+        if (!/^[a-zA-Z0-9_-]+$/.test(id)) {
+            setCreateSubAgentFormError('ID: nur Buchstaben, Ziffern, Bindestrich und Unterstrich.');
+            return;
+        }
+        createSubAgentMutation.mutate(
+            {
+                id,
+                name,
+                description: newSubAgentDescription.trim(),
+                parent: newSubAgentParent,
+                additionalSkills: [],
+                enabled: true
+            },
+            {
+                onSuccess: () => {
+                    setCreateSubAgentOpen(false);
+                },
+                onError: (err) => {
+                    setCreateSubAgentFormError(err.message || 'Anlegen fehlgeschlagen.');
+                }
+            }
+        );
+    };
+
+    const handleDeleteSubAgent = (sub) => {
+        const label = sub.name?.trim() || sub.id;
+        const ok = window.confirm(
+            `Sub-Agent „${label}“ (${sub.id}) wirklich löschen? Die Zuordnung und Einträge in Kanälen werden bereinigt.`
+        );
+        if (!ok) return;
+        deleteSubAgentMutation.mutate(sub.id);
     };
 
     const handleUpdateChannel = (channelId, field, value) => {
@@ -371,6 +471,25 @@ export default function ChannelManager() {
         alert('All configurations are persisted to sovereign storage.');
     };
 
+    /** Convenience: set every channel row height (and optionally the workspace tab) for all TTGs. */
+    const applyBulkChannelRows = (heightPx, subTab) => {
+        setActiveTab('channels');
+        const ids = backendChannels.map((c) => c.id);
+        if (ids.length === 0) return;
+        setRowHeights((prev) => {
+            const next = { ...prev };
+            for (const id of ids) next[id] = heightPx;
+            return next;
+        });
+        if (subTab != null) {
+            setRowSubtabs((prev) => {
+                const next = { ...prev };
+                for (const id of ids) next[id] = subTab;
+                return next;
+            });
+        }
+    };
+
     const renderManageChannels = () => (
         <>
             <div 
@@ -405,7 +524,11 @@ export default function ChannelManager() {
                     
                     <select value={bulkSkill} onChange={e => setBulkSkill(e.target.value)} style={{ width: '160px', padding: '4px 8px', fontSize: '13px', background: '#13141c', border: '1px solid var(--border-color)', color: '#fff' }}>
                         <option value="">Add skill...</option>
-                        {Object.keys(SKILL_METADATA).map(s => <option key={s} value={s}>{s}</option>)}
+                        {Object.keys(SKILL_METADATA).map((s) => (
+                            <option key={s} value={s} title={SKILL_METADATA[s]?.desc || s}>
+                                {formatSkillOptionLabel(s, SKILL_METADATA[s]?.desc)}
+                            </option>
+                        ))}
                     </select>
                     <button onClick={handleAddBulkSkill} disabled={selectedChannels.length === 0} style={{ padding: '4px 12px', fontSize: '13px', whiteSpace: 'nowrap', cursor: selectedChannels.length === 0 ? 'not-allowed' : 'pointer', background: '#2a2b36', border: '1px solid var(--border-color)', color: '#fff', opacity: selectedChannels.length === 0 ? 0.5 : 1 }}>Add</button>
                 </div>
@@ -415,331 +538,168 @@ export default function ChannelManager() {
                 <thead>
                     <tr>
                         <th style={{ width: '40px', textAlign: 'center' }}><input type="checkbox" checked={selectedChannels.length === backendChannels.length && backendChannels.length > 0} onChange={handleSelectAll} style={{ cursor: 'pointer', transform: 'scale(1.2)' }} /></th>
-                        <th style={{ width: '250px' }}>Telegram Group</th>
+                        <th style={{ width: '250px' }}>TTG (Telegram Topic Group)</th>
                         <th>Configuration & Chat Workspace</th>
                     </tr>
                 </thead>
                 <tbody>
-                    {backendChannels.map(tg => {
-                        const channelState = tg; // tg is already the merged backend object now
-                        const assignedAgentKey = channelState.assignedAgent || 'tars';
-                        const agentDetails = MAIN_AGENTS[assignedAgentKey] || MAIN_AGENTS.tars;
-                        
-                        // Calculating Skill Hierarchies
-                        const activeSubAgents = backendSubAgents.filter(sub => sub.parent === assignedAgentKey && !(channelState.inactiveSubAgents || []).includes(sub.id));
-                        const subAgentSkills = activeSubAgents.flatMap(sub => (sub.additionalSkills||[]).map(s => ({id: s, subId: sub.id})));
-                        const agentSkills = agentDetails.defaultSkills || [];
-                        
-                        // De-duplicate skills
-                        const allChannelSkills = [];
-                        const seen = new Set();
-                        
-                        (channelState.skills || []).forEach(s => {
-                            if (!seen.has(s)) { seen.add(s); allChannelSkills.push({ id: s, source: 'channel' }); }
-                        });
-                        
-                        (agentSkills).forEach(s => {
-                            if (!seen.has(s)) { seen.add(s); allChannelSkills.push({ id: s, source: 'agent' }); }
-                        });
-                        
-                        subAgentSkills.forEach(s => {
-                            if (!seen.has(s.id)) { seen.add(s.id); allChannelSkills.push({ id: s.id, source: 'sub', subId: s.subId }); }
-                        });
-                        
-                        const subTab = rowSubtabs[tg.id] || 'config';
+                    {backendChannels.map(tg => (
+                        <ChannelManagerChannelRow
+                            key={tg.id}
+                            tg={tg}
+                            channelState={tg}
+                            rowHeights={rowHeights}
+                            setRowHeights={setRowHeights}
+                            rowSubtabs={rowSubtabs}
+                            setRowSubtabs={setRowSubtabs}
+                            selectedChannels={selectedChannels}
+                            handleToggleSelect={handleToggleSelect}
+                            MAIN_AGENTS={MAIN_AGENTS}
+                            SKILL_METADATA={SKILL_METADATA}
+                            AVAILABLE_MODELS={AVAILABLE_MODELS}
+                            backendAgents={backendAgents}
+                            backendSubAgents={backendSubAgents}
+                            navigateToAgent={navigateToAgent}
+                            handleUpdateChannel={handleUpdateChannel}
+                            handleAddSkill={handleAddSkill}
+                            handleRemoveSkill={handleRemoveSkill}
+                            handleToggleSkill={handleToggleSkill}
+                            handleToggleAgentSkill={handleToggleAgentSkill}
+                            handleToggleSubAgentSkill={handleToggleSubAgentSkill}
+                            handleSubAgentToggle={handleSubAgentToggle}
+                            onSubAgentUnassignParent={(subId) =>
+                                updateSubAgentMutation.mutate({ subAgentId: subId, parent: null })
+                            }
+                            onSubAgentAssignToTars={(subId) =>
+                                updateSubAgentMutation.mutate({ subAgentId: subId, parent: 'tars' })
+                            }
+                        />
+                    ))}
 
-                        return (
-                            <tr key={tg.id} style={{ borderBottom: '3px solid rgba(255, 255, 255, 0.1)', background: selectedChannels.includes(tg.id) ? 'rgba(255,255,255,0.05)' : 'transparent' }}>
-                                <td style={{ borderLeft: `2px solid ${agentDetails.color || 'transparent'}`, width: '40px', textAlign: 'center' }}>
-                                    <input type="checkbox" checked={selectedChannels.includes(tg.id)} onChange={() => handleToggleSelect(tg.id)} style={{ cursor: 'pointer', transform: 'scale(1.2)' }} />
-                                </td>
-                                
-                                <td style={{ width: '250px', verticalAlign: 'top' }}>
-                                    <div className="tg-group" style={{ height: `${rowHeights[tg.id] || 450}px`, display: 'flex', flexDirection: 'column', boxSizing: 'border-box' }}>
-                                        <div className="tg-name">{tg.name}</div>
-                                        <div className="tg-id">{tg.id}</div>
-                                        <div className={`status-badge ${tg.status}`} style={{ width: 'fit-content', marginTop: '8px' }}>
-                                            <div className="status-dot"></div> {tg.status}
-                                        </div>
-                                        <div className="current-task" style={{ marginBottom: '16px' }}>{tg.currentTask}</div>
-                                        
-                                        <select 
-                                            value={channelState.assignedAgent || ''} 
-                                            onChange={(e) => handleUpdateChannel(tg.id, 'assignedAgent', e.target.value)}
-                                            style={{ width: '100%', marginBottom: '8px' }}
-                                        >
-                                            <option value="">No Agent</option>
-                                            <option value="tars">TARS</option>
-                                            <option value="marvin">MARVIN</option>
-                                            <option value="sonic">SONIC</option>
-                                            <option value="case">CASE</option>
-                                        </select>
-                                        {channelState.assignedAgent && (
-                                            <div 
-                                                onClick={() => navigateToAgent(channelState.assignedAgent)}
-                                                style={{ fontSize: '10px', color: agentDetails.color, cursor: 'pointer', textDecoration: 'underline', marginBottom: '16px', display: 'inline-block' }}
-                                            >
-                                                Configure {agentDetails.name} ➔
-                                            </div>
-                                        )}
-
-                                        <div style={{ marginTop: '8px', marginBottom: '8px', fontSize: '11px', fontWeight: 600, color: 'var(--text-secondary)' }}>
-                                            ACTIVE MEMBERS
-                                        </div>
-                                        <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', marginBottom: '8px' }}>
-                                            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px', color: 'var(--text-primary)' }}>
-                                                <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: channelState.assignedAgent ? agentDetails.color : 'red' }}></div>
-                                                <span>{channelState.assignedAgent ? `${agentDetails.name} (Engine)` : 'No Agent (Dormant)'}</span>
-                                            </div>
-                                            
-                                            {/* Sub-Agents properly nested under the Engine */}
-                                            {Object.entries(SUB_AGENTS).filter(([_, sub]) => sub.parent === assignedAgentKey).map(([subId, sub]) => {
-                                                const isSubActive = !(channelState.inactiveSubAgents || []).includes(subId);
-                                                return (
-                                                    <div key={subId} style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '12px', marginLeft: '14px', marginTop: '2px' }}>
-                                                        <input 
-                                                            type="checkbox" 
-                                                            checked={isSubActive}
-                                                            onChange={() => handleSubAgentToggle(tg.id, subId, channelState.inactiveSubAgents || [])}
-                                                            style={{ cursor: 'pointer', margin: 0 }}
-                                                        /> 
-                                                        <span 
-                                                            onClick={(e) => { e.preventDefault(); navigateToAgent(subId); }}
-                                                            style={{ cursor: 'pointer', color: 'var(--text-secondary)' }}
-                                                        >
-                                                            {sub.name}
-                                                        </span>
-                                                        <span style={{ marginLeft: 'auto', color: 'var(--text-secondary)', opacity: 0.6 }}>+{sub.additionalSkills.length} skills</span>
-                                                    </div>
-                                                );
-                                            })}
-                                        </div>
-
-                                        {/* Dynamic Bots via Telegram API */}
-                                        <div style={{ marginTop: 'auto', paddingBottom: '16px' }}>
-                                            <ActiveBotsList chatId={tg.id} />
-                                        </div>
-                                    </div>
-                                </td>
-
-                                
-                                <td style={{ padding: 0 }}>
-                                    <div style={{ display: 'flex', flexDirection: 'column', height: `${rowHeights[tg.id] || 450}px`, borderLeft: '1px solid var(--border-color)', overflow: 'hidden' }}>
-                                        <div className="row-tabs" style={{ flexShrink: 0 }}>
-                                            <button 
-                                                className={`row-tab ${subTab === 'config' ? 'active' : ''}`}
-                                                onClick={() => setRowSubtabs({...rowSubtabs, [tg.id]: 'config'})}
-                                            >⚙️ Configuration</button>
-                                            <button 
-                                                className={`row-tab ${subTab === 'chat' ? 'active' : ''}`}
-                                                onClick={() => setRowSubtabs({...rowSubtabs, [tg.id]: 'chat'})}
-                                            >💬 Chat</button>
-                                        </div>
-                                        
-                                        {subTab === 'config' && (
-                                            <div style={{ display: 'flex', padding: '16px', gap: '20px', height: '100%', boxSizing: 'border-box' }}>
-                                                
-                                                {/* Vertical Skills List */}
-                                                <div className="skills-cell" style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
-                                                    <div style={{ fontSize: '11px', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '8px' }}>SKILLS</div>
-                                                    <div style={{ display: 'flex', gap: '16px', alignItems: 'center', marginBottom: '8px' }}>
-                                                        <div style={{ fontSize: '10px', color: 'var(--text-secondary)', textTransform: 'uppercase' }}>
-                                                            {allChannelSkills.length} SKILLS (DEFAULT: {agentSkills.length}, SUB: {subAgentSkills.length}, ADDED: {(channelState.skills || []).length})
-                                                        </div>
-                                                        <select 
-                                                            onChange={(e) => {
-                                                                if (e.target.value) { handleAddSkill(tg.id, e.target.value); e.target.value = ""; }
-                                                            }}
-                                                            style={{ padding: '4px', background: 'var(--bg-elevated)', color: 'white', border: '1px solid var(--border-color)', borderRadius: '4px', fontSize: '11px', flex: 1, outline: 'none' }}
-                                                        >
-                                                            <option value="">+ Add channel skill...</option>
-                                                            {Object.keys(SKILL_METADATA).map(s => <option key={s} value={s}>{s} | {SKILL_METADATA[s]?.desc || ""}</option>)}
-                                                        </select>
-                                                    </div>
-                                                    
-                                                    <div className="skills-list" style={{ flex: 1, overflowY: 'auto', overflowX: 'hidden' }}>
-                                                        {allChannelSkills.map(skill => {
-                                                            let badge = "CHANNEL SKILL";
-                                                            if(skill.source === 'agent') badge = "INHERITED BY AGENT";
-                                                            if(skill.source === 'sub') badge = "INHERITED BY SUB-AGENT";
-                                                            
-                                                            const isChannelSkill = skill.source === 'channel';
-                                                            
-                                                            // Check if inactive based on source
-                                                            let isInactive = false;
-                                                            if (skill.source === 'channel') {
-                                                                isInactive = (channelState.inactiveSkills || []).includes(skill.id);
-                                                            } else if (skill.source === 'agent') {
-                                                                let ag = backendAgents.find(a => a.id === channelState.assignedAgent);
-                                                                if (ag && (ag.inactiveSkills || []).includes(skill.id)) isInactive = true;
-                                                            } else if (skill.source === 'sub') {
-                                                                let sub = backendSubAgents.find(s => s.id === skill.subId);
-                                                                if (sub && (sub.inactiveSkills || []).includes(skill.id)) isInactive = true;
-                                                            }
-
-                                                            return (
-                                                                <div key={skill.id + skill.source} className={`skill-item ${!isInactive ? 'active' : ''}`} style={{ display: 'grid', gridTemplateColumns: 'auto auto auto 1fr auto auto', alignItems: 'center', gap: '12px', width: '100%' }}>
-                                                                    <input 
-                                                                        type="checkbox" 
-                                                                        checked={!isInactive} 
-                                                                        onChange={() => {
-                                                                            if(skill.source === 'channel') handleToggleSkill(tg.id, skill.id);
-                                                                            else if(skill.source === 'agent') handleToggleAgentSkill(channelState.assignedAgent, skill.id);
-                                                                            else if(skill.source === 'sub') handleToggleSubAgentSkill(skill.subId, skill.id);
-                                                                        }} 
-                                                                        style={{ flexShrink: 0, margin: 0 }}
-                                                                    />
-                                                                    <span className="skill-name" style={{ whiteSpace: 'nowrap' }}>{skill.id}</span>
-                                                                    <span className="skill-separator" style={{ color: 'var(--text-secondary)' }}>|</span>
-                                                                    <span className="skill-desc" style={{ lineHeight: '1.4', paddingRight: '12px', minWidth: 0 }}>{SKILL_METADATA[skill.id]?.desc || ""}</span>
-                                                                    <span style={{ fontSize: '9px', color: isChannelSkill ? 'var(--text-secondary)' : agentDetails.color, textTransform: 'uppercase', whiteSpace: 'nowrap' }}>{badge}</span>
-                                                                    {isChannelSkill ? (
-                                                                        <button 
-                                                                            onClick={() => handleRemoveSkill(tg.id, skill.id)}
-                                                                            style={{ background: 'none', border: 'none', color: 'var(--text-secondary)', cursor: 'pointer', padding: '0 4px', justifySelf: 'end' }}
-                                                                        >
-                                                                            x
-                                                                        </button>
-                                                                    ) : <div />}
-                                                                </div>
-                                                            );
-                                                        })}
-                                                    </div>
-
-                                                    {assignedAgentKey !== 'case' && (
-                                                        <div style={{ marginTop: 'auto', paddingTop: '16px', borderTop: '1px solid var(--border-color)' }}>
-                                                            <div style={{ fontSize: '11px', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '8px' }}>CASE SKILLS</div>
-                                                            <div style={{ display: 'flex', gap: '16px', alignItems: 'center', marginBottom: '8px' }}>
-                                                                <div style={{ fontSize: '10px', color: 'var(--text-secondary)', textTransform: 'uppercase', whiteSpace: 'nowrap' }}>
-                                                                    {(MAIN_AGENTS.case?.defaultSkills || []).length + (channelState.caseSkills || []).length} SKILLS (DEFAULT: {(MAIN_AGENTS.case?.defaultSkills || []).length}, ADDED: {(channelState.caseSkills || []).length})
-                                                                </div>
-                                                                <select 
-                                                                    onChange={(e) => {
-                                                                        if (e.target.value) { 
-                                                                            const currentCaseSkills = channelState.caseSkills || [];
-                                                                            if (!currentCaseSkills.includes(e.target.value)) {
-                                                                                handleUpdateChannel(tg.id, 'caseSkills', [...currentCaseSkills, e.target.value]);
-                                                                            }
-                                                                            e.target.value = ""; 
-                                                                        }
-                                                                    }}
-                                                                    style={{ padding: '4px', background: 'var(--bg-elevated)', color: 'white', border: '1px solid var(--border-color)', borderRadius: '4px', fontSize: '11px', flex: 1, outline: 'none' }}
-                                                                >
-                                                                    <option value="">+ Add channel skill...</option>
-                                                                    {Object.keys(SKILL_METADATA).map(s => <option key={s} value={s}>{s} | {SKILL_METADATA[s]?.desc || ""}</option>)}
-                                                                </select>
-                                                            </div>
-                                                            
-                                                            <div className="skills-list">
-                                                                {[...(MAIN_AGENTS.case?.defaultSkills || []), ...(channelState.caseSkills || [])].map(skillId => {
-                                                                    const isInactive = (channelState.inactiveCaseSkills || []).includes(skillId);
-                                                                    const isDefault = (MAIN_AGENTS.case?.defaultSkills || []).includes(skillId);
-                                                                    const badge = isDefault ? "INHERITED BY AGENT" : "CHANNEL SKILL (CASE)";
-                                                                    return (
-                                                                        <div key={"case_"+skillId} className={`skill-item ${!isInactive ? 'active' : ''}`} style={{ display: 'grid', gridTemplateColumns: 'auto auto auto 1fr auto auto', alignItems: 'center', gap: '12px', width: '100%' }}>
-                                                                            <input 
-                                                                                type="checkbox" 
-                                                                                checked={!isInactive} 
-                                                                                onChange={() => {
-                                                                                    const current = channelState.inactiveCaseSkills || [];
-                                                                                    if (current.includes(skillId)) {
-                                                                                        handleUpdateChannel(tg.id, 'inactiveCaseSkills', current.filter(id => id !== skillId));
-                                                                                    } else {
-                                                                                        handleUpdateChannel(tg.id, 'inactiveCaseSkills', [...current, skillId]);
-                                                                                    }
-                                                                                }} 
-                                                                                style={{ flexShrink: 0, margin: 0 }}
-                                                                            />
-                                                                            <span className="skill-name" style={{ whiteSpace: 'nowrap' }}>{skillId}</span>
-                                                                            <span className="skill-separator" style={{ color: 'var(--text-secondary)' }}>|</span>
-                                                                            <span className="skill-desc" style={{ lineHeight: '1.4', paddingRight: '12px', minWidth: 0 }}>{SKILL_METADATA[skillId]?.desc || ""}</span>
-                                                                            <span style={{ fontSize: '9px', color: MAIN_AGENTS.case?.color || '#3b82f6', textTransform: 'uppercase', whiteSpace: 'nowrap' }}>{badge}</span>
-                                                                            {!isDefault ? (
-                                                                                <button 
-                                                                                    onClick={() => {
-                                                                                        const current = channelState.caseSkills || [];
-                                                                                        handleUpdateChannel(tg.id, 'caseSkills', current.filter(id => id !== skillId));
-                                                                                    }}
-                                                                                    style={{ background: 'none', border: 'none', color: 'var(--text-secondary)', cursor: 'pointer', padding: '0 4px', justifySelf: 'end' }}
-                                                                                >x</button>
-                                                                            ) : <div />}
-                                                                        </div>
-                                                                    )
-                                                                })}
-                                                            </div>
-                                                        </div>
-                                                    )}
-                                                </div>
-                                                
-                                                {/* Model Radio List */}
-                                                <div className="model-cell" style={{ width: '250px' }}>
-                                                    <div style={{ fontSize: '11px', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '8px' }}>MODEL SETTINGS</div>
-
-
-                                                    <div className="model-list">
-                                                        {AVAILABLE_MODELS.map(model => (
-                                                            <label key={model.id} className={`model-item ${channelState.model === model.id ? 'active' : ''}`}>
-                                                                <input 
-                                                                    type="radio" 
-                                                                    name={`model-${tg.id}`}
-                                                                    checked={channelState.model === model.id}
-                                                                    onChange={() => handleUpdateChannel(tg.id, 'model', model.id)}
-                                                                />
-                                                                <div className="model-content">
-                                                                    <span className="model-name">{model.name}</span>
-                                                                    <span className="model-separator">|</span>
-                                                                    <span className="model-desc" style={{ flex: 1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{model.desc}</span>
-                                                                </div>
-                                                            </label>
-                                                        ))}
-                                                    </div>
-                                                </div>
-
-                                            </div>
-                                        )}
-                                        {subTab === 'chat' && (
-                                            <div style={{ flex: 1, width: '100%', overflow: 'hidden' }}>
-                                                <TelegramChat channelId={tg.id} channelName={tg.name} />
-                                            </div>
-                                        )}
-                                    </div>
-                                    <div 
-                                        onMouseDown={(e) => {
-                                            e.preventDefault();
-                                            const startY = e.clientY;
-                                            const startH = rowHeights[tg.id] || 450;
-                                            const onMove = (me) => setRowHeights(prev => ({...prev, [tg.id]: Math.max(200, startH + (me.clientY - startY))}));
-                                            const onUp = () => { document.removeEventListener('mousemove', onMove); document.removeEventListener('mouseup', onUp); };
-                                            document.addEventListener('mousemove', onMove);
-                                            document.addEventListener('mouseup', onUp);
-                                        }}
-                                        style={{ 
-                                            width: '100%', height: '8px', cursor: 'row-resize', 
-                                            background: 'var(--border-color)', 
-                                            borderBottom: '1px solid #111',
-                                            display: 'flex', alignItems: 'center', justifyContent: 'center', 
-                                            transition: 'background 0.2s'
-                                        }}
-                                        onMouseEnter={(e) => e.currentTarget.style.background = '#444'}
-                                        onMouseLeave={(e) => e.currentTarget.style.background = 'var(--border-color)'}
-                                    >
-                                        <div style={{ width: '30px', height: '4px', background: 'var(--text-secondary)', borderRadius: '2px' }} />
-                                    </div>
-                                </td>
-                            </tr>
-                        );
-                    })}
                 </tbody>
             </table>
         </>
     );
 
     
-    const renderSkillsTab = () => (
+    const renderSkillsTab = () => {
+        const allCats = [...new Set(Object.values(SKILL_METADATA).map((s) => s.cat).filter(Boolean))].sort();
+        const allSrcs = [...new Set(Object.values(SKILL_METADATA).map((s) => s.src).filter(Boolean))].sort();
+        const catFilter = skillListFilter.cat && allCats.includes(skillListFilter.cat) ? skillListFilter.cat : '';
+        const srcFilter = skillListFilter.src && allSrcs.includes(skillListFilter.src) ? skillListFilter.src : '';
+        let skillEntries = Object.entries(SKILL_METADATA);
+        const qlow = skillListFilter.q.trim().toLowerCase();
+        if (qlow) {
+            skillEntries = skillEntries.filter(
+                ([id, s]) =>
+                    id.toLowerCase().includes(qlow) ||
+                    (s.desc && s.desc.toLowerCase().includes(qlow)) ||
+                    (s.origin && String(s.origin).toLowerCase().includes(qlow))
+            );
+        }
+        if (catFilter) skillEntries = skillEntries.filter(([, s]) => s.cat === catFilter);
+        if (srcFilter) skillEntries = skillEntries.filter(([, s]) => s.src === srcFilter);
+        if (skillListFilter.defOnly) skillEntries = skillEntries.filter(([, s]) => s.def);
+        skillEntries.sort((a, b) => {
+            if (skillListFilter.sort === 'name-desc') return b[0].localeCompare(a[0]);
+            if (skillListFilter.sort === 'cat') {
+                const ca = a[1].cat || '';
+                const cb = b[1].cat || '';
+                return ca.localeCompare(cb) || a[0].localeCompare(b[0]);
+            }
+            return a[0].localeCompare(b[0]);
+        });
+
+        return (
         <div style={{ padding: '24px 0' }}>
-            <h2 style={{ marginBottom: '24px' }}>Available Skills</h2>
+            <h2 style={{ marginBottom: '12px' }}>Available Skills</h2>
+            <p style={{ fontSize: '12px', color: 'var(--text-secondary)', marginBottom: '16px' }}>
+                Filter and sort are local to this browser session (Sub-Task 6.11). Registry source: backend merged catalog.
+            </p>
+            <div style={{ marginBottom: '20px', width: '100%', maxWidth: '100%', boxSizing: 'border-box' }}>
+                <input
+                    type="search"
+                    placeholder="Search id / description / origin…"
+                    value={skillListFilter.q}
+                    onChange={(e) => setSkillListFilter((f) => ({ ...f, q: e.target.value }))}
+                    style={{
+                        width: '100%',
+                        marginBottom: '8px',
+                        padding: '6px 10px',
+                        background: '#13141c',
+                        border: '1px solid var(--border-color)',
+                        color: '#fff',
+                        fontSize: '12px',
+                        boxSizing: 'border-box'
+                    }}
+                />
+                <div
+                    style={{
+                        display: 'flex',
+                        flexWrap: 'wrap',
+                        justifyContent: 'flex-start',
+                        gap: '6px',
+                        alignItems: 'center'
+                    }}
+                >
+                    <select
+                        value={catFilter}
+                        onChange={(e) => setSkillListFilter((f) => ({ ...f, cat: e.target.value }))}
+                        style={{ flex: '0 1 auto', minWidth: '110px', padding: '5px 6px', background: '#13141c', border: '1px solid var(--border-color)', color: '#fff', fontSize: '12px' }}
+                    >
+                        <option value="">All categories</option>
+                        {allCats.map((c) => (
+                            <option key={c} value={c}>{c}</option>
+                        ))}
+                    </select>
+                    <select
+                        value={srcFilter}
+                        onChange={(e) => setSkillListFilter((f) => ({ ...f, src: e.target.value }))}
+                        style={{ flex: '0 1 auto', minWidth: '110px', padding: '5px 6px', background: '#13141c', border: '1px solid var(--border-color)', color: '#fff', fontSize: '12px' }}
+                    >
+                        <option value="">All sources</option>
+                        {allSrcs.map((s) => (
+                            <option key={s} value={s}>{s}</option>
+                        ))}
+                    </select>
+                    <select
+                        value={skillListFilter.sort}
+                        onChange={(e) => setSkillListFilter((f) => ({ ...f, sort: e.target.value }))}
+                        style={{ flex: '0 1 auto', minWidth: '96px', padding: '5px 6px', background: '#13141c', border: '1px solid var(--border-color)', color: '#fff', fontSize: '12px' }}
+                    >
+                        <option value="name-asc">Name A–Z</option>
+                        <option value="name-desc">Name Z–A</option>
+                        <option value="cat">Category</option>
+                    </select>
+                    <label style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '11px', color: 'var(--text-secondary)', flex: '0 1 auto' }}>
+                        <input
+                            type="checkbox"
+                            checked={skillListFilter.defOnly}
+                            onChange={(e) => setSkillListFilter((f) => ({ ...f, defOnly: e.target.checked }))}
+                        />
+                        Default only
+                    </label>
+                    <span style={{ fontSize: '11px', color: 'var(--text-secondary)', flex: '0 0 auto' }}>{skillEntries.length} shown</span>
+                    <button
+                        type="button"
+                        onClick={() => setSkillListFilter({ ...SKILL_LIST_FILTER_INITIAL })}
+                        style={{
+                            marginLeft: '4px',
+                            padding: '4px 8px',
+                            fontSize: '11px',
+                            cursor: 'pointer',
+                            background: 'rgba(255,255,255,0.06)',
+                            border: '1px solid var(--border-color)',
+                            borderRadius: '4px',
+                            color: 'var(--text-secondary)'
+                        }}
+                    >
+                        Filter zurücksetzen
+                    </button>
+                </div>
+            </div>
             <div style={{ display: 'grid', gap: '16px' }}>
-                {Object.entries(SKILL_METADATA).map(([id, skill]) => {
+                {skillEntries.map(([id, skill]) => {
                     let colorCode = '#50e3c2'; // BUNDLED
                     if (skill.src === 'managed') colorCode = '#e3c450';
                     if (skill.src === 'workspace') colorCode = '#6e9cff';
@@ -748,7 +708,7 @@ export default function ChannelManager() {
                     return (
                         <div key={id} className="skill-card" style={{ display: 'flex', flexDirection: 'column', gap: '12px', borderLeft: `4px solid ${colorCode}` }}>
                             <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                                <h3 style={{ margin: 0, color: colorCode }}>{id}</h3>
+                                <h3 style={{ margin: 0, color: colorCode, fontWeight: 700 }}>{id}</h3>
                                 <div style={{ display: 'flex', gap: '6px' }}>
                                     <span className="status-badge active" style={{ borderColor: colorCode, color: colorCode }}>{skill.src.toUpperCase()}</span>
                                     {skill.def && <span className="status-badge planning" style={{ borderColor: colorCode, color: colorCode }}>DEFAULT</span>}
@@ -769,41 +729,112 @@ export default function ChannelManager() {
                                         {id === 'web_search' && "Utilizes Google Search API for robust data grounding. Highly effective for breaking news, fact-checking, and general knowledge expansion beyond the model's training cutoff."}
                                         {id === 'notion' && "Bi-directional sync with Notion workspaces. Create pages, update databases, and query knowledge bases. Ideal for structured documentation."}
                                         {id === 'omniverse-extension-development' && "Deep integration with NVIDIA Omniverse. Can scaffold extensions, write Python UI scripts, and interface with the Kit SDK."}
-                                        {id === 'ide-openclaw-memory-sync' && "Appends curated gems and short session summaries from Cursor (and similar IDEs) to TARS_MEMORY.md for triad / harness continuity; optional read-back at session start."}
+                                        {id === 'ide-openclaw-memory-sync' && "Appends curated gems and short session summaries from the IDE workbench to TARS_MEMORY.md for triad / harness continuity; optional read-back at session start."}
                                     </div>
 
                                     <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                                        {/* Local Web Source Path & Action */}
-                                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                            <div className="tg-id" style={{ marginTop: '0', background: 'rgba(255,255,255,0.05)', padding: '4px 8px', borderRadius: '4px', fontSize: '10px' }}>
-                                                {resolveSkillFsPath(id, skill)}
+                                        <div
+                                            style={{
+                                                border: '1px solid var(--border-color)',
+                                                borderRadius: '6px',
+                                                padding: '8px 10px',
+                                                background: 'rgba(0,0,0,0.18)',
+                                                display: 'flex',
+                                                flexWrap: 'wrap',
+                                                alignItems: 'center',
+                                                justifyContent: 'space-between',
+                                                gap: '10px'
+                                            }}
+                                        >
+                                            <div
+                                                className="tg-id"
+                                                style={{
+                                                    flex: '1 1 200px',
+                                                    minWidth: 0,
+                                                    marginTop: 0,
+                                                    background: 'rgba(255,255,255,0.05)',
+                                                    padding: '6px 8px',
+                                                    borderRadius: '4px',
+                                                    fontSize: '10px',
+                                                    wordBreak: 'break-all'
+                                                }}
+                                            >
+                                                {`${resolveSkillFsPath(id, skill).replace(/\/$/, '')}/SKILL.md`}
                                             </div>
-                                            <a 
+                                            <a
                                                 href={`/workbench?path=${encodeURIComponent(resolveSkillFsPath(id, skill))}`}
                                                 target="_blank"
                                                 rel="noreferrer"
                                                 className="btn-open"
-                                                style={{ textDecoration: 'none', background: 'rgba(255,255,255,0.1)', border: '1px solid var(--border-color)', color: '#fff', padding: '4px 12px', fontSize: '11px', borderRadius: '4px' }}
-                                                onClick={() => {
-                                                    const skillPath = resolveSkillFsPath(id, skill);
-                                                    useWorkbenchStore.getState().addWorkspace(skillPath);
-                                                    useWorkbenchStore.getState().setCurrentRoot(skillPath);
+                                                style={{
+                                                    textDecoration: 'none',
+                                                    background: 'rgba(255,255,255,0.1)',
+                                                    border: '1px solid var(--border-color)',
+                                                    color: '#fff',
+                                                    padding: '6px 12px',
+                                                    fontSize: '11px',
+                                                    borderRadius: '4px',
+                                                    whiteSpace: 'nowrap'
                                                 }}
-                                            >Open in Workbench ➔</a>
+                                                onClick={() => {
+                                                    const dir = resolveSkillFsPath(id, skill).replace(/\/$/, '');
+                                                    const skillMd = `${dir}/SKILL.md`;
+                                                    const st = useWorkbenchStore.getState();
+                                                    st.addWorkspace(dir);
+                                                    st.setCurrentRoot(dir);
+                                                    st.setActiveFile(skillMd);
+                                                }}
+                                            >
+                                                EDIT in Workbench ➔
+                                            </a>
                                         </div>
 
-                                        {/* Remote Web Source Path & Action */}
                                         {skill.src === 'managed' && (
-                                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                                <div className="tg-id" style={{ marginTop: '0', background: 'rgba(227, 196, 80, 0.1)', color: '#e3c450', padding: '4px 8px', borderRadius: '4px', fontSize: '10px' }}>
+                                            <div
+                                                style={{
+                                                    border: '1px solid rgba(227, 196, 80, 0.35)',
+                                                    borderRadius: '6px',
+                                                    padding: '8px 10px',
+                                                    background: 'rgba(227, 196, 80, 0.06)',
+                                                    display: 'flex',
+                                                    flexWrap: 'wrap',
+                                                    alignItems: 'center',
+                                                    justifyContent: 'space-between',
+                                                    gap: '10px'
+                                                }}
+                                            >
+                                                <div
+                                                    className="tg-id"
+                                                    style={{
+                                                        flex: '1 1 200px',
+                                                        minWidth: 0,
+                                                        marginTop: 0,
+                                                        color: '#e3c450',
+                                                        padding: '6px 8px',
+                                                        borderRadius: '4px',
+                                                        fontSize: '10px',
+                                                        wordBreak: 'break-all'
+                                                    }}
+                                                >
                                                     {skill.url || `https://github.com/openclaw/skills/tree/main/skills/${id}`}
                                                 </div>
-                                                <a 
+                                                <a
                                                     href={skill.url || `https://github.com/openclaw/skills/tree/main/skills/${id}`}
                                                     target="_blank"
                                                     rel="noreferrer"
-                                                    style={{ textDecoration: 'none', background: '#2a2b36', border: '1px solid #e3c450', color: '#fff', padding: '4px 12px', fontSize: '11px', borderRadius: '4px' }}
-                                                >Open Web Source ➔</a>
+                                                    style={{
+                                                        textDecoration: 'none',
+                                                        background: '#2a2b36',
+                                                        border: '1px solid #e3c450',
+                                                        color: '#fff',
+                                                        padding: '6px 12px',
+                                                        fontSize: '11px',
+                                                        borderRadius: '4px',
+                                                        whiteSpace: 'nowrap'
+                                                    }}
+                                                >
+                                                    Open Web Source ➔
+                                                </a>
                                             </div>
                                         )}
                                     </div>
@@ -814,11 +845,13 @@ export default function ChannelManager() {
                 })}
             </div>
         </div>
-    );
+        );
+    };
 
 
     
     const renderAgentsTab = () => (
+        <>
         <div style={{ padding: '24px 0' }}>
             <h2 style={{ marginBottom: '24px' }}>Main Agents</h2>
             <p style={{ fontSize: '12px', color: 'var(--text-secondary)', marginTop: '-12px', marginBottom: '20px' }}>
@@ -862,7 +895,104 @@ export default function ChannelManager() {
                             style={{ width: '100%', marginTop: '8px', padding: '6px 8px', background: '#13141c', outline: 'none', border: 'none', color: 'var(--text-secondary)' }}
                         >
                             <option value="">+ Add skill...</option>
-                            {Object.keys(SKILL_METADATA).map(s => <option key={s} value={s}>{s} {SKILL_METADATA[s]?.desc ? `| ${SKILL_METADATA[s].desc}` : ''}</option>)}
+                            {Object.keys(SKILL_METADATA).map((s) => (
+                                <option key={s} value={s} title={SKILL_METADATA[s]?.desc || s}>
+                                    {formatSkillOptionLabel(s, SKILL_METADATA[s]?.desc)}
+                                </option>
+                            ))}
+                        </select>
+
+                        <div style={{ fontSize: '11px', color: agent.color, marginBottom: '8px', marginTop: '20px' }}>Sub-Agents</div>
+                        {backendSubAgents
+                            .filter((sub) => sub.parent === agent.id)
+                            .map((sub) => {
+                                const isOn = sub.enabled !== false;
+                                const line = (sub.description || '').trim() || `Zugeordnet zu ${agent.name}`;
+                                return (
+                                    <div
+                                        key={`sub-assign-${sub.id}`}
+                                        className={`skill-item ${isOn ? 'active' : ''}`}
+                                        style={{
+                                            display: 'grid',
+                                            gridTemplateColumns: 'auto auto auto minmax(0, 1fr) auto auto',
+                                            alignItems: 'center',
+                                            gap: '10px',
+                                            width: '100%',
+                                            marginBottom: '6px'
+                                        }}
+                                    >
+                                        <input
+                                            type="checkbox"
+                                            checked={isOn}
+                                            onChange={() =>
+                                                updateSubAgentMutation.mutate({
+                                                    subAgentId: sub.id,
+                                                    enabled: !isOn
+                                                })
+                                            }
+                                            style={{ flexShrink: 0, margin: 0 }}
+                                        />
+                                        <span className="skill-name" style={{ whiteSpace: 'nowrap' }}>{sub.name || sub.id}</span>
+                                        <span className="skill-separator" style={{ color: 'var(--text-secondary)' }}>|</span>
+                                        <span className="skill-desc" style={{ lineHeight: '1.4', paddingRight: '8px', minWidth: 0, fontSize: '12px' }}>
+                                            {line}
+                                        </span>
+                                        <span
+                                            style={{
+                                                fontSize: '9px',
+                                                color: agent.color,
+                                                textTransform: 'uppercase',
+                                                whiteSpace: 'nowrap'
+                                            }}
+                                        >
+                                            SUB-AGENT
+                                        </span>
+                                        <button
+                                            type="button"
+                                            title="Zuordnung aufheben (ohne Hauptagent)"
+                                            onClick={() => updateSubAgentMutation.mutate({ subAgentId: sub.id, parent: null })}
+                                            style={{
+                                                background: 'none',
+                                                border: 'none',
+                                                color: 'var(--text-secondary)',
+                                                cursor: 'pointer',
+                                                padding: '0 4px',
+                                                justifySelf: 'end'
+                                            }}
+                                        >
+                                            x
+                                        </button>
+                                    </div>
+                                );
+                            })}
+                        <select
+                            onChange={(e) => {
+                                const sid = e.target.value;
+                                if (sid) {
+                                    updateSubAgentMutation.mutate({ subAgentId: sid, parent: agent.id });
+                                    e.target.value = '';
+                                }
+                            }}
+                            style={{
+                                width: '100%',
+                                marginTop: '8px',
+                                padding: '6px 8px',
+                                background: '#13141c',
+                                outline: 'none',
+                                border: '1px solid var(--border-color)',
+                                color: 'var(--text-secondary)',
+                                borderRadius: '4px'
+                            }}
+                        >
+                            <option value="">+ Sub-Agent zuordnen…</option>
+                            {backendSubAgents
+                                .filter((s) => s.parent !== agent.id)
+                                .map((s) => (
+                                    <option key={s.id} value={s.id}>
+                                        {s.name || s.id}
+                                        {s.parent ? ` (aktuell: ${s.parent})` : ' (nicht zugeordnet)'}
+                                    </option>
+                                ))}
                         </select>
                             </div>
                             <div
@@ -921,21 +1051,61 @@ export default function ChannelManager() {
                 ))}
             </div>
 
-            <h2 style={{ marginBottom: '24px' }}>Sub-Agents</h2>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', flexWrap: 'wrap', gap: '12px', marginBottom: '20px', marginTop: '8px' }}>
+                <div>
+                    <h2 style={{ marginBottom: '4px', marginTop: 0 }}>Sub-Agents — Zusätzliche Skills</h2>
+                    <p style={{ fontSize: '12px', color: 'var(--text-secondary)', margin: 0 }}>
+                        Pro Sub-Agent: zusätzliche Skills (über die Zuordnung oben beim jeweiligen Hauptagenten).
+                    </p>
+                </div>
+                <button
+                    type="button"
+                    onClick={openCreateSubAgentModal}
+                    className="primary"
+                    style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', padding: '8px 14px', whiteSpace: 'nowrap' }}
+                >
+                    <Plus size={16} aria-hidden /> Sub-Agent anlegen
+                </button>
+            </div>
             <div style={{ display: 'grid', gap: '16px' }}>
                 {backendSubAgents.map(sub => {
                     const parentColor = backendAgents.find(a => a.id === sub.parent)?.color || '#50e3c2';
                     return (
                         <div key={sub.id} id={`agent-card-${sub.id}`} className="agent-card main" style={{ borderColor: parentColor, transition: 'box-shadow 0.3s' }}>
-                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '12px' }}>
                                 <h3 style={{ color: parentColor, margin: 0 }}>{sub.name}</h3>
-                                <span style={{ fontSize: '10px', background: 'rgba(255,255,255,0.05)', padding: '2px 6px', borderRadius: '4px', color: 'var(--text-secondary)', textTransform: 'uppercase' }}>
-                                    {sub.parent}
-                                </span>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0 }}>
+                                    <span style={{ fontSize: '10px', background: 'rgba(255,255,255,0.05)', padding: '2px 6px', borderRadius: '4px', color: 'var(--text-secondary)', textTransform: 'uppercase' }}>
+                                        {sub.parent || '—'}
+                                    </span>
+                                    <button
+                                        type="button"
+                                        aria-label={`Sub-Agent ${sub.id} löschen`}
+                                        title="Sub-Agent löschen"
+                                        disabled={deleteSubAgentMutation.isPending}
+                                        onClick={() => handleDeleteSubAgent(sub)}
+                                        style={{
+                                            display: 'inline-flex',
+                                            alignItems: 'center',
+                                            justifyContent: 'center',
+                                            width: '32px',
+                                            height: '32px',
+                                            padding: 0,
+                                            borderRadius: '6px',
+                                            border: '1px solid rgba(227, 80, 80, 0.45)',
+                                            background: 'rgba(227, 80, 80, 0.12)',
+                                            color: '#e35050',
+                                            cursor: deleteSubAgentMutation.isPending ? 'not-allowed' : 'pointer',
+                                            opacity: deleteSubAgentMutation.isPending ? 0.5 : 1
+                                        }}
+                                    >
+                                        <X size={18} strokeWidth={2.5} aria-hidden />
+                                    </button>
+                                </div>
                             </div>
                             
                             <div style={{ color: 'var(--text-secondary)', margin: '8px 0 16px 0', fontSize: '14px' }}>
-                                {sub.description || "Web search and information gathering"}
+                                {sub.description?.trim() ? sub.description : '—'}
                             </div>
                             
                             <div style={{ fontSize: '11px', color: 'var(--text-secondary)', marginBottom: '8px' }}>Additional Skills: {(sub.additionalSkills||[]).length} skills</div>
@@ -964,30 +1134,142 @@ export default function ChannelManager() {
                                 style={{ width: '100%', marginTop: '8px', padding: '6px 8px', background: '#13141c', outline: 'none', border: 'none', color: 'var(--text-secondary)' }}
                             >
                                 <option value="">+ Add skill...</option>
-                                {Object.keys(SKILL_METADATA).map(s => <option key={s} value={s}>{s} {SKILL_METADATA[s]?.desc ? `| ${SKILL_METADATA[s].desc}` : ''}</option>)}
+                                {Object.keys(SKILL_METADATA).map((s) => (
+                                    <option key={s} value={s} title={SKILL_METADATA[s]?.desc || s}>
+                                        {formatSkillOptionLabel(s, SKILL_METADATA[s]?.desc)}
+                                    </option>
+                                ))}
                             </select>
                         </div>
                     );
                 })}
             </div>
         </div>
+
+        {createSubAgentOpen && (
+            <div
+                role="dialog"
+                aria-modal="true"
+                aria-labelledby="create-subagent-title"
+                style={{
+                    position: 'fixed',
+                    inset: 0,
+                    background: 'rgba(0,0,0,0.65)',
+                    zIndex: 200,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    padding: '24px'
+                }}
+                onClick={(e) => {
+                    if (e.target === e.currentTarget && !createSubAgentMutation.isPending) setCreateSubAgentOpen(false);
+                }}
+            >
+                <div
+                    style={{
+                        background: 'var(--bg-elevated)',
+                        border: '1px solid var(--border-color)',
+                        borderRadius: '10px',
+                        padding: '24px',
+                        maxWidth: '440px',
+                        width: '100%',
+                        boxShadow: '0 8px 32px rgba(0,0,0,0.4)'
+                    }}
+                    onClick={(e) => e.stopPropagation()}
+                >
+                    <h3 id="create-subagent-title" style={{ marginTop: 0 }}>Sub-Agent anlegen</h3>
+                    <p style={{ fontSize: '12px', color: 'var(--text-secondary)', marginTop: '-8px' }}>
+                        Neue Zeile in <code style={{ fontSize: '11px' }}>channel_config.json</code> (eindeutige ID).
+                    </p>
+                    <div style={{ display: 'grid', gap: '12px', marginTop: '16px' }}>
+                        <label style={{ display: 'grid', gap: '4px', fontSize: '12px' }}>
+                            <span>ID (Slug)</span>
+                            <input
+                                value={newSubAgentId}
+                                onChange={(e) => setNewSubAgentId(e.target.value)}
+                                placeholder="z. B. my-researcher"
+                                autoComplete="off"
+                                style={{ padding: '8px 10px', borderRadius: '6px', border: '1px solid var(--border-color)', background: '#13141c', color: 'var(--text-primary)' }}
+                            />
+                        </label>
+                        <label style={{ display: 'grid', gap: '4px', fontSize: '12px' }}>
+                            <span>Anzeigename</span>
+                            <input
+                                value={newSubAgentName}
+                                onChange={(e) => setNewSubAgentName(e.target.value)}
+                                placeholder="z. B. My Researcher"
+                                autoComplete="off"
+                                style={{ padding: '8px 10px', borderRadius: '6px', border: '1px solid var(--border-color)', background: '#13141c', color: 'var(--text-primary)' }}
+                            />
+                        </label>
+                        <label style={{ display: 'grid', gap: '4px', fontSize: '12px' }}>
+                            <span>Beschreibung (optional)</span>
+                            <textarea
+                                value={newSubAgentDescription}
+                                onChange={(e) => setNewSubAgentDescription(e.target.value)}
+                                rows={3}
+                                placeholder="Kurzbeschreibung für die Kartenansicht"
+                                style={{ padding: '8px 10px', borderRadius: '6px', border: '1px solid var(--border-color)', background: '#13141c', color: 'var(--text-primary)', resize: 'vertical' }}
+                            />
+                        </label>
+                        <label style={{ display: 'grid', gap: '4px', fontSize: '12px' }}>
+                            <span>Hauptagent (parent)</span>
+                            <select
+                                value={newSubAgentParent}
+                                onChange={(e) => setNewSubAgentParent(e.target.value)}
+                                style={{ padding: '8px 10px', borderRadius: '6px', border: '1px solid var(--border-color)', background: '#13141c', color: 'var(--text-primary)' }}
+                            >
+                                {backendAgents.map((a) => (
+                                    <option key={a.id} value={a.id}>{a.name || a.id}</option>
+                                ))}
+                            </select>
+                        </label>
+                    </div>
+                    {createSubAgentFormError ? (
+                        <p style={{ color: '#e35050', fontSize: '12px', marginTop: '12px', marginBottom: 0 }}>{createSubAgentFormError}</p>
+                    ) : null}
+                    <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end', marginTop: '20px' }}>
+                        <button
+                            type="button"
+                            disabled={createSubAgentMutation.isPending}
+                            onClick={() => !createSubAgentMutation.isPending && setCreateSubAgentOpen(false)}
+                        >
+                            Abbrechen
+                        </button>
+                        <button type="button" className="primary" disabled={createSubAgentMutation.isPending} onClick={submitCreateSubAgent}>
+                            {createSubAgentMutation.isPending ? '…' : 'Anlegen'}
+                        </button>
+                    </div>
+                </div>
+            </div>
+        )}
+        </>
     );
 
 
     return (
         <div style={{ minHeight: '100vh', padding: '0', display: 'flex', flexDirection: 'column' }}>
             
-            {/* STICKY HEADER */}
-            <header style={{ 
-                padding: '20px 24px', 
-                margin: 0, 
-                position: 'sticky', top: 0, 
-                background: 'var(--bg-primary)', 
-                borderBottom: '1px solid var(--border-color)', 
-                zIndex: 100,
-                display: 'flex', justifyContent: 'space-between', alignItems: 'center'
-            }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '24px' }}>
+            {/* STICKY HEADER — grid keeps center actions in one row (no vertical stack from flex-wrap). */}
+            <header
+                style={{
+                    padding: '20px 24px',
+                    margin: 0,
+                    position: 'sticky',
+                    top: 0,
+                    background: 'var(--bg-primary)',
+                    borderBottom: '1px solid var(--border-color)',
+                    zIndex: 100,
+                    display: 'grid',
+                    gridTemplateColumns:
+                        activeTab === 'channels'
+                            ? 'minmax(0, auto) minmax(0, 1fr) auto'
+                            : 'minmax(0, auto) auto',
+                    alignItems: 'center',
+                    gap: '12px'
+                }}
+            >
+                <div style={{ display: 'flex', alignItems: 'center', gap: '24px', minWidth: 0 }}>
                     <h1 style={{ display: 'flex', alignItems: 'center', gap: '8px', margin: 0, fontSize: '1.4rem' }}>
                         📺 Channel Manager
                     </h1>
@@ -998,7 +1280,53 @@ export default function ChannelManager() {
                     </div>
                 </div>
 
-                <div className="header-actions">
+                {activeTab === 'channels' && (
+                    <div
+                        className="header-actions"
+                        style={{
+                            justifyContent: 'center',
+                            flexWrap: 'nowrap',
+                            minWidth: 0,
+                            overflowX: 'auto'
+                        }}
+                        aria-label="Alle TTG-Zeilen auf einmal"
+                    >
+                        <button
+                            type="button"
+                            disabled={backendChannels.length === 0}
+                            title="Alle Zeilen ~260px; Tab Configuration (vermeidet Layout-Kollision nach Chat/IDE)"
+                            onClick={() => applyBulkChannelRows(ROW_HEIGHT_COLLAPSED, 'config')}
+                        >
+                            Collapse all
+                        </button>
+                        <button
+                            type="button"
+                            disabled={backendChannels.length === 0}
+                            title={`Alle Zeilen auf ${ROW_HEIGHT_EXPANDED}px, Tab: Configuration`}
+                            onClick={() => applyBulkChannelRows(ROW_HEIGHT_EXPANDED, 'config')}
+                        >
+                            Configure all
+                        </button>
+                        <button
+                            type="button"
+                            disabled={backendChannels.length === 0}
+                            title={`Alle Zeilen auf ${ROW_HEIGHT_EXPANDED}px, Tab: OpenClaw Chat`}
+                            onClick={() => applyBulkChannelRows(ROW_HEIGHT_EXPANDED, 'chat')}
+                        >
+                            Open Claw Chat all
+                        </button>
+                        <button
+                            type="button"
+                            disabled={backendChannels.length === 0}
+                            title={`Alle Zeilen auf ${ROW_HEIGHT_EXPANDED}px, Tab: TARS in IDE · IDE project summary`}
+                            onClick={() => applyBulkChannelRows(ROW_HEIGHT_EXPANDED, 'summary')}
+                        >
+                            TARS in IDE, all
+                        </button>
+                    </div>
+                )}
+
+                <div className="header-actions" style={{ flexShrink: 0 }}>
                     <button onClick={handleExport}><Download size={14} style={{ marginRight: '6px', verticalAlign: 'text-bottom' }} /> Export</button>
                     <button onClick={handleImport}><Upload size={14} style={{ marginRight: '6px', verticalAlign: 'text-bottom' }} /> Import</button>
                     <button onClick={handleReload}><RefreshCw size={14} style={{ marginRight: '6px', verticalAlign: 'text-bottom' }} /> Reload</button>

@@ -5,14 +5,15 @@
       "name": "TTG000_General_Chat",
       "model": "moonshot/kimi-k2.5",
       "skills": [
-        "weather",
-        "web_search"
+        "weather"
       ],
       "assignedAgent": "tars",
       "ideOverride": false,
       "inactiveSubAgents": [],
       "inactiveSkills": [],
-      "caseSkills": [],
+      "caseSkills": [
+        "ide-openclaw-memory-sync"
+      ],
       "inactiveCaseSkills": []
     },
     {
@@ -51,21 +52,21 @@
       "skills": [
         "usd-development"
       ],
-      "assignedAgent": "sonic"
+      "assignedAgent": "tars"
     },
     {
       "id": "-5034730971",
       "name": "TTG040_WebDev_Backend",
       "model": "local-pc/google/gemma-4-26b-a4b",
       "skills": [],
-      "assignedAgent": "sonic"
+      "assignedAgent": "tars"
     },
     {
       "id": "-5159996212",
       "name": "TTG050_WebDev_Frontend",
       "model": "local-pc/google/gemma-4-26b-a4b",
       "skills": [],
-      "assignedAgent": "sonic"
+      "assignedAgent": "tars"
     },
     {
       "id": "-1003968061817",
@@ -81,7 +82,7 @@
       "skills": [
         "healthcheck"
       ],
-      "assignedAgent": "marvin"
+      "assignedAgent": "tars"
     },
     {
       "id": "-5272630186",
@@ -90,7 +91,7 @@
       "skills": [
         "node-connect"
       ],
-      "assignedAgent": "marvin"
+      "assignedAgent": "tars"
     },
     {
       "id": "-5169316413",
@@ -120,14 +121,26 @@
       "skills": [
         "clawflow"
       ],
-      "assignedAgent": "sonic"
+      "assignedAgent": "tars"
     },
     {
       "id": "-5228979198",
       "name": "TTG900_troubleshooting",
       "model": "local-pc/google/gemma-4-26b-a4b",
       "skills": [],
-      "assignedAgent": "marvin"
+      "assignedAgent": "tars"
+    },
+    {
+      "id": "admin_panel",
+      "name": "New Channel admin_panel",
+      "model": "local-pc/google/gemma-4-26b-a4b",
+      "skills": [],
+      "assignedAgent": "tars",
+      "ideOverride": false,
+      "inactiveSubAgents": [],
+      "inactiveSkills": [],
+      "caseSkills": [],
+      "inactiveCaseSkills": []
     }
   ],
   "agents": [
@@ -137,8 +150,18 @@
       "role": "Planner",
       "color": "#50e3c2",
       "defaultSkills": [
+        "clawflow"
+      ]
+    },
+    {
+      "id": "case",
+      "name": "CASE",
+      "role": "Synthesis",
+      "color": "#e3c450",
+      "defaultSkills": [
         "clawflow",
-        "web_search"
+        "web_search",
+        "web_fetch"
       ]
     },
     {
@@ -149,53 +172,55 @@
       "defaultSkills": [
         "healthcheck"
       ]
-    },
-    {
-      "id": "sonic",
-      "name": "SONIC",
-      "role": "Executor",
-      "color": "#e3c450",
-      "defaultSkills": [
-        "web_search",
-        "web_fetch"
-      ]
-    },
-    {
-      "id": "case",
-      "name": "CASE (@CASE_JanBot)",
-      "role": "IDE Relay / DevBot",
-      "color": "#3b82f6",
-      "defaultSkills": [
-        "clawflow",
-        "web_search"
-      ]
     }
   ],
   "subAgents": [
     {
       "id": "researcher",
       "name": "Researcher",
-      "parent": "tars"
+      "parent": "tars",
+      "additionalSkills": [
+        "clawflow",
+        "healthcheck",
+        "omniverse-extension-development"
+      ]
     },
     {
       "id": "documenter",
       "name": "Documenter",
-      "parent": "tars"
+      "parent": "tars",
+      "additionalSkills": [
+        "clawflow",
+        "healthcheck"
+      ]
     },
     {
       "id": "coder",
       "name": "Coder",
-      "parent": "sonic"
+      "parent": "tars",
+      "additionalSkills": [
+        "usd-development",
+        "ide-openclaw-memory-sync"
+      ]
     },
     {
       "id": "reviewer",
       "name": "Reviewer",
-      "parent": "marvin"
+      "parent": "tars"
     },
     {
       "id": "tester",
       "name": "Tester",
-      "parent": "marvin"
+      "parent": "tars"
+    },
+    {
+      "id": "TEST-SUBAGENT_V01",
+      "name": "TEST SUBAGENT_V01",
+      "parent": "tars",
+      "additionalSkills": [],
+      "inactiveSkills": [],
+      "enabled": true,
+      "description": "TEST-SUBAGENT_V01TEST-SUBAGENT_V01TEST-SUBAGENT_V01TEST-SUBAGENT_V01"
     }
   ]
 }

@@ -215,7 +215,7 @@ body {
             border-bottom: none;
         }
         
-        /* Column 1: Telegram Group */
+        /* Column 1: TTG (Telegram Topic Group) */
         .tg-group {
             display: flex;
             flex-direction: column;
@@ -282,7 +282,7 @@ body {
         }
         
         .skill-name {
-            font-weight: 600;
+            font-weight: 700;
             font-size: 13px;
             white-space: nowrap;
         }
@@ -688,6 +688,10 @@ body {
             font-weight: 500;
             border-bottom: 2px solid transparent;
             border-radius: 0;
+        }
+
+        .row-tab:not(:first-child) {
+            border-left: 1px solid rgba(255, 255, 255, 0.22);
         }
         
         .row-tab:hover {

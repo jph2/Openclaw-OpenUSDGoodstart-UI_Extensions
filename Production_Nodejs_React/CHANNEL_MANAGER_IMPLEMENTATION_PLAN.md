@@ -13,7 +13,7 @@ agent_index:
     phase5: "#5-phase-ui-polishing-persistence--unified-brain"
     phase6: "#6-phase-native-ide-telegram-integration-anti-gravity"
 created: "2026-04-12T01:07:00Z"
-last_modified: "2026-04-15T23:30:00Z"
+last_modified: "2026-04-17T10:00:00Z"
 author: "AntiGravity"
 provenance:
   git_repo: "OpenClaw_Control_Center"
@@ -24,10 +24,10 @@ tags: [implementation, channel_manager, telegram-hub, zod, private-ecosystem]
 
 # Implementierungsplan: Centralized Channel Manager (V1.3)
 
-**Release**: V1.5 | **Status**: Phase 6 & 8 (teilweise), MCP/Cursor operational | **Focus**: Rosetta-Sync, Gateway-Delivery & IDE-MCP
-**GlobalID**: 20260415_1200_IMPLEMENTATION_v1.5
+**Release**: V1.7 | **Status**: Phase 6 & 8 (teilweise), MCP/Cursor operational | **Focus**: Rosetta-Sync, Gateway-Delivery, IDE-MCP, TTG bulk UI & Sub-Agent-CRUD
+**GlobalID**: 20260417_1200_IMPLEMENTATION_v1.7
 
-**Last Updated:** 15.04.2026 23:30  
+**Last Updated:** 16.04.2026 (Sprint: IDE bridge + tabs + Workbench + Skill-UX + TTG bulk + Sub-Agent CRUD)  
 **Framework:** Horizon Studio Framework  
 **Status:** active
 
@@ -95,12 +95,37 @@ Ziel: Bedienkomfort verbessern, Architektur-Lecks schließen und Wissens-Kontinu
   - **Spec:** §6.3 in `CHANNEL_MANAGER_SPECIFICATION.md`.  
   **Bis dahin:** Nur Text; UI-Hinweis bei Bild-Paste bleibt.
 
-- [ ] **Sub-Task 6.10: Cursor Summary Tab + Studio A070 (MVP)**  
-  **Hier wird die Funktionalität aus Scope/Spec „sichergestellt“ (Implementierung + Abnahme).** Verbindlich: [CHANNEL_MANAGER_SCOPE_MVP_2026-04-15.md](CHANNEL_MANAGER_SCOPE_MVP_2026-04-15.md), [CHANNEL_MANAGER_SPECIFICATION.md](CHANNEL_MANAGER_SPECIFICATION.md) §3, [README_A070_IDE_Summaries.md](../../Studio_Framework/050_Artifacts/A070_ide_cursor_summaries/README_A070_IDE_Summaries.md) (Studio-Repo).  
-  - **Frontend:** Dritter **Sub-Tab** (oder gleichwertiger Tab) pro Kanal/Zeile: **Cursor Summary** — liest **konfigurierbaren** Basis-Pfad (Default: Studio `050_Artifacts/A070_ide_cursor_summaries/`), filtert nach TG/Projekt, listet/rendert Markdown-Summaries; optional „Speichern“ = neue MD unter A070-Konvention oder Notiz im Backend.  
-  - **Backend (optional MVP):** `GET`/`POST` oder statischer File-Read über erlaubten Pfad (Env `STUDIO_FRAMEWORK_ROOT` o. Ä.); keine Doppel-Send-Logik an Telegram.  
-  - **Pipeline IDE → A070:** Kann **Skill** (`ide-openclaw-memory-sync` = `TARS_MEMORY.md` nur) **oder** separates Verdichtungs-Skript/Cron ergänzen; **kanonische** Studio-Ablage bleibt **A070**.  
-  - **Promotion → `memory/` / `MEMORY.md`:** Eigener Follow-up (Cron/Skill), nicht Teil von 6.10 Minimum.
+- [x] **Sub-Task 6.10: IDE project summary Tab + Studio A070 (MVP)** — **teilweise / Phase 1 live (16.04.2026)**  
+  **Verbindlich:** [CHANNEL_MANAGER_SCOPE_MVP_2026-04-15.md](CHANNEL_MANAGER_SCOPE_MVP_2026-04-15.md), [CHANNEL_MANAGER_SPECIFICATION.md](CHANNEL_MANAGER_SPECIFICATION.md) §3, [README_A070_IDE_Summaries.md](../../Studio_Framework/050_Artifacts/A070_ide_cursor_summaries/README_A070_IDE_Summaries.md).  
+  - **Frontend (done):** Dritter **Zeilen-Sub-Tab** **„TARS in IDE · IDE project summary“** (`IdeProjectSummaryPanel`); **OpenClaw Chat**-Label für den Gateway-SSE-Spiegel; Panel listet & rendert Markdown aus A070 via **`/api/ide-project-summaries`** (Alias **`/api/summaries`**).  
+  - **Backend (done MVP):** `GET /api/summaries`, `GET /api/summaries/file` (read-only, `STUDIO_FRAMEWORK_ROOT` / Default `WORKSPACE_ROOT/Studio_Framework`).  
+  - **Offen (6.10b):** Schreiben neuer Summary-MD aus dem UI, Promotion nach OpenClaw `memory/` — weiterhin Follow-up.  
+  - **Pipeline IDE → A070:** unverändert Skill/Cron-seitig; A070 bleibt kanonische Studio-Landing-Zone.
+
+- [x] **Sub-Agent-Zeilen pro `(subId, skillId)` + Hauptagent-Zeilen ohne globales Dedupe (16.04.2026)**  
+  Mehrere Zeilen für dieselbe Skill-ID, wenn mehrere Träger; `ChannelManagerChannelRow.jsx` Merge + stabile `key`-Zeilen. Spec §3.2c.
+
+- [ ] **Future (Backlog): Hauptagent-Flag „darf Sub-Agents / Zusatz-Agenten dynamisch starten“**  
+  Abhängigkeit: Harness/OpenClaw-Semantik; Schema + API + Exporte; Spec §3.2e.
+
+- [ ] **Future (nicht umgesetzt): Triad-Gewichtung im Kanal-UI**  
+  Drei Schieberegler (TARS / MARVIN / CASE / …) mit Summe 100 %, Injection in Prompts; **kein** Kanal-Dropdown für Engine — siehe [CHANNEL_MANAGER_SPECIFICATION.md](CHANNEL_MANAGER_SPECIFICATION.md) §3.2b.
+
+- [x] **Sub-Task 6.12: Kanonisches Config-Modell + Dual-Export (16.04.2026)**  
+  - **Discovery:** [CHANNEL_MANAGER_IDE_BRIDGE_DISCOVERY.md](CHANNEL_MANAGER_IDE_BRIDGE_DISCOVERY.md); **Master-Doku** [CHANNEL_MANAGER_DOCUMENTATION_16-04-2026.md](CHANNEL_MANAGER_DOCUMENTATION_16-04-2026.md) §2.9.  
+  - **Code:** `backend/services/ideConfigBridge.js` — `buildCanonicalSnapshot`, `buildOpenClawProjection`, `buildIdeWorkbenchBundle`, `buildCursorProjection` (Legacy-Wrapper).  
+  - **API:** `GET /api/exports/canonical|openclaw|ide|cursor` (read-only JSON, **kein** automatisches Überschreiben von `openclaw.json`).  
+  - **Rationale:** Channel Manager JSON allein reicht nicht für IDE-Dateibaum (`.cursor/agents`, Rules, MCP); Zwischenschicht liefert **projizierbare** Ziele.
+
+- [x] **Sub-Task 6.13: Cursor Subagents Spiegel (Studio repo) (16.04.2026)**  
+  - **`Studio_Framework/.cursor/agents/*.md`** für researcher, documenter, coder, reviewer, tester — inhaltlich an CM-Subagents gebunden (siehe Dateien).  
+  - **Hinweis:** Vollständige „Übernahme“ Skills/Rules bleibt 6.11 / MCP / zukünftige Sync-Skripte.
+
+- [x] **Sub-Task 6.14: Workbench multi-root + Deep-Link-Zuverlässigkeit + Skill-Herkunft-UX (16.04.2026)**  
+  - **Backend:** `resolveWorkbenchPath` / `getWorkbenchAllowedRoots` — `WORKSPACE_ROOT` plus optionale Roots (`WORKBENCH_EXTRA_ROOTS`, gebündelte OpenClaw-Skills unter `~/.npm-global/...`, User-`homedir()`, optional `/` via `WORKBENCH_ALLOW_FS_ROOT`); alle `/api/workbench/*`-Routen umgestellt; `.env.example` dokumentiert.  
+  - **Frontend Workbench:** `normalizeWorkbenchDir('/')`; `applyWorkbenchSearchParams` nach `persist.onFinishHydration` + SPA; Quick-Buttons Home / data / FS-Root; persist-Version 2.  
+  - **Channel Manager:** effektive Skill-Liste **Kanal → Sub-Agents → Hauptagent**, damit Duplikat-IDs die **Sub-Agent-Quelle** zeigen; Badge **Inherited from {Name} · sub-agent**.  
+  - **Doku/Spec:** [CHANNEL_MANAGER_DOCUMENTATION_16-04-2026.md](CHANNEL_MANAGER_DOCUMENTATION_16-04-2026.md) §2.10, [CHANNEL_MANAGER_SPECIFICATION.md](CHANNEL_MANAGER_SPECIFICATION.md) §3.2c / R6.
 
 - [ ] **Sub-Task 6.11: Skills-Tab — Filter, Sortierung, Reihenfolge, Suche**  
   **Spec:** [CHANNEL_MANAGER_SKILLS_REGISTRY_SPEC.md](CHANNEL_MANAGER_SKILLS_REGISTRY_SPEC.md) § *Filtering, ordering, and display (planned)*.  
@@ -110,6 +135,14 @@ Ziel: Bedienkomfort verbessern, Architektur-Lecks schließen und Wissens-Kontinu
   - **Technik:** Filter/Sort primär clientseitig aus `metadata.skills`; Persistenz lesen/schreiben über bestehende Config-API oder kleinen UI-Settings-Endpunkt.  
   - **SSE:** bei Registry-Update benutzerdefinierte Reihenfolge bereinigen (unbekannte IDs entfernen).  
   - **Extras (optional):** gespeicherte Filter-Presets; Gruppierung einklappbar nach Kategorie.
+
+- [x] **Sub-Task 6.15: TTG-Benennung, Bulk-Zeilenhöhen, Sub-Agent Create/Delete, Dev-Resilienz (16.04.2026)**  
+  - **Spec:** [CHANNEL_MANAGER_SPECIFICATION.md](CHANNEL_MANAGER_SPECIFICATION.md) §3.5.  
+  - **Frontend:** Header **CSS-Grid** (`minmax(0,auto) | minmax(0,1fr) | auto`); vier zentrale Buttons (**Collapse all**, **Configure all**, **Open Claw Chat all**, **TARS in IDE, all**) mit `className="header-actions"` — **horizontal**, kein vertikaler Stack durch `flex-wrap` auf dem Gesamt-Header. Konstanten `ROW_HEIGHT_COLLAPSED` (**260**), `ROW_HEIGHT_EXPANDED` (**1160**); Collapse setzt **alle** Zeilen-Sub-Tabs auf **`config`**.  
+  - **Anzeige:** `formatTtgChannelName` (`TG`+Ziffer → `TTG`+Ziffer); Tabellenkopf **TTG (Telegram Topic Group)**.  
+  - **Backend:** `POST /api/channels/createSubAgent`, `POST /api/channels/deleteSubAgent` (inkl. Bereinigung `inactiveSubAgents`); siehe `backend/routes/channels.js`.  
+  - **Agents-UI:** Modal „Sub-Agent anlegen“, Destroy-**X** pro Sub-Agent-Karte.  
+  - **Dev UX:** React Query Retry/Backoff für `GET /api/channels`; `TelegramChat.jsx` — SSE-Reconnect-Backoff, gedrosselte `console.warn`-Häufigkeit.
 
 ## 7. Phase: Model Context Protocol (MCP) Server Integration (IDE Bridge) 🚀
 Ziel: Anbindung der IDE (AntiGravity / **Cursor**) an den Channel Manager über einen MCP-Server (stdio), sodass CASE ohne Bot-Tokens in der IDE in den Telegram-Kontext injizieren kann.
@@ -123,7 +156,7 @@ Ziel: Anbindung der IDE (AntiGravity / **Cursor**) an den Channel Manager über 
   - Erstellen einer Ressource `config://{telegram_id}`, die die erlaubten CASE SKILLS aus dem Channel Manager als YAML/JSON für den System Prompt anbietet.
 - [x] **Sub-Task 7.3: MCP Tools (Governance Actions)**
   - Tool: `send_telegram_reply(channel_id, message)`. CASE ruft dieses Tool auf. Der MCP Server leitet den Aufruf an das Channel Manager Backend weiter, welches die Nachricht sicher über das zentrale CASE Bot-Token versendet. Kein Token-Leakage in die IDE.
-  - Tool: `change_agent_mode(tars|marvin|sonic)`. CASE kann temporär an eine andere Engine übergeben, wenn in der IDE ein anderer Fokus geboten ist.
+  - Tool: `change_agent_mode(tars|marvin|case)` (**SONIC → case**, siehe `README_Studio_Framework.md` Unified Agent Identity). Temporär andere Engine zuweisen, wenn in der IDE ein anderer Fokus geboten ist.
 - [x] **Sub-Task 7.4: Integration in AntiGravity (`.gemini/antigravity/` config)**
   - Registrierung des MCP Servers in der IDE-Umgebung ("mcp_servers" JSON).
 - [x] **Sub-Task 7.5: Cursor & Remote-SSH (Stand 15.04.2026)**
@@ -182,4 +215,4 @@ Ziel: Umbenennung des Repositories in `OpenClaw_Control_Center` und Ablösung ha
 - [x] **Sub-Task 11.5: Ordner `Production_Nodejs_React` (15.04.2026):** Tippfehler `Prodution_Nodejs_React` → **`Production_Nodejs_React`** im Repo bereinigt.
 
 ---
-*Status: Phasen 1–5 erweitert (5.3 Outbound), Phase 6–8 teilweise, Phase 7 inkl. Cursor/SSH, Phase 10/11 teilweise. Sub-Task 6.9 Medien = Roadmap. Letzte Sync-Doku: 15.04.2026.*
+*Status: Phasen 1–5 erweitert (5.3 Outbound), Phase 6–8 teilweise (6.10/6.12/6.13/**6.14**/**6.15** Sprint 16.04.2026), Phase 7 inkl. Cursor/SSH, Phase 10/11 teilweise. Sub-Task 6.9 Medien = Roadmap.*

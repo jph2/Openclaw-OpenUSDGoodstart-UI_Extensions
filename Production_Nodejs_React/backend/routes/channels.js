@@ -152,12 +152,43 @@ const UpdateAgentSchema = z.object({
 const UpdateSubAgentSchema = z.object({
     subAgentId: z.string().min(1),
     additionalSkills: z.array(z.string()).nullish(),
-    inactiveSkills: z.array(z.string()).nullish()
+    inactiveSkills: z.array(z.string()).nullish(),
+    /** Main agent id, or null to unassign from all main agents. */
+    parent: z.union([z.string().min(1), z.null()]).optional(),
+    /** When false, sub-agent is hidden from channel pickers until re-enabled. */
+    enabled: z.boolean().nullish()
 }).passthrough();
 
 const ReorderMainAgentsSchema = z.object({
     orderedAgentIds: z.array(z.string().min(1))
 });
+
+const DeleteSubAgentSchema = z.object({
+    subAgentId: z.string().min(1).transform((s) => s.trim())
+});
+
+/** New sub-agent row in channel_config.json (id must be unique). */
+const CreateSubAgentSchema = z.object({
+    id: z
+        .string()
+        .min(1)
+        .max(64)
+        .transform((s) => s.trim())
+        .refine((s) => /^[a-zA-Z0-9_-]+$/.test(s), {
+            message: 'id must contain only letters, digits, hyphen, underscore'
+        }),
+    name: z.string().min(1).max(120).transform((s) => s.trim()),
+    description: z.string().max(2000).optional().default(''),
+    parent: z.string().min(1).default('tars'),
+    additionalSkills: z.array(z.string()).optional().default([]),
+    enabled: z.boolean().optional().default(true)
+});
+
+/** Planner is always TARS; older configs may still store other `assignedAgent` values. */
+function normalizeChannelsAssignedAgentTars(channels) {
+    if (!Array.isArray(channels)) return [];
+    return channels.map((c) => ({ ...c, assignedAgent: 'tars' }));
+}
 
 /**
  * Helper to safely get the config path.
@@ -233,21 +264,44 @@ router.get('/export', async (req, res, next) => {
 });
 
 /**
+ * Atomic full replace of channel_config.json (validated). Emits SSE reload.
+ */
+async function persistFullChannelConfig(body) {
+    const payload = ChannelConfigSchema.parse(body);
+    payload.channels = normalizeChannelsAssignedAgentTars(payload.channels);
+    const configPath = await getConfigPath();
+    const release = await lockfile.lock(configPath, { retries: 5 });
+    try {
+        await fs.writeFile(configPath, JSON.stringify(payload, null, 2), 'utf8');
+        configEvents.emit('configChange');
+    } finally {
+        await release();
+    }
+    return payload;
+}
+
+/**
  * POST /api/channels/import
  * Overwrites the current configuration with an uploaded one.
  */
 router.post('/import', async (req, res, next) => {
     try {
-        const payload = ChannelConfigSchema.parse(req.body);
-        const configPath = await getConfigPath();
-        const release = await lockfile.lock(configPath, { retries: 5 });
+        await persistFullChannelConfig(req.body);
+        res.json({ ok: true, message: 'Configuration imported successfully.' });
+    } catch (err) {
+        if (err instanceof z.ZodError) err.status = 400;
+        next(err);
+    }
+});
 
-        try {
-            await fs.writeFile(configPath, JSON.stringify(payload, null, 2), 'utf8');
-            res.json({ ok: true, message: 'Configuration imported successfully.' });
-        } finally {
-            await release();
-        }
+/**
+ * POST /api/channels/config
+ * Sub-Task 6.5: Same as import — explicit name for atomic persistence of full JSON.
+ */
+router.post('/config', async (req, res, next) => {
+    try {
+        await persistFullChannelConfig(req.body);
+        res.json({ ok: true, message: 'Configuration saved atomically.' });
     } catch (err) {
         if (err instanceof z.ZodError) err.status = 400;
         next(err);
@@ -300,7 +354,7 @@ router.get('/', async (req, res, next) => {
                 name: routingInfo.name || localInfo.name || `TG Unknown (${groupId})`,
                 model: settings.model || localInfo.model || 'local-pc/google/gemma-4-26b-a4b',
                 skills: localInfo.skills || [],
-                assignedAgent: localInfo.assignedAgent || undefined,
+                assignedAgent: 'tars',
                 ideOverride: localInfo.ideOverride || false,
                 inactiveSubAgents: localInfo.inactiveSubAgents || [],
                 inactiveSkills: localInfo.inactiveSkills || [],
@@ -320,7 +374,7 @@ router.get('/', async (req, res, next) => {
                 name: localInfo.name || `Orphan (${groupId})`,
                 model: localInfo.model || 'local-pc/google/gemma-4-26b-a4b',
                 skills: localInfo.skills || [],
-                assignedAgent: localInfo.assignedAgent || undefined,
+                assignedAgent: 'tars',
                 ideOverride: localInfo.ideOverride || false,
                 inactiveSubAgents: localInfo.inactiveSubAgents || [],
                 inactiveSkills: localInfo.inactiveSkills || [],
@@ -347,12 +401,11 @@ router.get('/', async (req, res, next) => {
             mainAgents: {
                 tars: { name: "TARS", role: "Planner", color: "#50e3c2", defaultSkills: ["clawflow", "skill-creator", "clawhub"], quote: "Direct, honest, useful. No fake certainty. Builds with architecture and rigor." },
                 marvin: { name: "MARVIN", role: "Critic", color: "#e35050", defaultSkills: ["healthcheck", "node-connect"], quote: "Zero-trust reviewer. Assumes everything is broken. Finds failures before they find you." },
-                sonic: { name: "SONIC", role: "Executor", color: "#e3c450", defaultSkills: ["web_search", "web_fetch"], quote: "Fast execution inside scope. Moves quick when plan is solid. Stops when reality diverges." },
-                case: { name: "CASE (@CASE_JanBot)", role: "IDE Relay / DevBot", color: "#3b82f6", defaultSkills: ["clawflow", "web_search"], quote: "Translates human intent into IDE action. I build what TARS plans." }
+                case: { name: "CASE", role: "Synthesis", color: "#e3c450", defaultSkills: ["clawflow", "web_search", "web_fetch"], quote: "Synthesis role (SONIC → CASE): execution and IDE relay aligned with the harness; same triad as the IDE (TARS / MARVIN / CASE)." }
             },
             subAgentsDict: {
                 researcher: { name: "Researcher", parent: "tars", additionalSkills: ["web_search", "web_fetch"] },
-                coder: { name: "Coder", parent: "sonic", additionalSkills: ["omniverse-extension-development", "usd-development"] },
+                coder: { name: "Coder", parent: "case", additionalSkills: ["omniverse-extension-development", "usd-development"] },
                 reviewer: { name: "Reviewer", parent: "marvin", additionalSkills: [] },
                 documenter: { name: "Documenter", parent: "tars", additionalSkills: ["notion"] },
                 tester: { name: "Tester", parent: "marvin", additionalSkills: ["healthcheck"] }
@@ -417,9 +470,6 @@ router.post('/update', async (req, res, next) => {
                 if (payload.skills !== undefined) {
                     parsed.channels[channelIndex].skills = payload.skills;
                 }
-                if (payload.assignedAgent !== undefined) {
-                    parsed.channels[channelIndex].assignedAgent = payload.assignedAgent;
-                }
                 if (payload.ideOverride !== undefined) {
                     parsed.channels[channelIndex].ideOverride = payload.ideOverride;
                 }
@@ -443,7 +493,7 @@ router.post('/update', async (req, res, next) => {
                     id: payload.channelId,
                     name: `New Channel ${payload.channelId}`,
                     skills: payload.skills || [],
-                    assignedAgent: payload.assignedAgent || 'tars',
+                    assignedAgent: 'tars',
                     ideOverride: payload.ideOverride || false,
                     model: payload.model || 'local-pc/google/gemma-4-26b-a4b',
                     inactiveSubAgents: payload.inactiveSubAgents || [],
@@ -452,6 +502,8 @@ router.post('/update', async (req, res, next) => {
                     inactiveCaseSkills: payload.inactiveCaseSkills || []
                 });
             }
+
+            parsed.channels = normalizeChannelsAssignedAgentTars(parsed.channels || []);
 
             // G4 Secondary check: ensure our modifications didn't break the global schema
             const finalState = ChannelConfigSchema.parse(parsed);
@@ -501,6 +553,7 @@ router.post('/updateAgent', async (req, res, next) => {
                 if (payload.inactiveSkills !== undefined) parsed.agents[agentIndex].inactiveSkills = payload.inactiveSkills;
             }
 
+            parsed.channels = normalizeChannelsAssignedAgentTars(parsed.channels || []);
             const finalState = ChannelConfigSchema.parse(parsed);
             await fs.writeFile(configPath, JSON.stringify(finalState, null, 2), 'utf8');
             res.json({ ok: true, message: 'Agent configuration updated atomically.' });
@@ -534,11 +587,121 @@ router.post('/updateSubAgent', async (req, res, next) => {
             if (subAgentIndex > -1) {
                 if (payload.additionalSkills !== undefined) parsed.subAgents[subAgentIndex].additionalSkills = payload.additionalSkills;
                 if (payload.inactiveSkills !== undefined) parsed.subAgents[subAgentIndex].inactiveSkills = payload.inactiveSkills;
+                if (payload.parent !== undefined) parsed.subAgents[subAgentIndex].parent = payload.parent;
+                if (payload.enabled !== undefined) parsed.subAgents[subAgentIndex].enabled = payload.enabled;
             }
 
+            parsed.channels = normalizeChannelsAssignedAgentTars(parsed.channels || []);
             const finalState = ChannelConfigSchema.parse(parsed);
             await fs.writeFile(configPath, JSON.stringify(finalState, null, 2), 'utf8');
             res.json({ ok: true, message: 'SubAgent configuration updated atomically.' });
+        } finally {
+            await release();
+        }
+    } catch (error) {
+        if (error instanceof z.ZodError) error.status = 400;
+        next(error);
+    }
+});
+
+/**
+ * POST /api/channels/createSubAgent
+ * Appends a new sub-agent to channel_config.json (atomic write).
+ */
+router.post('/createSubAgent', async (req, res, next) => {
+    try {
+        const payload = CreateSubAgentSchema.parse(req.body);
+        const configPath = await getConfigPath();
+        await ensureConfigExists(configPath);
+        const release = await lockfile.lock(configPath, { retries: 5 });
+
+        try {
+            const raw = await fs.readFile(configPath, 'utf8');
+            const parsed = JSON.parse(raw);
+            if (!parsed.subAgents) parsed.subAgents = [];
+
+            const exists = parsed.subAgents.some((s) => s.id === payload.id);
+            if (exists) {
+                return res.status(409).json({
+                    ok: false,
+                    error: true,
+                    message: `Sub-agent id "${payload.id}" already exists.`
+                });
+            }
+
+            const mainIds = new Set((parsed.agents || []).map((a) => a.id));
+            if (payload.parent && !mainIds.has(payload.parent)) {
+                return res.status(400).json({
+                    ok: false,
+                    error: true,
+                    message: `Unknown main agent parent: ${payload.parent}`
+                });
+            }
+
+            const row = {
+                id: payload.id,
+                name: payload.name,
+                parent: payload.parent,
+                additionalSkills: [...payload.additionalSkills],
+                inactiveSkills: [],
+                enabled: payload.enabled
+            };
+            if (payload.description && payload.description.trim()) {
+                row.description = payload.description.trim();
+            }
+
+            parsed.subAgents.push(row);
+            parsed.channels = normalizeChannelsAssignedAgentTars(parsed.channels || []);
+            const finalState = ChannelConfigSchema.parse(parsed);
+            await fs.writeFile(configPath, JSON.stringify(finalState, null, 2), 'utf8');
+            res.json({ ok: true, message: 'Sub-agent created.', subAgent: row });
+        } finally {
+            await release();
+        }
+    } catch (error) {
+        if (error instanceof z.ZodError) error.status = 400;
+        next(error);
+    }
+});
+
+/**
+ * POST /api/channels/deleteSubAgent
+ * Removes a sub-agent from channel_config.json and strips its id from channel inactiveSubAgents.
+ */
+router.post('/deleteSubAgent', async (req, res, next) => {
+    try {
+        const payload = DeleteSubAgentSchema.parse(req.body);
+        const configPath = await getConfigPath();
+        await ensureConfigExists(configPath);
+        const release = await lockfile.lock(configPath, { retries: 5 });
+
+        try {
+            const raw = await fs.readFile(configPath, 'utf8');
+            const parsed = JSON.parse(raw);
+            if (!parsed.subAgents) parsed.subAgents = [];
+
+            const idx = parsed.subAgents.findIndex((s) => s.id === payload.subAgentId);
+            if (idx === -1) {
+                return res.status(404).json({
+                    ok: false,
+                    error: true,
+                    message: `Sub-agent "${payload.subAgentId}" not found.`
+                });
+            }
+
+            parsed.subAgents.splice(idx, 1);
+
+            if (Array.isArray(parsed.channels)) {
+                parsed.channels = parsed.channels.map((c) => ({
+                    ...c,
+                    inactiveSubAgents: (c.inactiveSubAgents || []).filter((id) => id !== payload.subAgentId)
+                }));
+            }
+
+            parsed.channels = normalizeChannelsAssignedAgentTars(parsed.channels || []);
+            const finalState = ChannelConfigSchema.parse(parsed);
+            await fs.writeFile(configPath, JSON.stringify(finalState, null, 2), 'utf8');
+            res.json({ ok: true, message: 'Sub-agent removed.' });
         } finally {
             await release();
         }
@@ -588,6 +751,7 @@ router.post('/reorderMainAgents', async (req, res, next) => {
             const byId = new Map(agents.map((a) => [a.id, a]));
             parsed.agents = incoming.map((id) => byId.get(id));
 
+            parsed.channels = normalizeChannelsAssignedAgentTars(parsed.channels || []);
             const finalState = ChannelConfigSchema.parse(parsed);
             await fs.writeFile(configPath, JSON.stringify(finalState, null, 2), 'utf8');
             res.json({ ok: true, message: 'Main agent order updated.' });

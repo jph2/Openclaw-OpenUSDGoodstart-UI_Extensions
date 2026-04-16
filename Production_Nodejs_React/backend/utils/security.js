@@ -1,5 +1,7 @@
 import path from 'path';
 import fs from 'fs/promises';
+import { existsSync } from 'fs';
+import { homedir } from 'os';
 
 /**
  * G1 Security Fix-Gate: Airtight resolveSafe
@@ -37,3 +39,84 @@ export const resolveSafe = async (baseRootPath, targetRelativePath = '') => {
         relative: relativeTarget === '' ? '.' : relativeTarget
     };
 };
+
+/**
+ * Allowed roots for Workbench (read tree / file / write): primary workspace plus optional extra dirs
+ * (e.g. npm-global bundled openclaw skills). Used instead of resolveSafe() when the client sends absolute paths.
+ */
+export function getWorkbenchAllowedRoots() {
+    const roots = [];
+    if (process.env.WORKSPACE_ROOT) {
+        roots.push(path.resolve(process.env.WORKSPACE_ROOT));
+    }
+    const extra = (process.env.WORKBENCH_EXTRA_ROOTS || '')
+        .split(',')
+        .map((s) => s.trim())
+        .filter(Boolean);
+    for (const e of extra) {
+        roots.push(path.resolve(e));
+    }
+    if (process.env.WORKBENCH_DISABLE_BUNDLED_SKILLS_ROOT !== '1') {
+        const bundled = path.join(homedir(), '.npm-global/lib/node_modules/openclaw/skills');
+        try {
+            if (existsSync(bundled)) {
+                roots.push(path.resolve(bundled));
+            }
+        } catch {
+            /* ignore */
+        }
+    }
+    if (process.env.WORKBENCH_DISABLE_HOME_ROOT !== '1') {
+        try {
+            const h = path.resolve(homedir());
+            if (existsSync(h)) {
+                roots.push(h);
+            }
+        } catch {
+            /* ignore */
+        }
+    }
+    if (process.env.WORKBENCH_ALLOW_FS_ROOT === '1') {
+        roots.push(path.resolve('/'));
+    }
+    return [...new Set(roots)];
+}
+
+/**
+ * @param {string} [inputPath] - Absolute path, or relative to WORKSPACE_ROOT, or '' / 'workspace' for workspace root
+ */
+export function resolveWorkbenchPath(inputPath) {
+    const roots = getWorkbenchAllowedRoots();
+    if (!roots.length) {
+        const err = new Error('WORKSPACE_ROOT is not configured.');
+        err.status = 500;
+        throw err;
+    }
+
+    const raw = inputPath === undefined || inputPath === null ? '' : String(inputPath);
+
+    if (raw === '' || raw === 'workspace') {
+        const root = roots[0];
+        return { rootPath: root, resolved: root, relative: '.' };
+    }
+
+    let candidate;
+    if (path.isAbsolute(raw)) {
+        candidate = path.resolve(raw);
+    } else {
+        candidate = path.resolve(roots[0], raw);
+    }
+
+    for (const root of roots) {
+        const rootSep = root.endsWith(path.sep) ? root : `${root}${path.sep}`;
+        if (candidate === root || candidate.startsWith(rootSep)) {
+            let relative = path.relative(root, candidate);
+            if (relative === '') relative = '.';
+            return { rootPath: root, resolved: candidate, relative };
+        }
+    }
+
+    const err = new Error('Path not under allowed workbench roots.');
+    err.status = 403;
+    throw err;
+}

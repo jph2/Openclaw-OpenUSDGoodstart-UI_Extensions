@@ -13,7 +13,7 @@ agent_index:
     logic: "#5-datenfluss--design-entscheidungen"
     risks: "#6-architektur-risiken--audit-härtung"
 created: "2026-04-12T01:07:00Z"
-last_modified: "2026-04-15T22:00:00Z"
+last_modified: "2026-04-17T10:00:00Z"
 author: "AntiGravity"
 provenance:
   git_repo: "OpenClaw_Control_Center"
@@ -22,10 +22,10 @@ provenance:
 tags: [specification, channel_manager, gateway-first, requirements, zod-hardening]
 ---
 
-# Spezifikation & Kernanforderungen: Sovereign Channel Management (V2.0)
+# Spezifikation & Kernanforderungen: Sovereign Channel Management (V2.1)
 
-**Version**: 2.0.0 | **Date**: 15.04.2026 | **Status**: Sovereign | **Context**: Gateway-First, CM als Konfigurationsspiegel, Triade (TARS · MARVIN · CASE)
-20260415_2200_SPECIFICATION_v2.0
+**Version**: 2.2.0 | **Date**: 17.04.2026 | **Status**: Sovereign | **Context**: Gateway-First, CM als Konfigurationsspiegel, Triade (TARS · MARVIN · CASE), Workbench multi-root, Skill-Herkunft-UX, TTG bulk & Sub-Agent-CRUD
+20260417_1200_SPECIFICATION_v2.2
 
 **Status:** active | **Master Source:** Horizon Studio Framework
 
@@ -43,7 +43,7 @@ Die Architektur bleibt ein **geschlossenes, privates Ökosystem** mit maximaler 
 
 ### 1.1 MVP Scope (15.04.2026) — Channel Manager Rolle
 
-Der Channel Manager bleibt **Konfigurations-Hub** und **OpenClaw-Chat-Spiegel**; er wird **nicht** als alleinige Chat-Oberfläche genutzt, die dieselbe Absicht parallel an IDE und Gateway sendet (Vermeidung von Doppelreaktionen). Geplante Tabs: **Configuration** | **OpenClaw Chat** | **Cursor Summary**. **Verbindliche Kurzfassung:** [CHANNEL_MANAGER_SCOPE_MVP_2026-04-15.md](CHANNEL_MANAGER_SCOPE_MVP_2026-04-15.md).
+Der Channel Manager bleibt **Konfigurations-Hub** und **OpenClaw-Chat-Spiegel**; er wird **nicht** als alleinige Chat-Oberfläche genutzt, die dieselbe Absicht parallel an IDE und Gateway sendet (Vermeidung von Doppelreaktionen). Geplante Tabs: **Configuration** | **OpenClaw Chat** | **TARS in IDE · IDE project summary**. **Verbindliche Kurzfassung:** [CHANNEL_MANAGER_SCOPE_MVP_2026-04-15.md](CHANNEL_MANAGER_SCOPE_MVP_2026-04-15.md).
 
 ---
 
@@ -60,19 +60,59 @@ Der Channel Manager bleibt **Konfigurations-Hub** und **OpenClaw-Chat-Spiegel**;
 
 ## 3. Zielbild der Architektur (Gateway-First, Konfigurationsspiegel & Studio-Bridges)
 
-**Kein „Private Hub-and-Spoke“ mehr im Sinne von:** UI + IDE als gleichwertige **zweite** Sendezentrale direkt in Telegram **parallel** zum Gateway. **Zielbild 2026:** **Harness (Gateway)** zentral für Agenten; **Channel Manager** = **Konfiguration** + **Spiegel** + optional **Cursor Summary**; **Projekte / IDE** hängen an **Bridges** und MCP, nicht als zweiter Telegram-Hub.
+**Kein „Private Hub-and-Spoke“ mehr im Sinne von:** UI + IDE als gleichwertige **zweite** Sendezentrale direkt in Telegram **parallel** zum Gateway. **Zielbild 2026:** **Harness (Gateway)** zentral für Agenten; **Channel Manager** = **Konfiguration** + **Spiegel** + optional **IDE-Projekt-Summary** (Tab „TARS in IDE · IDE project summary“); **Projekte / IDE** hängen an **Bridges** und MCP, nicht als zweiter Telegram-Hub.
 
 ### 3.1 Rollen im Bild
 
 | Schicht | Rolle |
 |--------|--------|
 | **OpenClaw Harness** | Gateway, Sessions, Web-Chat, `openclaw.json`, Workspace-`memory/` — **governing layer**. |
-| **Channel Manager** | **Laufzeit:** `openclaw.json` / Kanäle lesen-schreiben, SSE, Chat-Spiegel **OpenClaw Chat**, Tab **Cursor Summary** (Verdichtung, nicht zweiter Live-Chat). |
+| **Channel Manager** | **Laufzeit:** `openclaw.json` / Kanäle lesen-schreiben, SSE, Chat-Spiegel **OpenClaw Chat**, Tab **TARS in IDE · IDE project summary** (Studio A070 + optional `memory/` read-only; tool-agnostischer Name, API **`/api/ide-project-summaries`** Alias zu **`/api/summaries`**). |
 | **Telegram** | Private Gruppen / Topics — **Anbindung** über Gateway; **kein** alleiniges `getUpdates`-Backend als SoT. |
 | **Projects \| IDE** | Cursor / Repos; **MCP** zum Channel Manager; **kein** paralleles „alles nochmal an Telegram senden“ im MVP. |
 | **Studio Framework** | Artefakte, u. a. **`A070_ide_cursor_summaries`** — Rückfluss der IDE-Verdichtung in die Studio-Struktur (Horizon `050` / `080`). |
 
-### 3.2 Diagramm
+### 3.2 Canonical layer & Dual export (16.04.2026)
+
+Channel Manager bleibt **Source of Truth** in `channel_config.json`. **OpenClaw** und **IDE-Workbenchs** (Cursor-Klasse) erwarten **unterschiedliche Artefakte** (`openclaw.json` / Workspace vs `.cursor/agents`, Rules, `mcp.json`). Dafür gibt es eine **reine Projektionsschicht** im Backend (`ideConfigBridge.js`) und Read-Only-Endpunkte `GET /api/exports/canonical`, `/openclaw`, **`/ide`** (primär, `kind: ide_workbench_bundle`), **`/cursor`** (Legacy-Alias, `kind: cursor_bundle`). **Kein** stiller Write nach `~/.openclaw` oder `~/.cursor` ohne explizites Apply-Tool.
+
+**Discovery:** [CHANNEL_MANAGER_IDE_BRIDGE_DISCOVERY.md](CHANNEL_MANAGER_IDE_BRIDGE_DISCOVERY.md) — **Master-Doku:** [CHANNEL_MANAGER_DOCUMENTATION_16-04-2026.md](CHANNEL_MANAGER_DOCUMENTATION_16-04-2026.md) §2.9.
+
+### 3.2b Kanal-UI: TARS-only & Sub-agents (16.04.2026)
+
+- **Engine-Auswahl** (TARS/MARVIN/CASE) pro Kanal: **entfernt** aus dem UI. Harness-Personas (MARVIN, CASE) bleiben **konversationell** und **SOUL-/Prompt-Thema**; **Future Feature:** z. B. dreiteilige Gewichtung (Summe 100 %) mit Injection in Prompts — **nicht** Bestandteil des aktuellen Channel Manager.  
+- **Anzeige:** Kanal-Spalte zeigt **TARS · Engine** fest; **Sub-agents** ersetzt die frühere „Active Members“-Bezeichnung.  
+- **„TARS in IDE“** (Relay-Skills, Daten `caseSkills`/`inactiveCaseSkills`): bezeichnet die **IDE-Spur** der Skills; **kein** separates „CASE als Kanal-Motor“-Dropdown. Technische Felder behalten `case_*`-Präfix im JSON aus Kompatibilität.
+
+### 3.2c Skills-Anzeige: Merge-Reihenfolge & Herkunft (16.04.2026)
+
+Die **effektive** Skill-Liste im Konfigurations-Workspace (Kanalzeile) wird aus drei Quellen zusammengeführt: explizite **Kanal-Skills**, Skills der **aktiven Sub-Agents** (unter TARS), Skills des **Hauptagents (TARS)**.
+
+**Mehrzeilen-Modell (Umsetzung 16.04.2026):** Pro **Träger** gibt es eine eigene Zeile. Dieselbe Skill-ID kann **mehrfach** erscheinen (z. B. einmal als Kanal-Skill, mehrfach pro Sub-Agent, mehrfach für Hauptagent-Defaults, wenn die Daten es mehrfach listen). **Reihenfolge:** zuerst Kanal-Skills (pro ID **einmal**, Duplikate im Kanal-Array werden ignoriert), dann für jeden **aktiven** Sub-Agent jede **additionalSkills**-Zeile, zuletzt jeder Eintrag in **TARS `defaultSkills`**.
+
+**Checkbox / Toggle:** Jede Zeile schaltet nur die **jeweilige** Quelle: Kanal-`inactiveSkills`, Hauptagent-`inactiveSkills` (`tars`), oder `inactiveSkills` des **subId** aus der Zeile.
+
+**Hinweis:** Vollständig getrennte Steuerung bei gleicher Skill-ID über mehrere Sub-Agents erfordert **unterschiedliche `subAgents[].id`** pro Instanz (Spec §3.2e).
+
+**UI-Badge:** Sub-Agent-Skills tragen ein Label der Form **Inherited from sub-agent · {Anzeigename}** (nicht nur ein generisches „inherited by agent“). Hauptagent-Skills: **INHERITED BY AGENT**; Kanal-Skills: **CHANNEL SKILL**.
+
+### 3.2d OpenClaw Workbench (Dateizugriff) (16.04.2026)
+
+Die **Workbench** im Control Center liest/schreibt Dateien über **`/api/workbench/*`**. Pfade müssen unter **mindestens einer erlaubten Wurzel** liegen: primär **`WORKSPACE_ROOT`**, zusätzlich konfigurierbar über **`WORKBENCH_EXTRA_ROOTS`**, automatisch das gebündelte OpenClaw-Skills-Verzeichnis unter **`~/.npm-global/.../openclaw/skills`** (sofern vorhanden), der **User-Home** (`homedir()`), optional das **Dateisystem-Root `/`** nur wenn **`WORKBENCH_ALLOW_FS_ROOT=1`**. Details und Abschalt-Flags: **`backend/.env.example`**, Master-Doku §2.10.
+
+**Deep-Link:** `/workbench?path=...` bzw. `?file=...` muss nach dem Laden der gespeicherten UI-Zustände (**Zustand persist**) weiterhin die **URL-Navigation** anwenden, damit **„EDIT in Workbench“** aus dem Channel Manager zuverlässig den richtigen Skill-Ordner öffnet.
+
+### 3.2e Sub-Agent-Identität, Duplikate & zukünftige Delegation (16.04.2026)
+
+**Primärschlüssel:** Ein Sub-Agent ist in `channel_config.json` durch **`subAgents[].id`** (String, **eindeutig** innerhalb des Arrays) identifiziert — **nicht** durch eine aus Skill-Listen abgeleitete ID. Skills können sich bei mehreren Einträgen überschneiden; die **Unterscheidbarkeit** von „20 gleichen Researchern“ kommt aus **20 unterschiedlichen `id`-Werten** (z. B. `researcher-search-a`, `researcher-search-b`, … oder technische IDs / UUIDs). **`name`** darf für die Anzeige identisch sein.
+
+**Warum keine „ID = f(Researcher, Skills)“:** Skill-Sets ändern sich; Sortierung und Merge würden die berechnete ID brechen. Stabile Referenzen für UI, Toggles und API (`updateSubAgent`) erfordern ein **persistentes, administriertes** `id`.
+
+**Optionale Ergänzungen (später):** separates UI-Feld **Anzeige-Suffix / Instanz-Label** (ohne `id` zu ändern), falls mehrere gleich benannte Sub-Agents unterschiedlich lesbar sein sollen.
+
+**Zukünftiges Feature (nicht MVP):** Checkbox am **Hauptagent** im Sinne von **„darf eigene Sub-Agents / Zusatz-Agenten starten“** (engl. sinngemäß *can spin up additional agents on its own behalf*). Das betrifft **Policy + OpenClaw/Harness-Laufzeit** (wer darf dynamisch Sub-Agent-Instanzen erzeugen), nicht nur UI. **Vorgabe:** erst Harness-/Engine-Semantik klären, dann Schema-Feld (z. B. boolesches Flag am Agent) + Channel Manager + ggf. Exporte — siehe Implementierungsplan (Backlog).
+
+### 3.3 Diagramm
 
 ```mermaid
 graph TB
@@ -88,7 +128,7 @@ graph TB
     subgraph CM["Channel Manager"]
         CFG[Tab: Configuration]
         CHAT[Tab: OpenClaw Chat Spiegel]
-        SUM[Tab: Cursor Summary]
+        SUM[Tab: IDE project summary]
     end
 
     subgraph IDE["Projects | IDE"]
@@ -108,15 +148,38 @@ graph TB
     CUR -.->|MCP stdio| CFG
 ```
 
-### 3.3 MVP-Tab-Modell (Scope-of-Record)
+### 3.4 MVP-Tab-Modell (Scope-of-Record)
 
 | Tab | Funktion |
 |-----|----------|
 | **Configuration** | Kanäle, Modelle, Skills, Agenten — **verbindliche** Laufzeitquelle. |
 | **OpenClaw Chat** | **Spiegel** des gateway-gestützten Verlaufs (SSE), gebunden an gewählte Gruppe / Session. Chat kann paralel über diese Interface geführt werden, (derzeit keine Bilder...) |
-| **Cursor Summary** | **Kein** zweiter Live-Chat; **verdichtete** IDE-/Projektspur — Quelle u. a. `Studio_Framework/050_Artifacts/A070_ide_cursor_summaries/`. |
+| **IDE project summary** | **Kein** zweiter Live-Chat; **verdichtete** IDE-/Projektspur — Quelle u. a. `Studio_Framework/050_Artifacts/A070_ide_cursor_summaries/`; API **`/api/ide-project-summaries`**. |
 
 **Verbindlich:** [CHANNEL_MANAGER_SCOPE_MVP_2026-04-15.md](CHANNEL_MANAGER_SCOPE_MVP_2026-04-15.md).
+
+### 3.5 Manage Channels: TTG-Benennung, Zeilenhöhen, Bulk-Aktionen & Sub-Agent-CRUD (16.04.2026)
+
+**TTG (Telegram Topic Group) — Anzeige:**  
+Die Tabelle nutzt die Spaltenüberschrift **„TTG (Telegram Topic Group)“**. Anzeigenamen aus `channel_config.json` können historisch mit Präfix **`TG`** + Ziffer beginnen; die **UI** normalisiert die Darstellung auf **`TTG`** + Ziffer (`frontend/src/utils/formatTtgChannelName.js`) — **ohne** die persistierten `name`-Felder im JSON zu ändern. **Kanal-IDs** (`channels[].id`) bleiben unverändert.
+
+**Zeilenhöhen & Persistenz:**  
+Pro Kanalzeile ist die Höhe des Arbeitsbereichs **anpassbar** (Resize-Handle, Zustand in `localStorage` unter **`ag-channel-row-heights`**). **Bulk-Buttons** in der **Header-Mitte** (gleiche Button-Klasse wie Export/Import; Layout: **CSS-Grid**, damit die vier Aktionen **nebeneinander** bleiben):
+
+| Aktion | Verhalten |
+|--------|-----------|
+| **Collapse all** | Alle Zeilen **~260px** Höhe; **alle** Zeilen-Sub-Tabs auf **Configuration** (vermeidet Layout-Artefakte, wenn zuvor **OpenClaw Chat** oder **TARS in IDE · IDE project summary** aktiv war). |
+| **Configure all** | Alle Zeilen auf die **expandierte** Zielhöhe (aktuell **1160px**, für ~ein Viewport-Segment auf 4K; Wert ist im Code zentral konstant und wurde iterativ gegenüber 1760/1460px reduziert) + Sub-Tab **Configuration**. |
+| **Open Claw Chat all** | Gleiche expandierte Höhe + Sub-Tab **OpenClaw Chat**. |
+| **TARS in IDE, all** | Gleiche expandierte Höhe + Sub-Tab **TARS in IDE · IDE project summary** (`summary`). |
+
+**Sub-Agente (Konfigurationsebene):**  
+- **Anlegen:** `POST /api/channels/createSubAgent` — `id` (eindeutig), `name`, optional `description`, `parent` (Hauptagent), optional `additionalSkills`, `enabled`.  
+- **Aktualisieren:** bestehend `POST /api/channels/updateSubAgent`.  
+- **Löschen:** `POST /api/channels/deleteSubAgent` — entfernt den Eintrag aus `subAgents[]` und bereinigt **`channels[].inactiveSubAgents`** von der gelöschten `id`.  
+UI: **Agents**-Tab — „Sub-Agent anlegen“, Destroy-**X** auf der Sub-Agent-Karte.
+
+**React Query / Dev:** `GET /api/channels` nutzt **Retries mit Backoff** bei kurzzeitigem Backend-Ausfall (z. B. Proxy **502** während API-Neustart). **TelegramChat** (`EventSource`): Reconnect mit Backoff, gedrosseltes **Console-Logging** bei SSE-`onerror` (normal bei Reconnect/Tab-Hintergrund).
 
 ---
 
@@ -173,6 +236,12 @@ Eine granulare Steuerungs- und Berechtigungsebene (Whitelisting), über welche f
 - **Visualisierung:** Die Verwaltung der MCP Permissions findet via farblich abgehobenem "+ Add MCP" Dropdown (z.B. gelbes Accent-Color) kanalbezogen statt. Die aktivierten MCPs werden im Channel-Modell mit Tags wie "INHERITED BY IDE" versehen.
 - **Data Flow:** Die Whitelists ("Welche Server dürfen im Channel angesteuert werden?") fließen als dedizierte Ressource (z. B. `allowedMCPs` über `config://{telegram_id}`) zur Laufzeit als limitierendes Instruktionsset in den System-Prompt des ausführenden Agenten ein.
 
+### R6: Workbench-Zugriff & Skill-Herkunft im UI (16.04.2026)
+
+- **Workbench-API:** Dateizugriffe dürfen nur unter explizit erlaubten Wurzeln erfolgen (siehe **§3.2d**); keine Offenlegung beliebiger Host-Pfade ohne Konfiguration.
+- **Deep-Link:** `?path=` / `?file=` zur Workbench muss **nach** Wiederherstellung persistierter Client-Zustände angewendet werden, damit „EDIT in Workbench“ aus dem Channel Manager **deterministisch** den gleichen Skill-Kontext öffnet wie die URL.
+- **Skill-Zeilen:** Pro Träger eine Zeile; gleiche Skill-ID mehrfach möglich (§3.2c). Sub-Agent-Zeilen tragen ein **benanntes** Badge (Anzeigename des Sub-Agents).
+
 ---
 
 ## 5. Datenfluss & Design Entscheidungen
@@ -190,6 +259,8 @@ Siehe **§3 Zielbild** (Gateway-First, Konfigurationsspiegel, Tabs, Studio-Bridg
 | **Validation** | Zod (Hardened) | Laufzeit-Schutz gegen unvollständige JSONs. |
 | **Communication** | SSE (Server-Sent Events) | Hot-Reload für Konfiguration und Transkript-Stream ohne Telegram-Polling. |
 | **Persistence** | Domain-Driven Ownership | Vermeidung von File-Locks durch exklusive Zuständigkeiten. |
+| **Workbench FS** | Mehrere erlaubte Roots + `resolveWorkbenchPath` | Gebündelte Skills, User-Home, optional `/`; keine 403 bei legitimen OpenClaw-Pfaden (§3.2d). |
+| **Skill-Anzeige** | Kanal → Sub-Paare → Hauptagent-Defaults | Mehrere Zeilen pro ID möglich; Toggle je Träger; Badge mit Sub-Agent-Namen (§3.2c). |
 
 ### 5.3 Rosetta Stone: Session Mapping Logic
 To ensure **Context Continuity** between the Channel Manager, Anti-Gravity IDE, and the Telegram surface, the system MUST enforce **Session Key Parity**:
@@ -277,4 +348,4 @@ Eine **Projekt**-`.cursor/mcp.json` mit derselben **Server-ID** wie die User-Dat
 **Abgrenzung:** Bis zur Umsetzung bleiben **Fotos und Screenshots** der primäre Kanal **Telegram nativ**; der Channel Manager bleibt textorientiert.
 
 ---
-*Status: V2.0 — Zielbild §3 auf Gateway-First + Konfigurationsspiegel + Triade + MVP-Tabs überarbeitet; doppelte §5.2 entfernt; §1/§2/§4/R5/§5.4 angepasst.*
+*Status: V2.1 — §3.2c/§3.2d Skill-Merge + Workbench; **R6**; §5.2 um Workbench/Skill-Zeilen ergänzt; §1/§2/§4/R5/§5.4 unverändert gültig.*

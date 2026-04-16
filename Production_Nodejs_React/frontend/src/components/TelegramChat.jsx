@@ -84,6 +84,8 @@ export default function TelegramChat({ channelId, channelName }) {
     const [showSystemMessages, setShowSystemMessages] = useState(false);
     const [pasteHint, setPasteHint] = useState(null);
     const containerRef = useRef(null);
+    /** Counts consecutive SSE failures (reset on onopen). Used to throttle console noise — onerror is normal during reconnects. */
+    const sseFailStreakRef = useRef(0);
 
     // Auto-scroll to bottom
     const scrollToBottom = () => {
@@ -102,44 +104,67 @@ export default function TelegramChat({ channelId, channelName }) {
     // Setup Server-Sent Events for live messages
     useEffect(() => {
         if (!channelId) return;
-        
+
+        sseFailStreakRef.current = 0;
+
         let shouldReconnect = true;
         let eventSource = null;
-        
+        let reconnectTimer = null;
+
         const connectSSE = () => {
-             eventSource = new EventSource(`/api/telegram/stream/${channelId}`);
-             
-             eventSource.onmessage = (event) => {
-                 if (event.data === ':ping') return;
-                 try {
-                     const parsed = JSON.parse(event.data);
-                     if (parsed.type === 'INIT') {
-                         setMessages(parsed.messages);
-                     } else if (parsed.type === 'MESSAGE') {
-                         setMessages(prev => {
-                             // Avoid duplicates if SSE reconnects
-                             if (prev.find(m => m.id === parsed.message.id)) return prev;
-                             return [...prev, parsed.message];
-                         });
-                     }
-                 } catch (e) {
-                     console.warn('Failed to parse SSE payload', e);
-                 }
-             };
-             
-             eventSource.onerror = (e) => {
-                 console.warn("SSE connection error", e);
-                 eventSource.close();
-                 if (shouldReconnect) {
-                     setTimeout(connectSSE, 3000);
-                 }
-             };
+            eventSource = new EventSource(`/api/telegram/stream/${channelId}`);
+
+            eventSource.onopen = () => {
+                sseFailStreakRef.current = 0;
+            };
+
+            eventSource.onmessage = (event) => {
+                if (event.data === ':ping') return;
+                try {
+                    const parsed = JSON.parse(event.data);
+                    if (parsed.type === 'INIT') {
+                        setMessages(parsed.messages);
+                    } else if (parsed.type === 'MESSAGE') {
+                        setMessages((prev) => {
+                            // Avoid duplicates if SSE reconnects
+                            if (prev.find((m) => m.id === parsed.message.id)) return prev;
+                            return [...prev, parsed.message];
+                        });
+                    }
+                } catch (e) {
+                    console.warn('Failed to parse SSE payload', e);
+                }
+            };
+
+            eventSource.onerror = () => {
+                const es = eventSource;
+                if (es) es.close();
+                if (!shouldReconnect) return;
+
+                sseFailStreakRef.current += 1;
+                const n = sseFailStreakRef.current;
+                // Browsers fire onerror on every drop; logging each one spams the console when many chats mount.
+                if (n === 1 || n % 5 === 0) {
+                    console.warn(
+                        `[Telegram SSE] stream ${channelId}: connection dropped (attempt ${n}, will reconnect). ` +
+                            'Normal if the API restarted or the tab was backgrounded.'
+                    );
+                }
+
+                const delayMs = Math.min(2500 * 1.4 ** Math.min(n - 1, 8), 20000);
+                if (reconnectTimer) clearTimeout(reconnectTimer);
+                reconnectTimer = setTimeout(connectSSE, delayMs);
+            };
         };
 
         connectSSE();
 
         return () => {
             shouldReconnect = false;
+            if (reconnectTimer) {
+                clearTimeout(reconnectTimer);
+                reconnectTimer = null;
+            }
             if (eventSource) eventSource.close();
         };
     }, [channelId]);

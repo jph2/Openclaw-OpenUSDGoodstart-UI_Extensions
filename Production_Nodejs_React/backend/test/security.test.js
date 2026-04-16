@@ -11,7 +11,10 @@ test('Security G1: Path Traversal Defenses', async (t) => {
             .expect(403);
             
         assert.strictEqual(response.body.error, true);
-        assert.match(response.body.message, /blocked|Internal Server Error/i); // Dependent on NODE_ENV masking
+        assert.match(
+            response.body.message,
+            /blocked|Internal Server Error|allowed workbench roots|Path traversal/i
+        ); // Dev exposes detail; production masks to Internal Server Error
     });
 
     await t.test('Block relative traversal sequence (../../)', async () => {
@@ -45,9 +48,9 @@ test('Security G4: Zod Input Validation', async (t) => {
     await t.test('Reject invalid data types automatically', async () => {
         const response = await request(app)
             .post('/api/channels/update')
-            .send({ channelId: 'admin_panel', agents: 'discord' }) // Agents should be Array, not string
-            .expect(400); 
-            
+            .send({ channelId: 'admin_panel', skills: 'not-an-array' }) // skills must be string[] or nullish
+            .expect(400);
+
         assert.strictEqual(response.body.error, true);
     });
 });
