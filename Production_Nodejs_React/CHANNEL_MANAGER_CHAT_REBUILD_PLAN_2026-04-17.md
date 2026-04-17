@@ -1,9 +1,11 @@
 # CHANNEL_MANAGER_CHAT_REBUILD_PLAN_2026-04-17
 
 ## Status
-**IN PROGRESS** - Phase 1-5 Implementation COMPLETED on 2026-04-17.
+**COMPLETED** - Phase 1-5 Implementation COMPLETED on 2026-04-17.
 
-**Current State:** Functional MVP with CLI fallback. HTTP Gateway optimization pending.
+**Current State:** Functional MVP with CLI fallback. Core chat architecture migrated successfully.
+
+**Next Phase (Future):** Performance optimization - see §Performance Analysis below.
 
 This file is the focused rebuild plan for the Channel Manager chat stack.
 It exists separately from the broader implementation plan so the migration can proceed with a clean, bounded context.
@@ -93,6 +95,53 @@ It exists separately from the broader implementation plan so the migration can p
 - Updated `isMe` to use only `senderRole === 'user'`
 - Updated `handleSendMessage()` to use native API when available
 - Updated SSE handler to remove pending message reconciliation logic
+
+---
+
+## 🔍 Performance Analysis (Post-Implementation)
+
+### Observed Behavior (2026-04-17)
+- **Backend Send-Ack:** ~12-30ms (excellent)
+- **Message Delivery:** Reliable, no duplicates
+- **Perceived Latency:** ~9 seconds until message visible in UI
+- **CPU/Lüfter:** High load persists
+
+### Root Cause Analysis
+| Component | Status | Finding |
+|-----------|--------|---------|
+| CM Backend Send | ✅ Fast | ~12-30ms ack time |
+| CM Backend Poll | ✅ Optimized | Polling intervals increased |
+| Frontend Build | ✅ Optimized | useMemo for message filtering |
+| Vite Dev Server | ⚠️ Not culprit | Same load with/without |
+| **OpenClaw Gateway** | 🔴 **Primary suspect** | 9.1% CPU, main resource consumer |
+| Session Materialization | 🔴 **Secondary suspect** | Time from write to JSONL visible |
+
+### Conclusion
+The 9-second latency and high CPU are **NOT** caused by:
+- ❌ Legacy Telegram send path (fixed)
+- ❌ Optimistic append (removed)
+- ❌ Inefficient polling (optimized)
+- ❌ Vite Dev Server (tested with/without)
+
+The issues are **UPSTREAM** of the Channel Manager:
+1. OpenClaw Gateway itself (9.1% CPU)
+2. Session write/materialization latency
+3. Potential frontend render/reconcile delays on large message lists
+
+### Recommended Next Steps (Future Work)
+1. **Instrument full pipeline:**
+   - Timestamp at HTTP request receive
+   - Timestamp at session file write
+   - Timestamp at SSE emit
+   - Timestamp at frontend render complete
+
+2. **Profile OpenClaw Gateway:**
+   - Separate from CM concerns
+   - May require Gateway configuration changes
+
+3. **Frontend Virtualization:**
+   - React-window for large message lists
+   - Reduce re-renders on message append
 
 ---
 
