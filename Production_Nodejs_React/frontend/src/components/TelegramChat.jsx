@@ -252,8 +252,10 @@ export default function TelegramChat({ channelId, channelName }) {
 
     // Phase 1: No pendingMessages - only canonical session messages
     // OPTIMIZED: useMemo to prevent recalculation on every render
+    // CRITICAL: Limit to last 100 messages to prevent UI blocking
     const filteredMessages = useMemo(() => {
-        return messages.filter(msg => {
+        const recentMessages = messages.slice(-100); // Only process last 100
+        return recentMessages.filter(msg => {
             if (showSystemMessages) return true;
             
             const text = msg.text || '';
