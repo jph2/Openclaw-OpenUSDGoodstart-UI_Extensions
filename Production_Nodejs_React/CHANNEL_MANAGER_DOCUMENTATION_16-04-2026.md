@@ -13,7 +13,7 @@ agent_index:
     stabilization: "#2-stabilisierungs-meilensteine-14042026"
     anti_patterns: "#anti-patterns--architektonische-fallstricke"
 created: "2026-04-13T20:45:00Z"
-last_modified: "2026-04-17T18:00:00Z"
+last_modified: "2026-04-18T20:00:00Z"
 author: "AntiGravity"
 provenance:
   git_repo: "OpenClaw_Control_Center"
@@ -28,9 +28,9 @@ tags: [master-docs, architecture, zod, telegram-hub, private-ecosystem, anti-pat
 
 # OpenClaw Channel Manager: Master Documentation
 
-**Version**: 2.7.0 | **Date**: 17.04.2026 | **Time**: 18:00 | **GlobalID**: 20260417_1800_MASTER_DOC_v2.7
+**Version**: 2.8.0 | **Date**: 18.04.2026 | **Time**: 20:00 | **GlobalID**: 20260418_2000_MASTER_DOC_v2.8
 
-**Status:** active | **Source Registry:** Consolidated from Docs 10.04., 14.04., **15.04.** & **16.–17.04.2026** (IDE bridge, TARS-only Kanal-UI, IDE-Projekt-Summary-API, **Workbench multi-root**, **Skill-Herkunft-Labels**, **TTG bulk actions**, **Sub-Agent create/delete**, **Dev-Resilienz**, **Integrations-Roadmap §3.6 / §2.12**).
+**Status:** active | **Source Registry:** Consolidated from Docs 10.04., 14.04., **15.04.** & **16.–18.04.2026** (IDE bridge, TARS-only Kanal-UI, IDE-Projekt-Summary-API, **Workbench multi-root**, **Skill-Herkunft-Labels**, **TTG bulk actions**, **Sub-Agent create/delete**, **Dev-Resilienz**, **Chat-SoT §3.4a–e**, **Restoration/Ops 17.04.**, **Integrations-Roadmap §3.6 / §2.12**, **Chat Rebuild 17.04.–Native Session Architecture**).
 
 ---
 
@@ -188,7 +188,8 @@ Spaltenkopf **„TTG (Telegram Topic Group)“**. Anzeigenamen mit veraltetem Pr
 
 **Dev / Betrieb:**  
 - **`GET /api/channels`:** React Query mit **Retries und Backoff** bei temporärem **502** (Vite-Proxy, wenn die API neu startet).  
-- **`TelegramChat` / SSE:** Reconnect mit **Backoff**, **gedrosseltes** Logging bei `EventSource`-Fehlern (Reconnect ist erwartbar).
+- **`TelegramChat` / SSE:** Reconnect mit **Backoff**, **gedrosseltes** Logging bei `EventSource`-Fehlern (Reconnect ist erwartbar).  
+- **Vite / API-Basis (17.04.2026, Hardening):** gemeinsamer **`/api`-Proxy** für Dev **und** Preview; optional **`VITE_API_BASE_URL`** (Vite **neu starten** nach Änderung); **`apiUrl()`** für **`fetch`** und **`EventSource`** — siehe [OPENCLAW_CHANNEL_MANAGER_RESTORATION_REPORT.md](OPENCLAW_CHANNEL_MANAGER_RESTORATION_REPORT.md) §4.
 
 ### 2.12 Nächste Schritte: Backend ↔ OpenClaw ↔ IDE & TTG-Namenskonvention (17.04.2026)
 
@@ -202,6 +203,35 @@ Spaltenkopf **„TTG (Telegram Topic Group)“**. Anzeigenamen mit veraltetem Pr
 **TTG-Kürzel (`TTG000`, …):** Einheitliche Zuordnung IDE ↔ Telegram-Topic-Group erfordert ein **stabiles Schema**. **Nur** „User/Agent soll es so schreiben“ ist **unzureichend**. Empfohlen: **Backend-Validierung** (Zod) bei Create/Rename, optional Normalisierung/Warnung; ergänzend **Workspace-Skill** und **Cursor Rule** für IDE-Agenten — die technische Schranke bleibt die **API/Config**, nicht die bloße Erinnerung.
 
 **Referenz:** [CHANNEL_MANAGER_IDE_BRIDGE_DISCOVERY.md](CHANNEL_MANAGER_IDE_BRIDGE_DISCOVERY.md).
+
+### 2.13 Architekturbefunde — Referenzstand 16.04.2026 (fachlich / „Ground Truth“)
+
+**Trennung:** Dieser Block beschreibt **Produkt- und Architekturwahrheit**, nicht den **Restaurations-Notstand** vom nächsten Tag.
+
+| Thema | Kurz |
+|-------|------|
+| **Chat-Parity** | Primär **Source-of-Truth** (session-native Stream), nicht nur UI-Rendering; gleiche **Telegram-Group-ID** ⇒ nicht automatisch gleiche Transcript-Quelle. |
+| **Session-first** | `group_id` → **`sessions.json`** → aktuelle **`sessionFile`** → Stream aus **kanonischer OpenClaw JSONL** — nicht auf **Telegram-only-Projektion** als alleinige Wahrheit verlassen. |
+| **Stabiles Binding** | **`group_id`**, **Session-Key** `agent:main:telegram:group:<id>`; **ephemer:** **`sessionId`**, **`sessionFile`** (nicht als persistierter Kanal-Schlüssel). |
+| **Rebind** | Bei Wechsel der **`sessionFile`** Mirror neu auflösen / Rebind-Handling — Spec §3.4, Implementierungsplan §12. |
+| **`toolResult`** | Interne Tool-Zeilen **nicht** als unmarkierte user-facing Chat-Historie — Spec §3.4b. |
+| **Read vs. Send** | **Read** session-first; **Send** zustellungsorientiert; **strukturell gesplittet** bis zu **session-native Send-Binding** — Spec §3.4c, Evidenz **`API_DIRECT_TEST_1814`**. |
+| **TTG vs. Arbeit** | **TTG allein reicht nicht**; zweite Achse **Projekt/Lineage** — Studio **[TRACEABILITY_SCHEMA_V1.1.md](../../Studio_Framework/020_Standards_Definitions_Rules/010_Schema/TRACEABILITY_SCHEMA_V1.1.md)**. |
+
+**Verbindliche Ausformulierung:** [CHANNEL_MANAGER_SPECIFICATION.md](CHANNEL_MANAGER_SPECIFICATION.md) §3.4 und §3.4a–§3.4e.
+
+### 2.14 Restaurations- und Betriebsstand — 17.04.2026 (operativ)
+
+**Trennung:** **Repo-Reparatur**, **Config-Hardening** und **lokaler Betrieb** — **keine** Ersetzung der Architektur-Entscheidungen aus §2.13.
+
+Vollständiger Ist-Report: **[OPENCLAW_CHANNEL_MANAGER_RESTORATION_REPORT.md](OPENCLAW_CHANNEL_MANAGER_RESTORATION_REPORT.md)**.
+
+| Thema | Kurz |
+|-------|------|
+| **Repo** | Viele getrackte Pfade **gelöscht**; Wiederherstellung per **Git** (`Production_Nodejs_React/frontend`, `backend`); **`occ-ctl.mjs`** im Root **nicht verfügbar** → Start über **`npm`**. |
+| **Symptome** | u. a. **404** ohne `index.html`, **404** auf **`/api/channels/events`** wenn Proxy fehlt, **500** bei **`channels: {}`**, doppeltes **„You“**, Tool-Zeilen **hinter** Copy-Layer, leerer **Agents**-Tab. |
+| **Fixes** | Arrays erzwingen, **Normalisierung**, **Vite-Proxy** + optional **`VITE_API_BASE_URL`**, **ein** Echo-Pfad, **z-index**, **Metadaten-Fallback** für Agenten. |
+| **UX** | Nachricht aus CM **nicht automatisch** in jedem anderen OpenClaw-Panel — **§3.2** des Restoration-Reports. |
 
 ---
 
@@ -294,8 +324,12 @@ Die Windows-`mcp.json` (`E:\`, `cmd /c`, `.exe`) in **Remote-SSH** nach `~/.curs
 | **Skill-Badges** | Sub-Agent vor Hauptagent bei Duplikat-IDs; Label **Inherited from {Name} · sub-agent**. |
 | **TTG bulk / Sub-Agent CRUD** | §3.5 Spec; Header-Buttons, 260px / 1010px expand, zwei `<tr>` pro Zeile, Bulk nur Tab „Manage Channels“, `createSubAgent` / `deleteSubAgent`; §2.11 Master-Doku. |
 | **Integration / TTG-Regel** | Spec §3.6, Plan §12, Master §2.12 — OpenClaw-Parity, IDE-Exports, MCP 8.3; TTG-Präfix **durch Validierung**, nicht nur Skill/Text. |
+| **Chat-SoT / Read-Send** | Spec §3.4a–§3.4c; Master §2.13 — session-first, `toolResult`, Send/Read-Split, **`API_DIRECT_TEST_1814`**. |
+| **Traceability (Studio)** | Zwei Achsen; **[TRACEABILITY_SCHEMA_V1.1.md](../../Studio_Framework/020_Standards_Definitions_Rules/010_Schema/TRACEABILITY_SCHEMA_V1.1.md)**. |
+| **Restore / Ops 17.04.** | Master §2.14; Report [OPENCLAW_CHANNEL_MANAGER_RESTORATION_REPORT.md](OPENCLAW_CHANNEL_MANAGER_RESTORATION_REPORT.md). |
+| **Chat Rebuild 17.04.** | Native OpenClaw Session Architecture; [CHANNEL_MANAGER_CHAT_REBUILD_PLAN_2026-04-17.md](CHANNEL_MANAGER_CHAT_REBUILD_PLAN_2026-04-17.md) — Phase 1-5 COMPLETED. |
 
 ---
 
 **Ende der konsolidierten Master-Dokumentation.**
-*Zusammengeführt 14.04.2026 (AntiGravity); Abschnitte 2.6–2.8, AP-17 und Summary 15.04.2026 ergänzt; **Abschnitt 2.9 und Summary 16.04.2026** (IDE-Bridge, TARS-only, Sub-agents, IDE-Summary-API); **Abschnitt 2.10 16.04.2026** (Workbench multi-root, Skill-Herkunft); **Abschnitt 2.11 17.04.2026** (TTG bulk, Sub-Agent create/delete, TTG-Anzeige, Dev-Resilienz, zwei-Zeilen-Layout, Bulk-Sichtbarkeit); **Abschnitt 2.12 17.04.2026** (Integration Backlog, TTG-Durchsetzung).*
+*Zusammengeführt 14.04.2026 (AntiGravity); Abschnitte 2.6–2.8, AP-17 und Summary 15.04.2026 ergänzt; **Abschnitt 2.9 und Summary 16.04.2026** (IDE-Bridge, TARS-only, Sub-agents, IDE-Summary-API); **Abschnitt 2.10 16.04.2026** (Workbench multi-root, Skill-Herkunft); **Abschnitt 2.11 17.04.2026** (TTG bulk, Sub-Agent create/delete, TTG-Anzeige, Dev-Resilienz, zwei-Zeilen-Layout, Bulk-Sichtbarkeit); **Abschnitt 2.12 17.04.2026** (Integration Backlog, TTG-Durchsetzung); **§2.13 / §2.14 18.04.2026** (Architekturbefunde 16.04 vs. Restaurationsstand 17.04.).*
