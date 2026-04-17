@@ -18,6 +18,7 @@ const RENDER_COMPONENTS = {
 
 const MessageBubble = React.memo(({ msg }) => {
     const isMe = msg.senderRole === 'user';
+    const isPending = !!msg.pending;
     
     const formatNum = (n) => n > 1000 ? (n/1000).toFixed(1) + 'k' : n;
     const timestampStr = new Date(msg.date * 1000).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
@@ -30,6 +31,9 @@ const MessageBubble = React.memo(({ msg }) => {
     }
     if (msg.model) {
         stamp += ` ctx ${msg.model}`;
+    }
+    if (isPending) {
+        stamp += ' • sending…';
     }
 
     const copyToClipboard = (text) => {
@@ -44,6 +48,7 @@ const MessageBubble = React.memo(({ msg }) => {
             <div style={{ 
                 background: isMe ? '#50e3c2' : '#2a2b36', 
                 color: isMe ? '#000' : '#e0e0e0',
+                opacity: isPending ? 0.72 : 1,
                 padding: '12px 16px', 
                 borderRadius: '8px',
                 borderBottomRightRadius: isMe ? 0 : '8px',
@@ -87,6 +92,7 @@ export default function TelegramChat({ channelId, channelName }) {
     const [sessionBinding, setSessionBinding] = useState(null);
     const [sessionBindingError, setSessionBindingError] = useState(null);
     const [lastSendMeta, setLastSendMeta] = useState(null);
+    const [pendingMessages, setPendingMessages] = useState([]);
     const containerRef = useRef(null);
     /** Counts consecutive SSE failures (reset on onopen). Used to throttle console noise — onerror is normal during reconnects. */
     const sseFailStreakRef = useRef(0);
@@ -159,13 +165,17 @@ export default function TelegramChat({ channelId, channelName }) {
                 try {
                     const parsed = JSON.parse(event.data);
                     if (parsed.type === 'INIT' || parsed.type === 'SESSION_REBOUND') {
-                        setMessages(parsed.messages || []);
+                        const incoming = parsed.messages || [];
+                        setMessages(incoming);
+                        setPendingMessages((prev) => prev.filter((pending) => !incoming.some((msg) => msg.senderRole === 'user' && msg.text?.includes(pending.reconcileText))));
                     } else if (parsed.type === 'MESSAGE') {
                         setMessages((prev) => {
-                            // Avoid duplicates if SSE reconnects
                             if (prev.find((m) => m.id === parsed.message.id)) return prev;
                             return [...prev, parsed.message];
                         });
+                        if (parsed.message?.senderRole === 'user') {
+                            setPendingMessages((prev) => prev.filter((pending) => !parsed.message.text?.includes(pending.reconcileText)));
+                        }
                     }
                 } catch (e) {
                     console.warn('Failed to parse SSE payload', e);
@@ -230,7 +240,9 @@ export default function TelegramChat({ channelId, channelName }) {
         );
     };
 
-    const filteredMessages = messages.filter(msg => {
+    const visibleMessages = [...messages, ...pendingMessages].sort((a, b) => (a.date || 0) - (b.date || 0));
+
+    const filteredMessages = visibleMessages.filter(msg => {
         if (showSystemMessages) return true;
         
         const text = msg.text || '';
@@ -248,8 +260,22 @@ export default function TelegramChat({ channelId, channelName }) {
         if (!inputValue.trim() || isSending) return;
         
         const textToSend = inputValue.trim();
+        const pendingId = `pending-${Date.now()}`;
+        const pendingMessage = {
+            id: pendingId,
+            text: textToSend,
+            reconcileText: textToSend,
+            sender: 'You (Pending)',
+            senderId: 'user',
+            senderRole: 'user',
+            date: Date.now() / 1000,
+            isBot: false,
+            pending: true
+        };
+
         setInputValue('');
         setIsSending(true);
+        setPendingMessages((prev) => [...prev, pendingMessage]);
         
         try {
             const res = await fetch(apiUrl('/api/telegram/send'), {
@@ -261,6 +287,7 @@ export default function TelegramChat({ channelId, channelName }) {
             const data = await res.json();
             setLastSendMeta(data);
         } catch (err) {
+            setPendingMessages((prev) => prev.filter((msg) => msg.id !== pendingId));
             console.error(err);
             alert("Failed to send message.");
             setInputValue(textToSend); // restore on fail
@@ -337,7 +364,7 @@ export default function TelegramChat({ channelId, channelName }) {
             
             {/* Messages Area */}
             <div ref={containerRef} style={{ flex: 1, padding: '16px', display: 'flex', flexDirection: 'column', gap: '12px', overflowY: 'auto' }}>
-                {messages.length === 0 ? (
+                {filteredMessages.length === 0 ? (
                     <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-muted)' }}>
                         Waiting for messages in {channelName}...
                     </div>
