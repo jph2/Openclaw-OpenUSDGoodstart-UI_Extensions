@@ -397,16 +397,11 @@ export default function TelegramChat({ channelId, channelName }) {
     // Phase 1: Removed local optimistic append - no pendingMessages state
     // Messages now come exclusively from canonical session stream
     const containerRef = useRef(null);
-    /** Sentinel element kept at the end of the messages list; scrolled into
-     *  view instead of computing `scrollTop = scrollHeight` manually, so a
-     *  late-arriving code block or markdown render doesn't leave the target
-     *  above the real bottom. */
-    const bottomSentinelRef = useRef(null);
     /** Wrapper around the rendered message list. This is the element that
      *  actually grows when new content is appended or markdown finishes
-     *  laying out. ResizeObserver on the scroll container itself never
-     *  fires (its clientHeight is fixed by flex), so we observe this inner
-     *  wrapper instead. */
+     *  laying out. We observe its DOM mutations to trigger the auto-scroll
+     *  instead of relying on scroll-container resize events (which never
+     *  fire: the scroll container's border-box is fixed by `flex: 1`). */
     const messagesInnerRef = useRef(null);
     /** Counts consecutive SSE failures (reset on onopen). Used to throttle console noise — onerror is normal during reconnects. */
     const sseFailStreakRef = useRef(0);
@@ -416,12 +411,6 @@ export default function TelegramChat({ channelId, channelName }) {
      * only when this is true, so reading history is never interrupted.
      */
     const stuckToBottomRef = useRef(true);
-    /** Epoch-ms timestamp until which onScroll events are treated as
-     *  side-effects of our own programmatic scroll and must NOT flip
-     *  stuckToBottomRef. A single scrollIntoView can emit several scroll
-     *  events as layout settles (especially with markdown/code blocks),
-     *  so a one-shot boolean was too brittle. */
-    const suppressScrollFlipUntilRef = useRef(0);
 
     useEffect(() => {
         if (!channelId) {
@@ -572,64 +561,56 @@ export default function TelegramChat({ channelId, channelName }) {
     // reading history and we leave their scroll position alone.
     const SCROLL_PIN_THRESHOLD_PX = 80;
 
+    /** Force the scroll container to the bottom. This is intentionally the
+     *  dumbest possible implementation: setting scrollTop directly, no
+     *  scrollIntoView, no sentinel, no RAF dance. Called from the
+     *  MutationObserver below every time the message list mutates. */
+    const forceScrollToBottom = () => {
+        const el = containerRef.current;
+        if (!el) return;
+        el.scrollTop = el.scrollHeight;
+    };
+
     const handleContainerScroll = () => {
-        // While a programmatic scroll is settling (see scrollToBottomIfPinned)
-        // we ignore the resulting scroll events so they don't mistakenly
-        // flip the pin state off. A 250ms window easily covers a few RAFs
-        // of markdown / code-block settling without eating real user input.
-        if (Date.now() < suppressScrollFlipUntilRef.current) return;
         const el = containerRef.current;
         if (!el) return;
         const distanceFromBottom = el.scrollHeight - (el.scrollTop + el.clientHeight);
+        // Our own forceScrollToBottom sets scrollTop exactly to scrollHeight,
+        // so the resulting scroll event naturally leaves distanceFromBottom
+        // at 0 and keeps the pin on — no suppress window needed.
         stuckToBottomRef.current = distanceFromBottom <= SCROLL_PIN_THRESHOLD_PX;
     };
 
-    /**
-     * Scroll the sentinel into view, once the current commit's layout has
-     * been painted. A single rAF is rarely enough — ReactMarkdown, fenced
-     * code blocks, and tool-output <pre> elements commonly grow the row
-     * in a second (and occasionally third) layout step. We therefore
-     * schedule a small cascade: rAF → 60ms → 180ms. All three calls are
-     * cheap no-ops if `stuckToBottomRef` has flipped off in between.
-     */
-    const scrollToBottomIfPinned = () => {
-        if (!stuckToBottomRef.current) return;
-        const sentinel = bottomSentinelRef.current;
-        if (!sentinel) return;
-        suppressScrollFlipUntilRef.current = Date.now() + 250;
-        sentinel.scrollIntoView({ block: 'end', inline: 'nearest', behavior: 'auto' });
-    };
-
-    // Auto-scroll when the *visible* (filtered) count changes, only if
-    // the user is anchored near the bottom. We fire a short cascade so
-    // late-arriving markdown blocks still end up in view even if the
-    // browser reflows the row after our first scroll.
-    useEffect(() => {
-        const raf = requestAnimationFrame(scrollToBottomIfPinned);
-        const t1 = setTimeout(scrollToBottomIfPinned, 60);
-        const t2 = setTimeout(scrollToBottomIfPinned, 180);
-        return () => {
-            cancelAnimationFrame(raf);
-            clearTimeout(t1);
-            clearTimeout(t2);
-        };
-    }, [filteredMessages.length]);
-
-    // Some message content (markdown, fenced code, tool-result <pre>)
-    // grows the row *after* the initial paint. ResizeObserver on the
-    // scroll container itself never fires (its border-box is fixed by
-    // flex: 1), so we observe the inner messages wrapper — that IS the
-    // element that grows. Fires cheaply; no-ops unless the user is
-    // anchored near the bottom.
+    // MutationObserver-driven auto-scroll. Any DOM change inside the
+    // messages wrapper — a new bubble appended, a code block finishing
+    // its markdown render, a tool-output <pre> expanding — fires the
+    // observer and we re-pin to the bottom if the user hasn't scrolled
+    // away. This covers every scenario the RAF / ResizeObserver combo
+    // kept missing because it observes the actual element that grows
+    // rather than the fixed-size scroll container. Cheap: the callback
+    // is a single `scrollTop = scrollHeight` assignment.
     useEffect(() => {
         const inner = messagesInnerRef.current;
-        if (!inner || typeof ResizeObserver === 'undefined') return;
-        const ro = new ResizeObserver(() => {
-            if (stuckToBottomRef.current) scrollToBottomIfPinned();
+        if (!inner || typeof MutationObserver === 'undefined') return;
+        const mo = new MutationObserver(() => {
+            if (stuckToBottomRef.current) forceScrollToBottom();
         });
-        ro.observe(inner);
-        return () => ro.disconnect();
+        mo.observe(inner, {
+            childList: true,
+            subtree: true,
+            characterData: true
+        });
+        return () => mo.disconnect();
     }, []);
+
+    // Also re-pin whenever the visible count changes, for the case where
+    // the MutationObserver hasn't attached yet (first mount) or the new
+    // content is rendered synchronously within a single React commit
+    // (both observers land after, but we want the user bubble to slot
+    // in at the bottom immediately on send).
+    useEffect(() => {
+        if (stuckToBottomRef.current) forceScrollToBottom();
+    }, [filteredMessages.length]);
 
     const handleSendMessage = async () => {
         if (!inputValue.trim() || isSending) return;
@@ -757,14 +738,6 @@ export default function TelegramChat({ channelId, channelName }) {
                             <MessageBubble key={msg.id || idx} msg={{...msg, text: msg.displayChatText}} />
                         ))
                     )}
-                    {/* Bottom sentinel — auto-scroll target. Zero-height so it
-                        never grows the container, and aria-hidden so assistive
-                        tech doesn't announce an empty element. */}
-                    <div
-                        ref={bottomSentinelRef}
-                        aria-hidden="true"
-                        style={{ height: 0, flexShrink: 0 }}
-                    />
                 </div>
             </div>
 

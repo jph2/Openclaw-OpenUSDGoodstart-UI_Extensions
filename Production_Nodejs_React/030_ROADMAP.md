@@ -63,23 +63,35 @@ fallbacks. No architectural changes. Landed as three commits in order P1 → P2 
   `startTransition()` so typing, button clicks and scroll stay responsive
   during bursts.
 
-### A / P2b — Scroll-settle follow-up (done)
+### A / P2b — Scroll-settle follow-up (done, third iteration)
 
-Field test of P2 showed the auto-scroll gate was too pessimistic on long
-backlogs: `scrollTo({top: el.scrollHeight})` ran before ReactMarkdown /
-fenced code blocks finished expanding, so the target was stale and the
-new message landed just below the viewport.
+Field tests of P2 and the first two P2b revisions both failed. Documenting
+the dead ends so we don't reinvent them:
 
-- ✅ Added a zero-height bottom sentinel at the end of the messages
-  list and switched to `sentinel.scrollIntoView({block:'end'})` inside
-  a `requestAnimationFrame`, so the scroll target reflects the final
-  post-paint layout.
-- ✅ Added a `ResizeObserver` on the messages container that re-asserts
-  the scroll pin whenever the container's size grows while the user is
-  still anchored (catches the late expansion of markdown code blocks).
-- ✅ Added `suppressNextScrollFlipRef` so the `onScroll` event fired as
-  a side effect of our own `scrollIntoView` can't race layout and flip
-  `stuckToBottomRef` to false.
+1. **v1 (sentinel + rAF).** `sentinel.scrollIntoView({block:'end'})` inside
+   a single `requestAnimationFrame`. Missed late markdown / code-block
+   layout (`scrollHeight` grew after the rAF fired).
+2. **v2 (sentinel + rAF cascade + `ResizeObserver` on scroll container).**
+   Added a 60 ms + 180 ms cascade and a `ResizeObserver` observing
+   `containerRef`. The observer never actually fired: the scroll
+   container is `flex: 1`, its border-box never resizes when content is
+   added; only its `scrollHeight` does.
+3. **v3 (final, MutationObserver + `scrollTop = scrollHeight`).** Rip
+   out the sentinel, the rAF, the cascade, and the suppress-window
+   boolean. Wrap the message list in a `messagesInnerRef` and observe
+   it with a `MutationObserver` (`childList`, `subtree`, `characterData`).
+   Any DOM change — new bubble, ReactMarkdown finishing, tool-output
+   `<pre>` expanding, chevron-chip toggling — fires the observer and
+   we set `scrollTop = scrollHeight` directly if the user is still
+   pinned. The pin threshold is 80 px from the bottom. Our own
+   programmatic scroll lands at `scrollHeight` exactly, so the
+   resulting scroll event keeps `distanceFromBottom = 0` and the pin
+   stays on without needing a suppress window.
+
+The v3 implementation has four moving parts total (`messagesInnerRef`,
+`stuckToBottomRef`, `handleContainerScroll`, one `MutationObserver`)
+down from eight in v2, and makes no assumption about when markdown or
+code blocks finish laying out.
 
 ### A / P3 — Dead code purge (done)
 
@@ -267,6 +279,57 @@ not part of the A → B → C1 → C2 sequence above.
 - **Multi-user or remote operator UIs.**
 - **Engine-per-message picker** — explicitly rejected in `040_DECISIONS.md`
   §ADR-007; do not re-raise without a new decision record.
+
+---
+
+## 8b. Out-of-scope follow-ups (known, not blocking Bundle A)
+
+These items surfaced while closing Bundle A but live outside the
+Channel Manager's own codebase, so they don't block Bundle B.
+
+### 8b.1 · CLI gateway auth → agent cold-start latency
+
+**Symptom:** each `openclaw agent --session-id … --message …` invocation
+takes **~12 s** before the user message appears in the transcript and
+**~25–30 s** before the final answer, on a warm box with a running
+gateway.
+
+**Root cause:** the CLI can reach the local `openclaw-gateway`
+(`127.0.0.1:18789`) but rejects it because this build requires
+`tools.gatewayToken` in `openclaw.json`. The `--token` flag was removed
+in a recent CLI release. Every invocation therefore falls back to
+*embedded* mode (`Error: gateway url override requires explicit
+credentials → falling back to embedded`), which cold-boots a fresh
+agent process and reloads the full session context (~130 k tokens)
+before each turn.
+
+**Workaround tested:** `/tmp/openclaw-cm-send-*.log` now carries a
+visible `Gateway agent failed; falling back to embedded …` line for
+every send, and the backend surfaces any shebang / import / CLI
+startup error as `inject_cli_startup_error` 300 ms after the spawn.
+
+**Planned fix (not ours):**
+
+1. Bump the OpenClaw CLI to the latest build (user self-service;
+   tentatively 4.15 once available) — expected to reintroduce a
+   supported auth path.
+2. Add `tools.gatewayToken` (or equivalent) to
+   `~/.openclaw/openclaw.json` so the CLI uses the warm gateway
+   daemon instead of a cold embedded agent. Expected latency:
+   single-digit seconds for the user echo, model-bound for the reply.
+
+**Channel Manager change needed:** none right now. When the CLI's
+gateway-auth story stabilizes, `sessionSender.js` (Bundle B / P5)
+gains a `--token` / env-based auth argument, gated behind presence
+of `OPENCLAW_GATEWAY_TOKEN`. Until then: document, wait, move on.
+
+### 8b.2 · React rendering cost during bursts
+
+`[Violation] 'setTimeout' handler took 424 ms` / forced reflows during
+SSE bursts are dominated by `ReactMarkdown` rendering large assistant
+bubbles synchronously. Addressed structurally in Bundle B / P5 via the
+`ChatPanel` split + optional message virtualization. Not on the critical
+path for A.
 
 ---
 
