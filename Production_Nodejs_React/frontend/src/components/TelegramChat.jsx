@@ -402,6 +402,12 @@ export default function TelegramChat({ channelId, channelName }) {
      *  late-arriving code block or markdown render doesn't leave the target
      *  above the real bottom. */
     const bottomSentinelRef = useRef(null);
+    /** Wrapper around the rendered message list. This is the element that
+     *  actually grows when new content is appended or markdown finishes
+     *  laying out. ResizeObserver on the scroll container itself never
+     *  fires (its clientHeight is fixed by flex), so we observe this inner
+     *  wrapper instead. */
+    const messagesInnerRef = useRef(null);
     /** Counts consecutive SSE failures (reset on onopen). Used to throttle console noise — onerror is normal during reconnects. */
     const sseFailStreakRef = useRef(0);
     /**
@@ -410,10 +416,12 @@ export default function TelegramChat({ channelId, channelName }) {
      * only when this is true, so reading history is never interrupted.
      */
     const stuckToBottomRef = useRef(true);
-    /** Set to true right before a programmatic scrollIntoView so the next
-     *  onScroll event (fired by the browser as a side-effect of the
-     *  scroll itself) doesn't flip stuckToBottomRef to false mid-layout. */
-    const suppressNextScrollFlipRef = useRef(false);
+    /** Epoch-ms timestamp until which onScroll events are treated as
+     *  side-effects of our own programmatic scroll and must NOT flip
+     *  stuckToBottomRef. A single scrollIntoView can emit several scroll
+     *  events as layout settles (especially with markdown/code blocks),
+     *  so a one-shot boolean was too brittle. */
+    const suppressScrollFlipUntilRef = useRef(0);
 
     useEffect(() => {
         if (!channelId) {
@@ -565,12 +573,11 @@ export default function TelegramChat({ channelId, channelName }) {
     const SCROLL_PIN_THRESHOLD_PX = 80;
 
     const handleContainerScroll = () => {
-        if (suppressNextScrollFlipRef.current) {
-            // This scroll event was fired by our own scrollIntoView call;
-            // don't let it flip the pin state before layout has settled.
-            suppressNextScrollFlipRef.current = false;
-            return;
-        }
+        // While a programmatic scroll is settling (see scrollToBottomIfPinned)
+        // we ignore the resulting scroll events so they don't mistakenly
+        // flip the pin state off. A 250ms window easily covers a few RAFs
+        // of markdown / code-block settling without eating real user input.
+        if (Date.now() < suppressScrollFlipUntilRef.current) return;
         const el = containerRef.current;
         if (!el) return;
         const distanceFromBottom = el.scrollHeight - (el.scrollTop + el.clientHeight);
@@ -579,38 +586,48 @@ export default function TelegramChat({ channelId, channelName }) {
 
     /**
      * Scroll the sentinel into view, once the current commit's layout has
-     * been painted. A single rAF is usually enough, but ReactMarkdown /
-     * fenced code blocks sometimes expand the row during paint — the
-     * ResizeObserver below picks up that second growth step.
+     * been painted. A single rAF is rarely enough — ReactMarkdown, fenced
+     * code blocks, and tool-output <pre> elements commonly grow the row
+     * in a second (and occasionally third) layout step. We therefore
+     * schedule a small cascade: rAF → 60ms → 180ms. All three calls are
+     * cheap no-ops if `stuckToBottomRef` has flipped off in between.
      */
     const scrollToBottomIfPinned = () => {
         if (!stuckToBottomRef.current) return;
         const sentinel = bottomSentinelRef.current;
         if (!sentinel) return;
-        suppressNextScrollFlipRef.current = true;
+        suppressScrollFlipUntilRef.current = Date.now() + 250;
         sentinel.scrollIntoView({ block: 'end', inline: 'nearest', behavior: 'auto' });
     };
 
     // Auto-scroll when the *visible* (filtered) count changes, only if
-    // the user is anchored near the bottom. rAF defers the scroll until
-    // after the browser has laid out the newly-appended bubble, so the
-    // sentinel is already at its final position.
+    // the user is anchored near the bottom. We fire a short cascade so
+    // late-arriving markdown blocks still end up in view even if the
+    // browser reflows the row after our first scroll.
     useEffect(() => {
         const raf = requestAnimationFrame(scrollToBottomIfPinned);
-        return () => cancelAnimationFrame(raf);
+        const t1 = setTimeout(scrollToBottomIfPinned, 60);
+        const t2 = setTimeout(scrollToBottomIfPinned, 180);
+        return () => {
+            cancelAnimationFrame(raf);
+            clearTimeout(t1);
+            clearTimeout(t2);
+        };
     }, [filteredMessages.length]);
 
-    // Some message content (markdown, fenced code) grows the row *after*
-    // the initial paint. Re-assert the scroll pin whenever the container's
-    // own scrollHeight changes while the user is still anchored; cheap
-    // because chat content rarely resizes when scroll is idle.
+    // Some message content (markdown, fenced code, tool-result <pre>)
+    // grows the row *after* the initial paint. ResizeObserver on the
+    // scroll container itself never fires (its border-box is fixed by
+    // flex: 1), so we observe the inner messages wrapper — that IS the
+    // element that grows. Fires cheaply; no-ops unless the user is
+    // anchored near the bottom.
     useEffect(() => {
-        const el = containerRef.current;
-        if (!el || typeof ResizeObserver === 'undefined') return;
+        const inner = messagesInnerRef.current;
+        if (!inner || typeof ResizeObserver === 'undefined') return;
         const ro = new ResizeObserver(() => {
             if (stuckToBottomRef.current) scrollToBottomIfPinned();
         });
-        ro.observe(el);
+        ro.observe(inner);
         return () => ro.disconnect();
     }, []);
 
@@ -725,25 +742,30 @@ export default function TelegramChat({ channelId, channelName }) {
                 </div>
             </div>
             
-            {/* Messages Area */}
-            <div ref={containerRef} onScroll={handleContainerScroll} style={{ flex: 1, padding: '16px', display: 'flex', flexDirection: 'column', gap: '12px', overflowY: 'auto' }}>
-                {filteredMessages.length === 0 ? (
-                    <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-muted)' }}>
-                        Waiting for messages in {channelName}...
-                    </div>
-                ) : (
-                    filteredMessages.map((msg, idx) => (
-                        <MessageBubble key={msg.id || idx} msg={{...msg, text: msg.displayChatText}} />
-                    ))
-                )}
-                {/* Bottom sentinel — auto-scroll target. Zero-height so it
-                    never grows the container, and aria-hidden so assistive
-                    tech doesn't announce an empty element. */}
-                <div
-                    ref={bottomSentinelRef}
-                    aria-hidden="true"
-                    style={{ height: 0, flexShrink: 0 }}
-                />
+            {/* Messages Area. The outer div is the scroll container (fixed
+                height via flex: 1); the inner div is what actually grows
+                as messages and markdown content stream in and is what the
+                ResizeObserver watches. */}
+            <div ref={containerRef} onScroll={handleContainerScroll} style={{ flex: 1, padding: '16px', overflowY: 'auto' }}>
+                <div ref={messagesInnerRef} style={{ display: 'flex', flexDirection: 'column', gap: '12px', minHeight: '100%' }}>
+                    {filteredMessages.length === 0 ? (
+                        <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-muted)' }}>
+                            Waiting for messages in {channelName}...
+                        </div>
+                    ) : (
+                        filteredMessages.map((msg, idx) => (
+                            <MessageBubble key={msg.id || idx} msg={{...msg, text: msg.displayChatText}} />
+                        ))
+                    )}
+                    {/* Bottom sentinel — auto-scroll target. Zero-height so it
+                        never grows the container, and aria-hidden so assistive
+                        tech doesn't announce an empty element. */}
+                    <div
+                        ref={bottomSentinelRef}
+                        aria-hidden="true"
+                        style={{ height: 0, flexShrink: 0 }}
+                    />
+                </div>
             </div>
 
             {/* Input Area */}
