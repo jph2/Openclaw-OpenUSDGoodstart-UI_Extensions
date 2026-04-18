@@ -2173,3 +2173,22 @@ code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
   }
   .workspace-actions { flex-wrap: wrap; }
 }
+
+/* -------------------------------------------------------------------------
+ react-diff-viewer-continued: global `pre {}` in this file adds 16px padding,
+   borders, and backgrounds to every <pre>. Diff line cells are <pre> — wrap
+   the viewer in .diff-viewer-embed and use these resets for compact rows.
+   ------------------------------------------------------------------------- */
+.diff-viewer-embed table tbody tr td {
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+.diff-viewer-embed pre {
+  margin: 0;
+  padding: 0;
+  background: transparent;
+  border: none;
+  border-radius: 0;
+  line-height: 1.35;
+  overflow: visible;
+  white-space: pre-wrap;
+}

@@ -20,7 +20,29 @@ const diffStyles = {
             highlightBackground: '#2a2b36',
             highlightGutterBackground: '#2a2b36'
         }
-    }
+    },
+    // Tighter than library default (1.6em) — pairs with .diff-viewer-embed pre reset in theme.css
+    diffContainer: {
+        pre: {
+            margin: 0,
+            padding: 0,
+            lineHeight: 1.35,
+            background: 'transparent',
+            border: 'none',
+            borderRadius: 0
+        }
+    },
+    line: { verticalAlign: 'top' },
+    gutter: {
+        verticalAlign: 'top',
+        padding: '0 6px',
+        pre: { margin: 0, padding: 0, lineHeight: 1.35 }
+    },
+    marker: {
+        verticalAlign: 'top',
+        pre: { margin: 0, padding: 0, lineHeight: 1.35 }
+    },
+    contentText: { lineHeight: 1.35 }
 };
 
 export default function OpenClawApplyModal({ open, onClose }) {
@@ -359,7 +381,7 @@ export default function OpenClawApplyModal({ open, onClose }) {
                     )}
 
                     {preview?.beforePretty && preview?.afterPretty && (
-                        <div style={{ fontSize: '12px' }}>
+                        <div className="diff-viewer-embed" style={{ fontSize: '12px' }}>
                             <ReactDiffViewer
                                 oldValue={preview.beforePretty}
                                 newValue={preview.afterPretty}

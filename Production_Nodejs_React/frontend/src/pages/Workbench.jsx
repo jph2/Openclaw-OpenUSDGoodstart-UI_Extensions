@@ -397,10 +397,13 @@ function EditorWorkspace({ path, mainKey }) {
 
                 </PanelGroup>
             ) : (
-                <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', background: '#1e1e1e' }}>
-                    <ReactDiffViewer 
-                        oldValue={originalContent} 
-                        newValue={localContent} 
+                <div
+                    className="diff-viewer-embed"
+                    style={{ flex: 1, minHeight: 0, overflowY: 'auto', background: '#1e1e1e' }}
+                >
+                    <ReactDiffViewer
+                        oldValue={originalContent}
+                        newValue={localContent}
                         splitView={true}
                         useDarkTheme={true}
                     />
