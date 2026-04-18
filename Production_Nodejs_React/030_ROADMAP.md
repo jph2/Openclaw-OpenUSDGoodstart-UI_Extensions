@@ -63,6 +63,24 @@ fallbacks. No architectural changes. Landed as three commits in order P1 → P2 
   `startTransition()` so typing, button clicks and scroll stay responsive
   during bursts.
 
+### A / P2b — Scroll-settle follow-up (done)
+
+Field test of P2 showed the auto-scroll gate was too pessimistic on long
+backlogs: `scrollTo({top: el.scrollHeight})` ran before ReactMarkdown /
+fenced code blocks finished expanding, so the target was stale and the
+new message landed just below the viewport.
+
+- ✅ Added a zero-height bottom sentinel at the end of the messages
+  list and switched to `sentinel.scrollIntoView({block:'end'})` inside
+  a `requestAnimationFrame`, so the scroll target reflects the final
+  post-paint layout.
+- ✅ Added a `ResizeObserver` on the messages container that re-asserts
+  the scroll pin whenever the container's size grows while the user is
+  still anchored (catches the late expansion of markdown code blocks).
+- ✅ Added `suppressNextScrollFlipRef` so the `onScroll` event fired as
+  a side effect of our own `scrollIntoView` can't race layout and flip
+  `stuckToBottomRef` to false.
+
 ### A / P3 — Dead code purge (done)
 
 - ✅ Deleted `historyScanner.mjs`, `ActiveBotsList.jsx` and the
@@ -89,6 +107,32 @@ fallbacks. No architectural changes. Landed as three commits in order P1 → P2 
   `getChatBots`, `ActiveBotsList`, or the hardcoded group-id fallback
   returns no hits outside `_archive/` and standalone `backend/test-*.js`
   scripts.
+
+### A / P4 — Tool call / tool result accordion (done)
+
+Feedback on the live chat: `⚙️ [Tool Call: exec]` markers and raw
+`System (Tool) BOT` output bubbles made the transcript hard to scan.
+OpenClaw's own UI keeps those collapsed by default and reveals the
+payload on click.
+
+- ✅ Backend: `buildMsgObjFromGatewayLine` no longer flattens toolCall /
+  toolResult into text markers. Instead it attaches two structured
+  arrays to the message: `toolCalls: [{id, name, input}]` and
+  `toolResults: [{id, toolUseId, toolName, output, isError}]`. The
+  `output` field flattens nested `content` blocks (string or
+  `[{type:"text", text}]`).
+- ✅ Frontend: new `ToolCallChip` renders under an assistant bubble
+  ("⚙ exec" chevron chip; click expands the JSON `input`). New
+  `ToolResultBubble` replaces the entire `senderRole === 'toolResult'`
+  bubble with a single-line preview ("Tool output · exec · <first 72
+  chars>") that expands into a scrollable `<pre>` on click. Error
+  results use a red accent.
+- ✅ `stripToolCallMarkers` removes the residual
+  `⚙️ [Tool Call: …]` / `✅ [Tool Result: …]` text so we don't render the
+  same information twice during the transition period.
+- ✅ `filteredMessages` keeps bubbles that have no plain text but do
+  carry structured tool data, so a pure tool-call or tool-result
+  message is never silently dropped.
 
 ---
 

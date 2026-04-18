@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useMemo, startTransition } from 'react';
-import { Send, Copy, Image } from 'lucide-react';
+import { Send, Copy, Image, ChevronRight, Wrench } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { apiUrl } from '../utils/apiUrl';
@@ -12,6 +12,180 @@ const BUBBLE_BG = '#2a2b36';
 const BUBBLE_TEXT = '#e0e0e0';
 const INLINE_CODE_BORDER = 'rgba(255,255,255,0.14)';
 const FENCED_BORDER = 'rgba(255,255,255,0.16)';
+
+/** Preview length for the header chip of a collapsed tool output. */
+const TOOL_OUTPUT_PREVIEW_CHARS = 72;
+
+/**
+ * Drop the flattened `⚙️ [Tool Call: name]` markers the backend still
+ * emits inline with the bubble text. We render those as structured chips
+ * below the bubble, so they don't need to appear twice.
+ */
+const stripToolCallMarkers = (text) => {
+    if (!text) return '';
+    return text
+        .replace(/⚙️\s*\[Tool Call:[^\]]+\]\s*/g, '')
+        .replace(/✅\s*\[Tool Result:[^\]]+\]\s*/g, '')
+        .replace(/\n{3,}/g, '\n\n')
+        .trim();
+};
+
+/**
+ * Render one argument object as human-readable JSON for the expanded
+ * tool-call chip. Safe against non-serialisable values.
+ */
+const safeStringifyToolInput = (input) => {
+    if (input == null) return '';
+    try {
+        return JSON.stringify(input, null, 2);
+    } catch {
+        return String(input);
+    }
+};
+
+/**
+ * Collapsible chip under an assistant bubble: shows "⚙ exec" by default,
+ * click to reveal the tool input as a pre-formatted JSON block.
+ */
+const ToolCallChip = ({ call }) => {
+    const [open, setOpen] = useState(false);
+    const hasInput = call?.input != null && (typeof call.input !== 'object' || Object.keys(call.input || {}).length > 0);
+    return (
+        <div style={{ marginTop: '6px' }}>
+            <button
+                type="button"
+                onClick={() => setOpen((v) => !v)}
+                disabled={!hasInput}
+                title={hasInput ? 'Tool input anzeigen / verbergen' : 'Tool call (keine sichtbaren Argumente)'}
+                style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '6px',
+                    background: 'rgba(80,227,194,0.10)',
+                    border: '1px solid rgba(80,227,194,0.35)',
+                    color: '#9ff0dc',
+                    borderRadius: '4px',
+                    padding: '2px 8px',
+                    fontSize: '10.5px',
+                    fontFamily: '"JetBrains Mono", ui-monospace, monospace',
+                    cursor: hasInput ? 'pointer' : 'default',
+                    opacity: hasInput ? 1 : 0.7
+                }}
+            >
+                <ChevronRight
+                    size={12}
+                    style={{
+                        transform: open ? 'rotate(90deg)' : 'rotate(0deg)',
+                        transition: 'transform 0.12s ease'
+                    }}
+                />
+                <Wrench size={12} />
+                <span>{call.name}</span>
+            </button>
+            {open && hasInput && (
+                <pre
+                    style={{
+                        marginTop: '4px',
+                        background: 'rgba(0,0,0,0.28)',
+                        border: `1px solid ${FENCED_BORDER}`,
+                        padding: '8px 10px',
+                        borderRadius: '4px',
+                        fontSize: '11px',
+                        maxWidth: '100%',
+                        maxHeight: '240px',
+                        overflow: 'auto',
+                        whiteSpace: 'pre-wrap',
+                        wordBreak: 'break-word',
+                        color: BUBBLE_TEXT
+                    }}
+                >
+                    {safeStringifyToolInput(call.input)}
+                </pre>
+            )}
+        </div>
+    );
+};
+
+/**
+ * Entire bubble for a toolResult-role message. Collapsed by default to
+ * hide long exec output / log dumps; click to expand.
+ */
+const ToolResultBubble = ({ msg, stamp }) => {
+    const [open, setOpen] = useState(false);
+    const first = msg.toolResults?.[0] || null;
+    const output = first?.output ?? msg.text ?? '';
+    const toolName = first?.toolName || 'tool';
+    const isError = first?.isError === true;
+    const singleLine = String(output).replace(/\s+/g, ' ').trim();
+    const preview = singleLine.slice(0, TOOL_OUTPUT_PREVIEW_CHARS);
+    const truncated = singleLine.length > TOOL_OUTPUT_PREVIEW_CHARS;
+    const accent = isError ? '#ff8f8f' : '#9ff0dc';
+    const border = isError ? 'rgba(255,143,143,0.35)' : 'rgba(80,227,194,0.30)';
+
+    return (
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', marginBottom: '8px' }}>
+            <div style={{ fontSize: '10px', color: 'var(--text-muted)', marginBottom: '3px', marginLeft: '8px', fontWeight: 600 }}>
+                {isError ? 'Tool error' : 'Tool output'} · {toolName}
+            </div>
+            <button
+                type="button"
+                onClick={() => setOpen((v) => !v)}
+                style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '8px',
+                    maxWidth: '85%',
+                    textAlign: 'left',
+                    background: 'rgba(42,43,54,0.65)',
+                    border: `1px solid ${border}`,
+                    color: accent,
+                    padding: '6px 10px',
+                    borderRadius: '6px',
+                    fontSize: '11.5px',
+                    fontFamily: '"JetBrains Mono", ui-monospace, monospace',
+                    cursor: 'pointer'
+                }}
+                title="Tool output anzeigen / verbergen"
+            >
+                <ChevronRight
+                    size={12}
+                    style={{
+                        transform: open ? 'rotate(90deg)' : 'rotate(0deg)',
+                        transition: 'transform 0.12s ease',
+                        flexShrink: 0
+                    }}
+                />
+                <Wrench size={12} style={{ flexShrink: 0 }} />
+                <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', color: '#c8c8d0' }}>
+                    {preview || '(empty output)'}{truncated ? '…' : ''}
+                </span>
+            </button>
+            {open && (
+                <pre
+                    style={{
+                        marginTop: '4px',
+                        maxWidth: '85%',
+                        background: 'rgba(0,0,0,0.32)',
+                        border: `1px solid ${FENCED_BORDER}`,
+                        padding: '10px 12px',
+                        borderRadius: '6px',
+                        fontSize: '11.5px',
+                        maxHeight: '360px',
+                        overflow: 'auto',
+                        whiteSpace: 'pre-wrap',
+                        wordBreak: 'break-word',
+                        color: BUBBLE_TEXT
+                    }}
+                >
+                    {output}
+                </pre>
+            )}
+            <div style={{ fontSize: '9px', color: '#666', marginTop: '3px', marginLeft: '8px' }}>
+                {stamp}
+            </div>
+        </div>
+    );
+};
 
 // OPTIMIZED: Static helper functions defined outside component to prevent recreation on every render
 const cleanMessageTextStatic = (text, showSystem) => {
@@ -86,11 +260,10 @@ const RENDER_COMPONENTS = {
 };
 
 const MessageBubble = React.memo(({ msg }) => {
-    // Phase 1: Clean isMe heuristic - only use explicit senderRole
-    // No more name-based heuristics (includes('jan'), includes('user'))
     const isMe = msg.senderRole === 'user';
+    const isToolResult = msg.senderRole === 'toolResult';
     const isPending = !!msg.pending;
-    
+
     const formatNum = (n) => n > 1000 ? (n/1000).toFixed(1) + 'k' : n;
     const timestampStr = new Date(msg.date * 1000).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
     let stamp = `${timestampStr}`;
@@ -107,6 +280,19 @@ const MessageBubble = React.memo(({ msg }) => {
         stamp += ' • sending…';
     }
 
+    // Tool-result messages get a dedicated collapsed-accordion bubble so
+    // exec output / log dumps don't flood the transcript.
+    if (isToolResult) {
+        return <ToolResultBubble msg={msg} stamp={stamp} />;
+    }
+
+    const toolCalls = Array.isArray(msg.toolCalls) ? msg.toolCalls : [];
+    // Hide the inline `⚙️ [Tool Call: ...]` markers the backend emits in
+    // the flattened text; we render toolCalls as chips instead. Also
+    // suppress bubbles that would render as empty (no text and no chips).
+    const cleanedText = stripToolCallMarkers(msg.text);
+    if (!cleanedText && toolCalls.length === 0) return null;
+
     const copyToClipboard = (text) => {
         navigator.clipboard.writeText(text);
     };
@@ -122,7 +308,7 @@ const MessageBubble = React.memo(({ msg }) => {
                 border: isMe ? `1px solid ${ACCENT}` : '1px solid rgba(255,255,255,0.1)',
                 boxSizing: 'border-box',
                 opacity: isPending ? 0.72 : 1,
-                padding: '10px 14px 36px 14px',
+                padding: cleanedText ? '10px 14px 36px 14px' : '8px 14px',
                 borderRadius: '8px',
                 borderBottomRightRadius: isMe ? 0 : '8px',
                 borderBottomLeftRadius: isMe ? '8px' : 0,
@@ -132,35 +318,46 @@ const MessageBubble = React.memo(({ msg }) => {
                 lineHeight: '1.45',
                 position: 'relative'
             }}>
-                <div style={{ position: 'absolute', bottom: '8px', right: '8px', zIndex: 2 }}>
-                    <button 
-                        type="button"
-                        onClick={() => copyToClipboard(msg.text)}
-                        style={{
-                            background: 'rgba(0,0,0,0.2)',
-                            border: `1px solid ${isMe ? 'rgba(80,227,194,0.35)' : 'rgba(255,255,255,0.12)'}`,
-                            color: '#a8b0c4',
-                            cursor: 'pointer',
-                            borderRadius: '4px',
-                            padding: '4px',
-                            display: 'flex',
-                            alignItems: 'center'
-                        }}
-                        title="Copy as markdown"
-                    >
-                        <Copy size={14} />
-                    </button>
-                </div>
-                <div style={{ paddingRight: '8px' }}>
-                    {/* OPTIMIZED: Skip ReactMarkdown for plain text to prevent UI blocking */}
-                    {/[*_`#\[\]\(\)!]/.test(msg.text) ? (
-                        <ReactMarkdown remarkPlugins={RENDER_PLUGINS} components={RENDER_COMPONENTS}>
-                            {msg.text}
-                        </ReactMarkdown>
-                    ) : (
-                        <span style={{ whiteSpace: 'pre-wrap', color: BUBBLE_TEXT }}>{msg.text}</span>
-                    )}
-                </div>
+                {cleanedText && (
+                    <div style={{ position: 'absolute', bottom: '8px', right: '8px', zIndex: 2 }}>
+                        <button
+                            type="button"
+                            onClick={() => copyToClipboard(cleanedText)}
+                            style={{
+                                background: 'rgba(0,0,0,0.2)',
+                                border: `1px solid ${isMe ? 'rgba(80,227,194,0.35)' : 'rgba(255,255,255,0.12)'}`,
+                                color: '#a8b0c4',
+                                cursor: 'pointer',
+                                borderRadius: '4px',
+                                padding: '4px',
+                                display: 'flex',
+                                alignItems: 'center'
+                            }}
+                            title="Copy as markdown"
+                        >
+                            <Copy size={14} />
+                        </button>
+                    </div>
+                )}
+                {cleanedText && (
+                    <div style={{ paddingRight: '8px' }}>
+                        {/* Skip ReactMarkdown for plain text to prevent UI blocking */}
+                        {/[*_`#\[\]\(\)!]/.test(cleanedText) ? (
+                            <ReactMarkdown remarkPlugins={RENDER_PLUGINS} components={RENDER_COMPONENTS}>
+                                {cleanedText}
+                            </ReactMarkdown>
+                        ) : (
+                            <span style={{ whiteSpace: 'pre-wrap', color: BUBBLE_TEXT }}>{cleanedText}</span>
+                        )}
+                    </div>
+                )}
+                {toolCalls.length > 0 && (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', marginTop: cleanedText ? '8px' : 0 }}>
+                        {toolCalls.map((call, i) => (
+                            <ToolCallChip key={call.id || `${call.name}-${i}`} call={call} />
+                        ))}
+                    </div>
+                )}
             </div>
             <div style={{ fontSize: '9px', color: '#666', marginTop: '3px', marginLeft: isMe ? 0 : '8px', marginRight: isMe ? '8px' : 0 }}>
                 {stamp}
@@ -171,7 +368,9 @@ const MessageBubble = React.memo(({ msg }) => {
     return (
         prevProps.msg.id === nextProps.msg.id &&
         prevProps.msg.text === nextProps.msg.text &&
-        prevProps.msg.pending === nextProps.msg.pending
+        prevProps.msg.pending === nextProps.msg.pending &&
+        (prevProps.msg.toolCalls?.length || 0) === (nextProps.msg.toolCalls?.length || 0) &&
+        (prevProps.msg.toolResults?.length || 0) === (nextProps.msg.toolResults?.length || 0)
     );
 });
 
@@ -187,6 +386,11 @@ export default function TelegramChat({ channelId, channelName }) {
     // Phase 1: Removed local optimistic append - no pendingMessages state
     // Messages now come exclusively from canonical session stream
     const containerRef = useRef(null);
+    /** Sentinel element kept at the end of the messages list; scrolled into
+     *  view instead of computing `scrollTop = scrollHeight` manually, so a
+     *  late-arriving code block or markdown render doesn't leave the target
+     *  above the real bottom. */
+    const bottomSentinelRef = useRef(null);
     /** Counts consecutive SSE failures (reset on onopen). Used to throttle console noise — onerror is normal during reconnects. */
     const sseFailStreakRef = useRef(0);
     /**
@@ -195,6 +399,10 @@ export default function TelegramChat({ channelId, channelName }) {
      * only when this is true, so reading history is never interrupted.
      */
     const stuckToBottomRef = useRef(true);
+    /** Set to true right before a programmatic scrollIntoView so the next
+     *  onScroll event (fired by the browser as a side-effect of the
+     *  scroll itself) doesn't flip stuckToBottomRef to false mid-layout. */
+    const suppressNextScrollFlipRef = useRef(false);
 
     useEffect(() => {
         if (!channelId) {
@@ -310,24 +518,34 @@ export default function TelegramChat({ channelId, channelName }) {
 
     // Use static helpers for better performance
 
-    // Phase 1: No pendingMessages - only canonical session messages
     // OPTIMIZED: useMemo to prevent recalculation on every render
     // CRITICAL: Limit to last 100 messages to prevent UI blocking
     const filteredMessages = useMemo(() => {
-        const recentMessages = messages.slice(-100); // Only process last 100
-        return recentMessages.filter(msg => {
-            if (showSystemMessages) return true;
-            
-            const text = msg.text || '';
-            if (text === 'HEARTBEAT_OK') return false;
-            if (text.startsWith('Read HEARTBEAT.md')) return false;
-            if (isUntrustedSystemNoiseStatic(text)) return false;
-            
-            return true;
-        }).map(msg => ({
-            ...msg,
-            displayChatText: cleanMessageTextStatic(msg.text || '', showSystemMessages)
-        })).filter(msg => msg.displayChatText.length > 0 || showSystemMessages);
+        const recentMessages = messages.slice(-100);
+        return recentMessages
+            .filter(msg => {
+                if (showSystemMessages) return true;
+
+                const text = msg.text || '';
+                if (text === 'HEARTBEAT_OK') return false;
+                if (text.startsWith('Read HEARTBEAT.md')) return false;
+                if (isUntrustedSystemNoiseStatic(text)) return false;
+
+                return true;
+            })
+            .map(msg => ({
+                ...msg,
+                displayChatText: cleanMessageTextStatic(msg.text || '', showSystemMessages)
+            }))
+            // Keep the bubble when any of: there's readable text, we're in
+            // "show system" mode, or it carries structured tool data that
+            // MessageBubble renders on its own (chips / collapsed output).
+            .filter(msg =>
+                msg.displayChatText.length > 0 ||
+                showSystemMessages ||
+                (msg.toolCalls?.length || 0) > 0 ||
+                (msg.toolResults?.length || 0) > 0
+            );
     }, [messages, showSystemMessages]);
 
     // Within this distance of the bottom we consider the user "pinned" and
@@ -336,21 +554,54 @@ export default function TelegramChat({ channelId, channelName }) {
     const SCROLL_PIN_THRESHOLD_PX = 80;
 
     const handleContainerScroll = () => {
+        if (suppressNextScrollFlipRef.current) {
+            // This scroll event was fired by our own scrollIntoView call;
+            // don't let it flip the pin state before layout has settled.
+            suppressNextScrollFlipRef.current = false;
+            return;
+        }
         const el = containerRef.current;
         if (!el) return;
         const distanceFromBottom = el.scrollHeight - (el.scrollTop + el.clientHeight);
         stuckToBottomRef.current = distanceFromBottom <= SCROLL_PIN_THRESHOLD_PX;
     };
 
-    // Auto-scroll only when the *visible* (filtered) count changes and
-    // only if the user is anchored to the bottom. Uses behavior:'auto'
-    // to avoid the ~500ms smooth animation that made bursts feel laggy.
-    useEffect(() => {
+    /**
+     * Scroll the sentinel into view, once the current commit's layout has
+     * been painted. A single rAF is usually enough, but ReactMarkdown /
+     * fenced code blocks sometimes expand the row during paint — the
+     * ResizeObserver below picks up that second growth step.
+     */
+    const scrollToBottomIfPinned = () => {
         if (!stuckToBottomRef.current) return;
-        const el = containerRef.current;
-        if (!el) return;
-        el.scrollTo({ top: el.scrollHeight, behavior: 'auto' });
+        const sentinel = bottomSentinelRef.current;
+        if (!sentinel) return;
+        suppressNextScrollFlipRef.current = true;
+        sentinel.scrollIntoView({ block: 'end', inline: 'nearest', behavior: 'auto' });
+    };
+
+    // Auto-scroll when the *visible* (filtered) count changes, only if
+    // the user is anchored near the bottom. rAF defers the scroll until
+    // after the browser has laid out the newly-appended bubble, so the
+    // sentinel is already at its final position.
+    useEffect(() => {
+        const raf = requestAnimationFrame(scrollToBottomIfPinned);
+        return () => cancelAnimationFrame(raf);
     }, [filteredMessages.length]);
+
+    // Some message content (markdown, fenced code) grows the row *after*
+    // the initial paint. Re-assert the scroll pin whenever the container's
+    // own scrollHeight changes while the user is still anchored; cheap
+    // because chat content rarely resizes when scroll is idle.
+    useEffect(() => {
+        const el = containerRef.current;
+        if (!el || typeof ResizeObserver === 'undefined') return;
+        const ro = new ResizeObserver(() => {
+            if (stuckToBottomRef.current) scrollToBottomIfPinned();
+        });
+        ro.observe(el);
+        return () => ro.disconnect();
+    }, []);
 
     const handleSendMessage = async () => {
         if (!inputValue.trim() || isSending) return;
@@ -474,6 +725,14 @@ export default function TelegramChat({ channelId, channelName }) {
                         <MessageBubble key={msg.id || idx} msg={{...msg, text: msg.displayChatText}} />
                     ))
                 )}
+                {/* Bottom sentinel — auto-scroll target. Zero-height so it
+                    never grows the container, and aria-hidden so assistive
+                    tech doesn't announce an empty element. */}
+                <div
+                    ref={bottomSentinelRef}
+                    aria-hidden="true"
+                    style={{ height: 0, flexShrink: 0 }}
+                />
             </div>
 
             {/* Input Area */}
