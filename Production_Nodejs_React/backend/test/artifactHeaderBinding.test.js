@@ -3,7 +3,8 @@ import assert from 'node:assert/strict';
 import {
     extractMarkdownFrontmatter,
     parseArtifactHeaderBinding,
-    parseSimpleYamlFrontmatter
+    parseSimpleYamlFrontmatter,
+    upsertArtifactHeaderBinding
 } from '../services/artifactHeaderBinding.js';
 
 const DISCOVERY_MARKDOWN = `---
@@ -58,5 +59,37 @@ describe('artifactHeaderBinding', () => {
         const parsed = parseArtifactHeaderBinding('# No header');
         assert.equal(parsed.hasHeader, false);
         assert.equal(parsed.currentTtgId, '');
+    });
+
+    it('materializes confirmed TTG binding into artifact frontmatter', () => {
+        const updated = upsertArtifactHeaderBinding('# No header\n\nBody.', {
+            ttgId: '-100390983368',
+            ttgName: 'TTG010_General_Discovery_Plus_Research',
+            reason: 'operator accepted classifier proposal'
+        });
+        const parsed = parseArtifactHeaderBinding(updated);
+
+        assert.equal(parsed.hasHeader, true);
+        assert.equal(parsed.currentTtgId, '-100390983368');
+        assert.equal(parsed.hasValidCurrentTtg, true);
+        assert.equal(parsed.current.name, 'TTG010_General_Discovery_Plus_Research');
+        assert.equal(parsed.binding.status, 'confirmed');
+        assert.equal(parsed.binding.method, 'operator_confirmed');
+        assert.match(updated, /# No header/);
+    });
+
+    it('replaces current_ttg and binding while preserving other header fields', () => {
+        const updated = upsertArtifactHeaderBinding(DISCOVERY_MARKDOWN, {
+            ttgId: '-1003732566515',
+            ttgName: 'TTG001_Idea_Capture',
+            reason: 'operator rerouted to idea capture'
+        });
+        const parsed = parseArtifactHeaderBinding(updated);
+
+        assert.equal(parsed.frontmatter.id, '20260424-discovery-example');
+        assert.equal(parsed.initialTtgId, '-100732566515');
+        assert.equal(parsed.currentTtgId, '-1003732566515');
+        assert.equal(parsed.current.reason, 'operator rerouted to idea capture');
+        assert.equal(parsed.binding.method, 'operator_confirmed');
     });
 });

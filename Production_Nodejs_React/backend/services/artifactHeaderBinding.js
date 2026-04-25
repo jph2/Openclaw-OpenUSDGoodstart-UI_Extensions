@@ -120,3 +120,62 @@ export function parseArtifactHeaderBinding(markdown = '') {
         hasValidInitialTtg: isValidTtgId(initial?.id)
     };
 }
+
+function yamlQuote(value = '') {
+    return JSON.stringify(String(value || ''));
+}
+
+function removeTopLevelBlocks(frontmatter = '', keys = []) {
+    const keySet = new Set(keys);
+    const lines = String(frontmatter || '').split(/\r?\n/);
+    const kept = [];
+    let skipping = false;
+    for (const line of lines) {
+        const top = line.match(/^([A-Za-z0-9_-]+):/);
+        if (top) {
+            skipping = keySet.has(top[1]);
+            if (skipping) continue;
+        } else if (skipping && /^\s+/.test(line)) {
+            continue;
+        } else if (skipping && !line.trim()) {
+            continue;
+        } else {
+            skipping = false;
+        }
+        kept.push(line);
+    }
+    return kept.join('\n').replace(/\n{3,}/g, '\n\n').trim();
+}
+
+export function upsertArtifactHeaderBinding(markdown = '', {
+    ttgId,
+    ttgName = '',
+    reason = 'operator confirmed TTG binding',
+    method = 'operator_confirmed'
+} = {}) {
+    if (!isValidTtgId(ttgId)) {
+        const err = new Error('valid ttgId is required');
+        err.status = 400;
+        throw err;
+    }
+    const extracted = extractMarkdownFrontmatter(markdown);
+    const baseFrontmatter = extracted.hasFrontmatter ? extracted.frontmatter : '';
+    const body = extracted.hasFrontmatter ? extracted.body : String(markdown || '');
+    const cleaned = removeTopLevelBlocks(baseFrontmatter, ['current_ttg', 'binding']);
+    const currentBlock = [
+        'current_ttg:',
+        `  id: ${yamlQuote(ttgId)}`,
+        `  name: ${yamlQuote(ttgName)}`,
+        `  reason: ${yamlQuote(reason)}`
+    ].join('\n');
+    const bindingBlock = [
+        'binding:',
+        '  status: confirmed',
+        `  method: ${method}`,
+        '  confirmed_by: operator'
+    ].join('\n');
+    const nextFrontmatter = [cleaned, currentBlock, bindingBlock]
+        .filter(Boolean)
+        .join('\n');
+    return `---\n${nextFrontmatter}\n---\n${body.replace(/^\r?\n/, '')}`;
+}

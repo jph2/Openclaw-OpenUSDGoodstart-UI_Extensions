@@ -5,6 +5,8 @@ import { homedir } from 'os';
 import { z } from 'zod';
 import { resolveSafe } from '../utils/security.js';
 import { apiLimiter } from '../utils/rateLimiter.js';
+import { isValidTtgId } from '../services/ttgBindingResolver.js';
+import { upsertArtifactHeaderBinding } from '../services/artifactHeaderBinding.js';
 import { buildArtifactIndex, indexMarkdownArtifact } from '../services/artifactIndex.js';
 import {
     buildOpenBrainExportRecord,
@@ -97,6 +99,16 @@ const ProjectMappingsBodySchema = z.object({
         note: z.string().optional(),
         updatedAt: z.string().optional()
     }))
+});
+
+const ArtifactBindingConfirmSchema = z.object({
+    sourcePath: z
+        .string()
+        .min(1)
+        .refine((s) => !s.includes('..') && !path.isAbsolute(s), 'invalid sourcePath'),
+    ttgId: z.string().refine((value) => isValidTtgId(value), 'invalid TTG id'),
+    ttgName: z.string().optional().default(''),
+    reason: z.string().optional().default('operator confirmed TTG binding')
 });
 
 function openclawMemoryDir() {
@@ -360,6 +372,37 @@ router.get('/open-brain-export', async (req, res, next) => {
         if (e instanceof OpenBrainExportBlockedError) {
             return res.status(e.status).json({ ok: false, error: e.message, details: e.details });
         }
+        if (e.status === 403) return res.status(403).json({ ok: false, error: 'path blocked' });
+        if (e.code === 'ENOENT') return res.status(404).json({ ok: false, error: 'source artifact not found' });
+        next(e);
+    }
+});
+
+/**
+ * POST /api/summaries/artifact-binding/confirm
+ * Durable confirmation for a reviewable classifier result. This materializes
+ * the selected TTG as artifact-owned YAML frontmatter; it is not a transient UI
+ * flag and it does not promote/sync memory.
+ */
+router.post('/artifact-binding/confirm', apiLimiter, async (req, res, next) => {
+    try {
+        const body = ArtifactBindingConfirmSchema.parse(req.body);
+        const root = studioFrameworkRoot();
+        const { resolved } = await resolveSafe(root, body.sourcePath.split('/').join(path.sep));
+        const markdown = await fs.readFile(resolved, 'utf8');
+        const updated = upsertArtifactHeaderBinding(markdown, {
+            ttgId: body.ttgId,
+            ttgName: body.ttgName,
+            reason: body.reason
+        });
+        await fs.writeFile(resolved, updated, 'utf8');
+        const record = indexMarkdownArtifact({ studioRoot: root, filePath: resolved, markdown: updated });
+        res.json({ ok: true, sourcePath: body.sourcePath, record });
+    } catch (e) {
+        if (e instanceof z.ZodError) {
+            return res.status(400).json({ ok: false, error: 'Validation failed', details: e.flatten() });
+        }
+        if (e.status === 400) return res.status(400).json({ ok: false, error: e.message });
         if (e.status === 403) return res.status(403).json({ ok: false, error: 'path blocked' });
         if (e.code === 'ENOENT') return res.status(404).json({ ok: false, error: 'source artifact not found' });
         next(e);

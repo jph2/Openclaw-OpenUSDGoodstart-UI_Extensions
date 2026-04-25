@@ -282,6 +282,45 @@ api_key = "sk-abcdefghijklmnopqrstuvwxyz"
         assert.match(res.body.error, /secret gate/i);
     });
 
+    it('confirms a reviewable artifact binding by writing current_ttg into the artifact header', async () => {
+        const artifactDir = path.join(process.env.STUDIO_FRAMEWORK_ROOT, '050_Artifacts', 'A010_discovery-research');
+        await fs.mkdir(artifactDir, { recursive: true });
+        const sourcePath = '050_Artifacts/A010_discovery-research/confirm-binding.md';
+        await fs.writeFile(
+            path.join(process.env.STUDIO_FRAMEWORK_ROOT, sourcePath),
+            `---
+id: "confirm-binding"
+title: "Confirm Binding"
+type: DISCOVERY
+status: active
+---
+
+# Confirm Binding
+
+Structured discovery and research.
+`,
+            'utf8'
+        );
+
+        const res = await request(app)
+            .post('/api/ide-project-summaries/artifact-binding/confirm')
+            .send({
+                sourcePath,
+                ttgId: '-1003930983368',
+                ttgName: 'TTG010_General_Discovery_Plus_Research',
+                reason: 'operator accepted classifier proposal'
+            })
+            .expect(200);
+
+        assert.equal(res.body.ok, true);
+        assert.equal(res.body.record.binding.status, 'confirmed');
+        assert.equal(res.body.record.binding.method, 'artifact_header');
+        assert.equal(res.body.record.ttg.current.id, '-1003930983368');
+        const updated = await fs.readFile(path.join(process.env.STUDIO_FRAMEWORK_ROOT, sourcePath), 'utf8');
+        assert.match(updated, /current_ttg:/);
+        assert.match(updated, /operator accepted classifier proposal/);
+    });
+
     it('promote writes marker, confirms readback, and updates sidecar meta', async () => {
         const relativePath = 'drafts/2026-04-24__-1003752539559__openclaw-control-center__summary.md';
         await request(app)

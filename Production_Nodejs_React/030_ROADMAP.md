@@ -556,8 +556,10 @@ Framework artifacts are durable truth; OpenClaw memory is operational agent
 continuity; Open Brain is the long-term semantic/MCP knowledge layer.
 **Maturity:** project-mapping bridge and promote/read-back core are usable now;
 artifact-header Discovery/Research binding is implemented for summary writes;
-artifact index/resolver, agent-assisted fallback classification, Open Brain
-export/sync, and producer adapters are not complete yet.
+**operator confirmation** persists a chosen TTG into the artifact YAML via
+`POST /api/ide-project-summaries/artifact-binding/confirm` (and `/api/summaries/…`,
+same router); artifact index/resolver, agent-assisted fallback classification,
+Open Brain export/sync, and producer adapters are not complete yet.
 **Remaining production gates:** agent-assisted TTG classification with review
 states and Open Brain sync.
 
@@ -576,7 +578,10 @@ states and Open Brain sync.
    artifact-index integration landed. If the human leaves no TTG, the index can
    classify against canonical `TTG*.md` definitions and record
    `inferred` / `needs_review` / `ambiguous` rather than pretending the result
-   is confirmed. Remaining: UI review/confirm affordance.
+   is confirmed. **Backend confirm path landed 2026-04-26:** `artifact-binding/confirm`
+   writes `current_ttg` + confirmed binding into the Markdown header and returns
+   a fresh index record. **Remaining:** UI review/confirm affordance wired to
+   that endpoint.
 5. **Ticket G — `ARTIFACT_TO_OPEN_BRAIN_SYNC_V1`**: upsert reviewed artifacts
    into Open Brain and record returned thought ids / fingerprints / audit.
 6. **Producer adapters**: Codex, Cursor, OpenCode, Telegram/Chat exports create
