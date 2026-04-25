@@ -1,6 +1,6 @@
 # Channel Manager — Vision
 
-**Status:** normative · **Scope:** Production_Nodejs_React · **Last reviewed:** 2026-04-18
+**Status:** normative · **Scope:** Production_Nodejs_React · **Last reviewed:** 2026-04-26
 
 > This file answers **why** the Channel Manager exists and **what it is not**.
 > Architecture, current state and schedule are covered by
@@ -137,6 +137,25 @@ the durable source of truth; OpenClaw memory is operational agent continuity;
 Open Brain is the long-term semantic/MCP knowledge layer. Producer surfaces
 (Codex, Cursor, OpenCode, Telegram, Chat) may create or update artifacts, but
 they do not become separate memory authorities.
+
+**Open Brain (OB1) — preparatory stance.** The Channel Manager side ships
+**contracts and audit hooks** (export payload, optional stub sync record) so a
+**live** OB1/MCP upsert can land later without redesigning the bridge. We do
+**not** need to finish OB1 in this repo while the **canonical corpus** is still
+incomplete: substantive knowledge and legacy artifacts still live **outside**
+Studio Framework (other repos, drafts, imports) and must be **curated into**
+`Studio_Framework/` (e.g. under `050_Artifacts/`, per ARYS/traceability rules)
+before semantic sync is meaningful.
+
+**Onboarding gate for every imported artifact.** Any artifact that is **bulk
+loaded, migrated, or ingested** into Studio Framework is expected to pass an
+explicit **onboarding pass**: YAML front matter and document structure are
+**reviewed or normalized** (stable `id`, `type`, TTG/project binding fields,
+tags, traceability, body conventions) so the artifact index, secret gate, and
+Open Brain export contract all see a **consistent, reviewable shape**. The IDE
+memory bridge consumes that normalized layer; it does **not** replace a
+Studio-side ingestion and normalization process (scheduled in
+[`030_ROADMAP.md`](./030_ROADMAP.md) §8b.6).
 
 The Workbench fits this relationship as a local artifact/worktree editor: it
 can inspect and edit files in allowed roots and make diffs visible, but it does

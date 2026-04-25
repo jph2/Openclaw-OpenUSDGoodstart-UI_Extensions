@@ -1,6 +1,6 @@
 # Channel Manager — Roadmap
 
-**Status:** normative · **Scope:** Production_Nodejs_React · **Last reviewed:** 2026-04-20
+**Status:** normative · **Scope:** Production_Nodejs_React · **Last reviewed:** 2026-04-26
 
 > The roadmap lists what is **done**, what is **in flight**, and what is
 > **explicitly not yet in scope**. Long prose about *why* each decision was
@@ -563,8 +563,9 @@ export contract** (`GET …/open-brain-export`) are implemented; **CM UI** can
 review TTG proposals and **preview** that export payload from the TTG review tab.
 **Not done yet:** **live** Open Brain upsert (MCP/API), producer adapters, and
 deeper TTG-review polish (full Markdown preview, tighter list filters).
-**Ticket G** (stub audit + index merge + CM button) is started; live OB1 is still
-the main remaining gate.
+**Ticket G** (stub audit + index merge + CM button) is started; **live OB1**
+remains a **later** gate, after **§8b.6** Studio corpus onboarding and header
+normalization (see `010_VISION.md` §4).
 
 **Next-session gates:**
 
@@ -599,11 +600,42 @@ the main remaining gate.
 6. **Producer adapters**: Codex, Cursor, OpenCode, Telegram/Chat exports create
    or update artifacts; they do not define memory truth.
 7. Extend `E2E_GOLDEN_PATH_8B5` with Open Brain **export preview** and (after
-   Ticket G) **sync** cases.
+   Ticket G live path) **sync** cases.
+8. **§8b.6 — Studio corpus onboarding:** ingest external-repo artifacts into
+   Studio Framework; mandatory header/structure normalization before treating
+   bulk imports as export/sync-ready (vision §4; roadmap §8b.6).
 
-**Recommended order:** **Ticket G — Open Brain sync** (upsert + audit + UI hook)
-while keeping export contract read-only until sync is gated; then producer
-adapters. Ticket D polish (preview/filters) in parallel as needed.
+**Recommended order:** Treat **live OB1/MCP upsert** as **downstream** of a
+**Studio corpus onboarding** pass (see **§8b.6**): ingest material from other
+repos into Studio Framework, then normalize headers/structure; only then prioritize
+Ticket G live sync. Until the corpus is ready, **contract + stub audit** in CM
+are sufficient preparation. Ticket D polish (preview/filters) and producer
+adapters can proceed in parallel where they do not block onboarding.
+
+### 8b.6 · Studio corpus onboarding & header normalization (planned)
+
+**Intent:** Large parts of the knowledge base still live **outside** Studio
+Framework (other repositories, legacy trees). Before Open Brain live sync is
+worth prioritizing, that material must be **brought into** `Studio_Framework/`
+under governed paths and schemas.
+
+**Planned gate — mandatory for ingested artifacts:**
+
+1. **Ingest** — copy or migrate content into the correct Studio tree (e.g.
+   `050_Artifacts/…`) with traceability to source repo/commit where applicable.
+2. **Header & structure pass** — each imported artifact goes through a defined
+   process: YAML front matter (`id`, `type`, `status`, tags, `current_ttg` /
+   `initial_ttg`, project fields, timestamps) and body structure aligned to
+   Studio rules (e.g. ARYS, `TRACEABILITY_SCHEMA`, discovery templates). This may
+   be operator review, scripted lint, batch fixups, or CM/Workbench-assisted
+   editing — the exact toolchain is TBD; the **requirement** is that nothing is
+   treated as export/sync-ready until the pass is done.
+3. **Then** — artifact index + export contract + (later) OB1 upsert operate on a
+   **homogeneous** corpus; stub audit and review UIs remain meaningful.
+
+**Dependencies:** Studio-side playbooks or automation for ingestion; may span
+`Studio_Framework` repo more than CM. CM continues to **prepare** OB1 (contract,
+audit) without requiring OB1 to be fully implemented here first.
 
 **Goal:** Turn the third Channel Manager workspace tab into the operational
 bridge between producer work (Cursor/Codex/OpenCode/Chat/Telegram), TTG
