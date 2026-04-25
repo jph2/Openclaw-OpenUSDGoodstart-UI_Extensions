@@ -5,6 +5,7 @@ import { homedir } from 'os';
 import { z } from 'zod';
 import { resolveSafe } from '../utils/security.js';
 import { apiLimiter } from '../utils/rateLimiter.js';
+import { buildArtifactIndex } from '../services/artifactIndex.js';
 import { runMemoryPromote } from '../services/memoryPromote.js';
 import {
     buildIdeWorkUnit,
@@ -284,6 +285,21 @@ router.get('/', async (req, res, next) => {
             truncated,
             files: previews
         });
+    } catch (e) {
+        next(e);
+    }
+});
+
+/**
+ * GET /api/summaries/artifact-index
+ * Read-only computed index of Studio artifacts. This is the shared resolver
+ * view for later promote/export/sync flows.
+ */
+router.get('/artifact-index', async (req, res, next) => {
+    try {
+        const root = studioFrameworkRoot();
+        const index = await buildArtifactIndex({ studioRoot: root });
+        res.json({ ok: true, ...index });
     } catch (e) {
         next(e);
     }

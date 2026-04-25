@@ -13,6 +13,13 @@ function parseScalar(value) {
     if (s === 'null') return null;
     if (s === 'true') return true;
     if (s === 'false') return false;
+    if (s.startsWith('[') && s.endsWith(']')) {
+        return s
+            .slice(1, -1)
+            .split(',')
+            .map((item) => stripQuotes(item.trim()))
+            .filter(Boolean);
+    }
     return s;
 }
 

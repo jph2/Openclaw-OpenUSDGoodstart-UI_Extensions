@@ -557,16 +557,15 @@ continuity; Open Brain is the long-term semantic/MCP knowledge layer.
 artifact-header Discovery/Research binding is implemented for summary writes;
 artifact index/resolver, agent-assisted fallback classification, Open Brain
 export/sync, and producer adapters are not complete yet.
-**Remaining production gates:** artifact index/resolver, Open Brain export
-contract, agent-assisted TTG classification with review states, and Open Brain
-sync.
+**Remaining production gates:** Open Brain export contract, agent-assisted TTG
+classification with review states, and Open Brain sync.
 
 **Next-session gates:**
 
 1. ✅ **Ticket C — `ARTIFACT_HEADER_BINDING_V1`**: parse Discovery/Research YAML
    headers, map `current_ttg` into the work-unit binding result, and surface
    `binding.method = "artifact_header"` in sidecar/UI.
-2. **Ticket E — `ARTIFACT_INDEX_RESOLVER_V1`**: index Studio artifacts by
+2. ✅ **Ticket E — `ARTIFACT_INDEX_RESOLVER_V1`**: index Studio artifacts by
    stable id, path, type, tags, TTG binding, project binding, and content hash.
 3. **Ticket F — `OPEN_BRAIN_EXPORT_CONTRACT_V1`**: define the Studio artifact
    export/upsert payload for OB1 `thoughts`, including metadata, source path,
@@ -581,8 +580,7 @@ sync.
 7. Extend `E2E_GOLDEN_PATH_8B5` with artifact-header and Open Brain export/sync
    cases after the corresponding tickets land.
 
-**Recommended order:** wire `ARTIFACT_HEADER_BINDING_V1`, then
-`ARTIFACT_INDEX_RESOLVER_V1`, then `OPEN_BRAIN_EXPORT_CONTRACT_V1`, then
+**Recommended order:** `OPEN_BRAIN_EXPORT_CONTRACT_V1`, then
 `AGENT_TTG_CLASSIFICATION_V1`, then Open Brain sync. Producer adapters follow
 as convenience importers.
 

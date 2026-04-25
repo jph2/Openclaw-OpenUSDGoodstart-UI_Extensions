@@ -605,6 +605,12 @@ reviewable inference.
 
 ### Ticket E - `ARTIFACT_INDEX_RESOLVER_V1`
 
+Implementation status 2026-04-25: implemented as a read-only backend artifact
+index service plus `GET /api/ide-project-summaries/artifact-index`. The index
+normalizes Studio-root-relative source paths, artifact identity, TTG header
+binding, project metadata, header health, SHA-256 content hash, secret gate,
+and export eligibility. It does not mutate source artifacts.
+
 **Goal:** build a local machine-readable index of Studio Framework artifacts so
 OpenClaw promote and Open Brain sync operate from the same artifact truth.
 

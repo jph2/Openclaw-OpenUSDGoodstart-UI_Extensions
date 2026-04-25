@@ -167,6 +167,42 @@ binding:
         assert.equal(write.body.meta.binding.artifactHeader.initialTtgId, '-100732566515');
     });
 
+    it('exposes a read-only Studio artifact index', async () => {
+        const artifactDir = path.join(process.env.STUDIO_FRAMEWORK_ROOT, '050_Artifacts', 'A010_discovery-research');
+        await fs.mkdir(artifactDir, { recursive: true });
+        await fs.writeFile(
+            path.join(artifactDir, 'index-api.md'),
+            `---
+id: "index-api"
+title: "Index API"
+type: DISCOVERY
+status: active
+tags: [api, index]
+current_ttg:
+  id: "-100390983368"
+  name: "TTG010_General_Discovery_Plus_Research"
+binding:
+  status: confirmed
+  method: artifact_header
+---
+
+# Index API
+`,
+            'utf8'
+        );
+
+        const res = await request(app)
+            .get('/api/ide-project-summaries/artifact-index')
+            .expect(200);
+
+        assert.equal(res.body.ok, true);
+        assert.equal(res.body.schema, 'studio-framework.artifact-index.v1');
+        assert.equal(res.body.count, 1);
+        assert.equal(res.body.records[0].artifact.id, 'index-api');
+        assert.equal(res.body.records[0].binding.method, 'artifact_header');
+        assert.equal(res.body.records[0].exportEligibility.status, 'ready');
+    });
+
     it('promote writes marker, confirms readback, and updates sidecar meta', async () => {
         const relativePath = 'drafts/2026-04-24__-1003752539559__openclaw-control-center__summary.md';
         await request(app)
