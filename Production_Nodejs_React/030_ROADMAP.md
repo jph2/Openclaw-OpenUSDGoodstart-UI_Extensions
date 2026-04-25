@@ -572,9 +572,11 @@ states and Open Brain sync.
    export/upsert payload for OB1 `thoughts`, including metadata, source path,
    content hash, no-secrets validation, and dedup identity. Implemented as a
    read-only contract builder; no OB1 sync/write occurs yet.
-4. **Ticket D — `AGENT_TTG_CLASSIFICATION_V1`**: if the human leaves no TTG,
+4. ◐ **Ticket D — `AGENT_TTG_CLASSIFICATION_V1`**: backend classifier and
+   artifact-index integration landed. If the human leaves no TTG, the index can
    classify against canonical `TTG*.md` definitions and record
-   `inferred` / `needs_review` rather than pretending the result is confirmed.
+   `inferred` / `needs_review` / `ambiguous` rather than pretending the result
+   is confirmed. Remaining: UI review/confirm affordance.
 5. **Ticket G — `ARTIFACT_TO_OPEN_BRAIN_SYNC_V1`**: upsert reviewed artifacts
    into Open Brain and record returned thought ids / fingerprints / audit.
 6. **Producer adapters**: Codex, Cursor, OpenCode, Telegram/Chat exports create
@@ -582,8 +584,9 @@ states and Open Brain sync.
 7. Extend `E2E_GOLDEN_PATH_8B5` with artifact-header and Open Brain export/sync
    cases after the corresponding tickets land.
 
-**Recommended order:** `AGENT_TTG_CLASSIFICATION_V1`, then Open Brain sync.
-Producer adapters follow as convenience importers.
+**Recommended order:** UI review/confirm affordance for
+`AGENT_TTG_CLASSIFICATION_V1`, then Open Brain sync. Producer adapters follow
+as convenience importers.
 
 **Goal:** Turn the third Channel Manager workspace tab into the operational
 bridge between producer work (Cursor/Codex/OpenCode/Chat/Telegram), TTG

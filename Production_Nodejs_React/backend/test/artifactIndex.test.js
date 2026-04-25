@@ -70,6 +70,50 @@ describe('artifactIndex', () => {
         assert.equal(record.exportEligibility.status, 'needs_review');
     });
 
+    it('can attach agent classification evidence for unbound artifacts', () => {
+        const record = indexMarkdownArtifact({
+            studioRoot: '/studio',
+            filePath: '/studio/050_Artifacts/A010_discovery-research/no-header.md',
+            markdown: '# Research note\n\nStructured discovery and research for Open Brain.',
+            ttgDefinitions: [
+                {
+                    code: '010',
+                    ttgId: '-1003930983368',
+                    ttgName: 'TTG010_General_Discovery_Plus_Research',
+                    tokens: ['discovery', 'research', 'structured']
+                }
+            ]
+        });
+
+        assert.equal(record.binding.method, 'agent_classification');
+        assert.equal(['inferred', 'needs_review'].includes(record.binding.status), true);
+        assert.equal(record.binding.ttgId, '-1003930983368');
+        assert.equal(record.ttg.current.id, '-1003930983368');
+        assert.equal(record.classificationEvidence.method, 'agent_classification');
+        assert.equal(record.exportEligibility.status, 'needs_review');
+    });
+
+    it('keeps confirmed artifact headers ahead of classification', () => {
+        const record = indexMarkdownArtifact({
+            studioRoot: '/studio',
+            filePath: '/studio/050_Artifacts/A010_discovery-research/header-wins.md',
+            markdown: VALID_DISCOVERY,
+            ttgDefinitions: [
+                {
+                    code: '001',
+                    ttgId: '-1003732566515',
+                    ttgName: 'TTG001_Idea_Capture',
+                    tokens: ['idea', 'brainstorming']
+                }
+            ]
+        });
+
+        assert.equal(record.binding.status, 'confirmed');
+        assert.equal(record.binding.method, 'artifact_header');
+        assert.equal(record.binding.ttgId, '-100390983368');
+        assert.equal(record.classificationEvidence, null);
+    });
+
     it('uses initial_ttg only as inferred fallback when current_ttg is missing', () => {
         const record = indexMarkdownArtifact({
             studioRoot: '/studio',

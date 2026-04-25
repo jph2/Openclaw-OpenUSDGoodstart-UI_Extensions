@@ -553,6 +553,11 @@ by reading their YAML header as a durable source of truth.
 
 ### Ticket D - `AGENT_TTG_CLASSIFICATION_V1`
 
+**Status:** backend foundation implemented. The artifact index can now propose
+reviewable TTG bindings from canonical TTG definition docs. The operator UI
+still needs the explicit "confirm this TTG" affordance before inferred
+bindings become durable truth.
+
 **Goal:** when a human leaves an artifact unbound, let the agent propose a TTG
 using canonical TTG definition docs while clearly marking the result as a
 reviewable inference.
@@ -594,6 +599,22 @@ reviewable inference.
 - The UI must show "confirm this TTG" before treating an inferred binding as
   durable truth.
 
+**Current implementation:**
+
+- Classifier service: `backend/services/ttgClassifier.js`
+- Artifact-index integration: `backend/services/artifactIndex.js`
+- Canonical definitions are read from
+  `Studio_Framework/000_TelegramTopicGroups_Def/TTG*.md`.
+- Channel ids are mapped from Channel Manager `channel_config.json`; legacy
+  `TG###` names and canonical `TTG###` names are both accepted as migration
+  input.
+- The classifier is deterministic and evidence-based: it scores artifact title,
+  type, tags, body excerpt, and TTG definition terms, then returns
+  `inferred`, `needs_review`, `ambiguous`, or `unknown`.
+- Classification never returns `confirmed`.
+- Confirmed artifact-header/project/explicit bindings remain upstream truth and
+  outrank classification.
+
 **Tests:**
 
 1. raw idea -> `TTG001_Idea_Capture`, status `needs_review` or `inferred`.
@@ -602,6 +623,8 @@ reviewable inference.
 4. two close candidates -> `ambiguous`.
 5. no match -> `unknown`.
 6. confirmed artifact header/project mapping outranks classification.
+7. artifact index carries `classificationEvidence` and never marks classifier
+   output as export-ready confirmed knowledge.
 
 ### Ticket E - `ARTIFACT_INDEX_RESOLVER_V1`
 

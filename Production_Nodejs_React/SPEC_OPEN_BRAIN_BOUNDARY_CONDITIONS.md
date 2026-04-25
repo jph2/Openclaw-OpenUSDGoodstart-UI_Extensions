@@ -392,7 +392,9 @@ is:
 2. `ARTIFACT_INDEX_RESOLVER_V1`
 3. `OPEN_BRAIN_EXPORT_CONTRACT_V1` ✅ implemented as a read-only OB1-ready
    export/upsert payload builder
-4. `AGENT_TTG_CLASSIFICATION_V1`
+4. `AGENT_TTG_CLASSIFICATION_V1` ◐ backend/index classifier implemented;
+   UI confirmation remains required before inferred bindings become durable
+   truth
 5. `ARTIFACT_TO_OPENCLAW_MEMORY_PROMOTE_V1`
 6. `ARTIFACT_TO_OPEN_BRAIN_SYNC_V1`
 7. producer adapters: Codex, Cursor, OpenCode, Telegram/Chat exports

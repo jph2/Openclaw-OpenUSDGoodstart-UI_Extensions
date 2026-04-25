@@ -10,6 +10,7 @@ import {
     buildOpenBrainExportRecord,
     OpenBrainExportBlockedError
 } from '../services/openBrainExportContract.js';
+import { buildChannelMappingsFromConfig, loadTtgDefinitions } from '../services/ttgClassifier.js';
 import { runMemoryPromote } from '../services/memoryPromote.js';
 import {
     buildIdeWorkUnit,
@@ -20,7 +21,11 @@ import {
     updateMetaAfterPromotion,
     writeJsonAtomic
 } from '../services/ideWorkUnit.js';
-import { readProjectMappings, writeProjectMappings } from '../services/projectMappingStore.js';
+import {
+    readChannelConfigForProjectMappings,
+    readProjectMappings,
+    writeProjectMappings
+} from '../services/projectMappingStore.js';
 
 const router = express.Router();
 /** Same router is mounted at `/api/summaries` and `/api/ide-project-summaries` (generic IDE project summary API). */
@@ -302,7 +307,11 @@ router.get('/', async (req, res, next) => {
 router.get('/artifact-index', async (req, res, next) => {
     try {
         const root = studioFrameworkRoot();
-        const index = await buildArtifactIndex({ studioRoot: root });
+        const { config } = await readChannelConfigForProjectMappings();
+        const index = await buildArtifactIndex({
+            studioRoot: root,
+            channelMappings: buildChannelMappingsFromConfig(config)
+        });
         res.json({ ok: true, ...index });
     } catch (e) {
         next(e);
@@ -326,7 +335,16 @@ router.get('/open-brain-export', async (req, res, next) => {
         const root = studioFrameworkRoot();
         const { resolved } = await resolveSafe(root, sourcePath.split('/').join(path.sep));
         const markdown = await fs.readFile(resolved, 'utf8');
-        const record = indexMarkdownArtifact({ studioRoot: root, filePath: resolved, markdown });
+        const { config } = await readChannelConfigForProjectMappings();
+        const record = indexMarkdownArtifact({
+            studioRoot: root,
+            filePath: resolved,
+            markdown,
+            ttgDefinitions: await loadTtgDefinitions({
+                studioRoot: root,
+                channelMappings: buildChannelMappingsFromConfig(config)
+            })
+        });
         const exportRecord = buildOpenBrainExportRecord(record, {
             markdown,
             producer: {

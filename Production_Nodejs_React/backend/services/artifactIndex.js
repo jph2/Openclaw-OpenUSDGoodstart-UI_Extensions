@@ -2,6 +2,7 @@ import crypto from 'crypto';
 import fs from 'fs/promises';
 import path from 'path';
 import { extractMarkdownFrontmatter, parseArtifactHeaderBinding } from './artifactHeaderBinding.js';
+import { classifyArtifactTtg, loadTtgDefinitions } from './ttgClassifier.js';
 
 const SCHEMA_VERSION = 'studio-framework.artifact-index.v1';
 
@@ -152,7 +153,7 @@ export function buildContentHashInput(record, markdown) {
     };
 }
 
-export function indexMarkdownArtifact({ studioRoot, filePath, markdown }) {
+export function indexMarkdownArtifact({ studioRoot, filePath, markdown, ttgDefinitions = [] }) {
     const sourcePath = sourcePathFor(studioRoot, filePath);
     const text = String(markdown || '');
     const parsed = parseArtifactHeaderBinding(text);
@@ -193,6 +194,7 @@ export function indexMarkdownArtifact({ studioRoot, filePath, markdown }) {
         header,
         contentHash: '',
         secretGate: detectSecretLikeContent(text, sourcePath),
+        classificationEvidence: null,
         exportEligibility: { status: 'needs_review', reason: '' },
         promote: {
             status: 'not_promoted',
@@ -205,6 +207,30 @@ export function indexMarkdownArtifact({ studioRoot, filePath, markdown }) {
             contentHash: null
         }
     };
+    if (record.binding.status === 'unknown' && record.secretGate.status !== 'blocked' && ttgDefinitions.length) {
+        const classification = classifyArtifactTtg({
+            artifact: record.artifact,
+            markdown: text,
+            ttgDefinitions
+        });
+        record.classificationEvidence = classification;
+        if (classification.status !== 'unknown') {
+            record.binding = {
+                status: classification.status,
+                method: 'agent_classification',
+                ttgId: classification.ttgId || null,
+                candidates: classification.candidates || [],
+                reason: `agent classification confidence ${classification.confidence}`
+            };
+            if (classification.ttgId) {
+                record.ttg.current = {
+                    id: classification.ttgId,
+                    name: classification.ttgName || '',
+                    reason: 'agent classification proposal; requires review'
+                };
+            }
+        }
+    }
     record.contentHash = sha256(canonicalJson(buildContentHashInput(record, text)));
     record.exportEligibility = exportEligibility({
         header: record.header,
@@ -230,8 +256,9 @@ async function walkMarkdown(dir, base, acc = []) {
     return acc;
 }
 
-export async function buildArtifactIndex({ studioRoot, roots = ['050_Artifacts'] } = {}) {
+export async function buildArtifactIndex({ studioRoot, roots = ['050_Artifacts'], channelMappings = [] } = {}) {
     if (!studioRoot) throw new Error('studioRoot is required');
+    const ttgDefinitions = await loadTtgDefinitions({ studioRoot, channelMappings });
     const files = [];
     for (const rel of roots) {
         await walkMarkdown(path.join(studioRoot, rel), studioRoot, files);
@@ -239,7 +266,7 @@ export async function buildArtifactIndex({ studioRoot, roots = ['050_Artifacts']
     const records = [];
     for (const filePath of files.sort()) {
         const markdown = await fs.readFile(filePath, 'utf8');
-        records.push(indexMarkdownArtifact({ studioRoot, filePath, markdown }));
+        records.push(indexMarkdownArtifact({ studioRoot, filePath, markdown, ttgDefinitions }));
     }
     return {
         schema: SCHEMA_VERSION,
