@@ -580,8 +580,11 @@ states and Open Brain sync.
    `inferred` / `needs_review` / `ambiguous` rather than pretending the result
    is confirmed. **Backend confirm path landed 2026-04-26:** `artifact-binding/confirm`
    writes `current_ttg` + confirmed binding into the Markdown header and returns
-   a fresh index record. **Remaining:** UI review/confirm affordance wired to
-   that endpoint.
+   a fresh index record. **CM UI slice landed 2026-04-26:** IDE tab
+   **Studio artifacts · TTG review** loads the artifact index, lists non-confirmed
+   records (sorted with relevance to the active TTG row), and posts confirm with
+   optional candidate picks. **Remaining:** E2E coverage + polish (full Markdown
+   preview, stricter scope filters if the list grows noisy).
 5. **Ticket G — `ARTIFACT_TO_OPEN_BRAIN_SYNC_V1`**: upsert reviewed artifacts
    into Open Brain and record returned thought ids / fingerprints / audit.
 6. **Producer adapters**: Codex, Cursor, OpenCode, Telegram/Chat exports create

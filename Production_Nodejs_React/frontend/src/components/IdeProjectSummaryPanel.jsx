@@ -56,11 +56,44 @@ function emptyMapping() {
     };
 }
 
+/** Higher = more relevant when filtering/sorting for the active TTG tab. */
+function channelRelevance(record, channelId) {
+    if (!channelId) return 0;
+    const b = record.binding || {};
+    if (b.ttgId === channelId) return 4;
+    if (record.ttg?.current?.id === channelId) return 4;
+    if ((b.candidates || []).some((c) => c.ttgId === channelId)) return 3;
+    if (String(record.sourcePath || '').includes(channelId)) return 2;
+    return 0;
+}
+
+function recordNeedsTtgConfirmation(record) {
+    if (!record || record.secretGate?.status === 'blocked') return false;
+    if (record.binding?.status === 'confirmed') return false;
+    return true;
+}
+
+function confirmDraftFromRecord(record) {
+    if (!record) {
+        return { ttgId: '', ttgName: '', reason: 'operator confirmed TTG binding' };
+    }
+    const b = record.binding || {};
+    const cur = record.ttg?.current;
+    const id = b.ttgId || cur?.id || b.candidates?.[0]?.ttgId || '';
+    const name = cur?.name || b.candidates?.[0]?.ttgName || '';
+    return {
+        ttgId: id ? String(id) : '',
+        ttgName: name ? String(name) : '',
+        reason: 'operator confirmed TTG binding'
+    };
+}
+
 /** Third workspace tab: IDE project summaries (Studio A070) + optional OpenClaw memory (read-only). Tool-agnostic. */
 export default function IdeProjectSummaryPanel({ channelId, channelName }) {
     const queryClient = useQueryClient();
     const [selectedRel, setSelectedRel] = useState(null);
-    const [panel, setPanel] = useState('a070'); // 'a070' | 'memory'
+    const [selectedArtifactSourcePath, setSelectedArtifactSourcePath] = useState(null);
+    const [panel, setPanel] = useState('a070'); // 'a070' | 'artifacts' | 'memory'
     const [adapterSurface, setAdapterSurface] = useState('manual');
     const [projectRoot, setProjectRoot] = useState('');
     const [projectIdInput, setProjectIdInput] = useState('');
@@ -74,6 +107,9 @@ export default function IdeProjectSummaryPanel({ channelId, channelName }) {
         `# Summary\n\n- Channel: ${channelName || channelId || 'n/a'}\n- Date: ${todaySlug()}\n- Project: ${projectId}\n\n`
     );
     const [promoteOpen, setPromoteOpen] = useState(false);
+    const [confirmTtgId, setConfirmTtgId] = useState('');
+    const [confirmTtgName, setConfirmTtgName] = useState('');
+    const [confirmReason, setConfirmReason] = useState('operator confirmed TTG binding');
 
     const { data, isLoading, error } = useQuery({
         queryKey: ['ide-project-summaries', channelId],
@@ -95,6 +131,39 @@ export default function IdeProjectSummaryPanel({ channelId, channelName }) {
         },
         enabled: panel === 'memory'
     });
+
+    const {
+        data: artifactIndexData,
+        isLoading: artifactIndexLoading,
+        error: artifactIndexError
+    } = useQuery({
+        queryKey: ['studio-artifact-index'],
+        queryFn: async () => {
+            const res = await fetch('/api/ide-project-summaries/artifact-index');
+            if (!res.ok) throw new Error('Failed to load Studio artifact index');
+            return res.json();
+        },
+        enabled: panel === 'artifacts'
+    });
+
+    const reviewRecords = useMemo(() => {
+        const raw = artifactIndexData?.records || [];
+        return raw
+            .filter(recordNeedsTtgConfirmation)
+            .sort((a, b) => {
+                const relDiff = channelRelevance(b, channelId) - channelRelevance(a, channelId);
+                if (relDiff !== 0) return relDiff;
+                const pri = (x) => (x.binding?.method === 'agent_classification' ? 0 : 1);
+                const p = pri(a) - pri(b);
+                if (p !== 0) return p;
+                return String(a.sourcePath || '').localeCompare(String(b.sourcePath || ''));
+            });
+    }, [artifactIndexData, channelId]);
+
+    const selectedArtifactRecord = useMemo(
+        () => reviewRecords.find((r) => r.sourcePath === selectedArtifactSourcePath) || null,
+        [reviewRecords, selectedArtifactSourcePath]
+    );
 
     const { data: fileData } = useQuery({
         queryKey: ['ideSummaryFile', selectedRel, panel],
@@ -185,6 +254,32 @@ export default function IdeProjectSummaryPanel({ channelId, channelName }) {
         }
     });
 
+    const confirmBindingMutation = useMutation({
+        mutationFn: async () => {
+            const sourcePath = selectedArtifactSourcePath;
+            if (!sourcePath || !confirmTtgId.trim()) {
+                throw new Error('Select an artifact and enter a TTG id.');
+            }
+            const res = await fetch('/api/ide-project-summaries/artifact-binding/confirm', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    sourcePath,
+                    ttgId: confirmTtgId.trim(),
+                    ttgName: confirmTtgName.trim(),
+                    reason: confirmReason.trim() || 'operator confirmed TTG binding'
+                })
+            });
+            const j = await res.json().catch(() => ({}));
+            if (!res.ok) throw new Error(j.error || res.statusText);
+            return j;
+        },
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ['studio-artifact-index'] });
+            setSelectedArtifactSourcePath(null);
+        }
+    });
+
     const updateMappingRow = (index, patch) => {
         setMappingRows((rows) => rows.map((row, i) => (i === index ? { ...row, ...patch } : row)));
     };
@@ -192,7 +287,11 @@ export default function IdeProjectSummaryPanel({ channelId, channelName }) {
     const files = data?.files || [];
     const memFiles = memData?.files || [];
 
-    const list = useMemo(() => (panel === 'memory' ? memFiles : files), [panel, memFiles, files]);
+    const list = useMemo(() => {
+        if (panel === 'memory') return memFiles;
+        if (panel === 'artifacts') return [];
+        return files;
+    }, [panel, memFiles, files]);
     const selectedFile = useMemo(() => list.find((f) => f.relativePath === selectedRel) || null, [list, selectedRel]);
     const selectedMeta = fileData?.meta || selectedFile?.meta || null;
     const selectedStatus = fileData?.bridgeStatus || selectedFile?.bridgeStatus || null;
@@ -234,9 +333,28 @@ export default function IdeProjectSummaryPanel({ channelId, channelName }) {
                         onClick={() => {
                             setPanel('a070');
                             setSelectedRel(null);
+                            setSelectedArtifactSourcePath(null);
                         }}
                     >
                         Studio A070
+                    </button>
+                    <button
+                        type="button"
+                        data-testid="ide-summary-tab-artifacts"
+                        style={{
+                            padding: '4px 10px',
+                            fontSize: '11px',
+                            borderRadius: '4px',
+                            border: '1px solid var(--border-color)',
+                            background: panel === 'artifacts' ? 'rgba(80,227,194,0.15)' : 'transparent'
+                        }}
+                        onClick={() => {
+                            setPanel('artifacts');
+                            setSelectedRel(null);
+                            setSelectedArtifactSourcePath(null);
+                        }}
+                    >
+                        Studio artifacts · TTG review
                     </button>
                     <button
                         type="button"
@@ -250,6 +368,7 @@ export default function IdeProjectSummaryPanel({ channelId, channelName }) {
                         onClick={() => {
                             setPanel('memory');
                             setSelectedRel(null);
+                            setSelectedArtifactSourcePath(null);
                         }}
                     >
                         OpenClaw memory (read-only)
@@ -461,10 +580,17 @@ export default function IdeProjectSummaryPanel({ channelId, channelName }) {
                         fontSize: '11px'
                     }}
                 >
-                    {(isLoading || (panel === 'memory' && memLoading)) && <div style={{ padding: '12px' }}>Loading…</div>}
-                    {error && (
+                    {(isLoading || (panel === 'memory' && memLoading) || (panel === 'artifacts' && artifactIndexLoading)) && (
+                        <div style={{ padding: '12px' }}>Loading…</div>
+                    )}
+                    {error && panel !== 'artifacts' && (
                         <div style={{ padding: '12px', color: '#e35050' }}>
                             {String(error.message)}
+                        </div>
+                    )}
+                    {panel === 'artifacts' && artifactIndexError && (
+                        <div style={{ padding: '12px', color: '#e35050' }}>
+                            {String(artifactIndexError.message)}
                         </div>
                     )}
                     {!isLoading && !list.length && panel === 'a070' && (
@@ -477,7 +603,51 @@ export default function IdeProjectSummaryPanel({ channelId, channelName }) {
                             No memory files matched, or memory dir is empty.
                         </div>
                     )}
-                    {list.map((f) => (
+                    {!artifactIndexLoading && panel === 'artifacts' && !reviewRecords.length && (
+                        <div style={{ padding: '12px', color: 'var(--text-secondary)' }}>
+                            No Studio artifacts need TTG confirmation (all blocked or already confirmed), or index is empty.
+                        </div>
+                    )}
+                    {panel === 'artifacts'
+                        && reviewRecords.map((r) => (
+                            <button
+                                data-testid={`ide-artifact-${String(r.sourcePath || '').replace(/\//g, '__')}`}
+                                key={r.sourcePath}
+                                type="button"
+                                onClick={() => {
+                                    setSelectedArtifactSourcePath(r.sourcePath);
+                                    const d = confirmDraftFromRecord(r);
+                                    setConfirmTtgId(d.ttgId);
+                                    setConfirmTtgName(d.ttgName);
+                                    setConfirmReason(d.reason);
+                                }}
+                                style={{
+                                    display: 'block',
+                                    width: '100%',
+                                    textAlign: 'left',
+                                    padding: '8px 10px',
+                                    border: 'none',
+                                    borderBottom: '1px solid rgba(255,255,255,0.06)',
+                                    background:
+                                        selectedArtifactSourcePath === r.sourcePath
+                                            ? 'rgba(80,227,194,0.12)'
+                                            : 'transparent',
+                                    color: 'var(--text-primary)',
+                                    cursor: 'pointer',
+                                    fontSize: '11px'
+                                }}
+                            >
+                                <span style={{ color: '#e3c450' }}>{r.binding?.status || '?'}</span>
+                                <span style={{ marginLeft: 6, color: 'var(--text-secondary)' }}>
+                                    {r.binding?.method || 'none'}
+                                </span>
+                                <div style={{ marginTop: 4 }}>{r.sourcePath}</div>
+                                <div style={{ color: 'var(--text-secondary)', marginTop: 4 }}>
+                                    {r.artifact?.id || '—'} · {r.artifact?.title || '—'}
+                                </div>
+                            </button>
+                        ))}
+                    {panel !== 'artifacts' && list.map((f) => (
                         <button
                             data-testid={`ide-summary-file-${f.relativePath}`}
                             key={f.relativePath}
@@ -521,10 +691,181 @@ export default function IdeProjectSummaryPanel({ channelId, channelName }) {
                     ))}
                 </div>
                 <div style={{ flex: 1, overflowY: 'auto', padding: '12px 16px', fontSize: '13px' }}>
-                    {!selectedRel && (
+                    {panel === 'artifacts' && !selectedArtifactSourcePath && (
+                        <div style={{ color: 'var(--text-secondary)' }}>
+                            Select an artifact to review classifier output and confirm TTG (writes YAML header on disk).
+                        </div>
+                    )}
+                    {panel === 'artifacts' && selectedArtifactRecord && (
+                        <div style={{ marginBottom: 16 }}>
+                            <div style={{ fontWeight: 700, marginBottom: 8 }}>{selectedArtifactRecord.sourcePath}</div>
+                            <div
+                                style={{
+                                    fontSize: 11,
+                                    color: 'var(--text-secondary)',
+                                    border: '1px solid var(--border-color)',
+                                    borderRadius: 6,
+                                    padding: 10,
+                                    marginBottom: 12,
+                                    background: 'rgba(255,255,255,0.03)'
+                                }}
+                            >
+                                <div>
+                                    Export: <code>{selectedArtifactRecord.exportEligibility?.status || '?'}</code>
+                                    {selectedArtifactRecord.exportEligibility?.reason
+                                        ? ` — ${selectedArtifactRecord.exportEligibility.reason}`
+                                        : ''}
+                                </div>
+                                <div>
+                                    Header: <code>{selectedArtifactRecord.header?.status || '?'}</code>
+                                    {selectedArtifactRecord.header?.reason
+                                        ? ` — ${selectedArtifactRecord.header.reason}`
+                                        : ''}
+                                </div>
+                                <div>
+                                    Binding: <code>{selectedArtifactRecord.binding?.status || '?'}</code> /{' '}
+                                    <code>{selectedArtifactRecord.binding?.method || 'none'}</code>
+                                </div>
+                                {selectedArtifactRecord.binding?.reason && (
+                                    <div>Binding note: {selectedArtifactRecord.binding.reason}</div>
+                                )}
+                            </div>
+                            {(selectedArtifactRecord.binding?.candidates || []).length > 0 && (
+                                <div style={{ marginBottom: 10, fontSize: 11 }}>
+                                    <div style={{ fontWeight: 600, marginBottom: 6 }}>Candidates</div>
+                                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                                        {selectedArtifactRecord.binding.candidates.map((c) => (
+                                            <button
+                                                key={`${c.ttgId}-${c.code}`}
+                                                type="button"
+                                                onClick={() => {
+                                                    setConfirmTtgId(c.ttgId ? String(c.ttgId) : '');
+                                                    setConfirmTtgName(c.ttgName ? String(c.ttgName) : '');
+                                                }}
+                                                style={{
+                                                    padding: '4px 8px',
+                                                    fontSize: 10,
+                                                    background: '#1d2532',
+                                                    border: '1px solid var(--border-color)',
+                                                    color: '#50e3c2',
+                                                    borderRadius: 4,
+                                                    cursor: 'pointer'
+                                                }}
+                                            >
+                                                {c.ttgName || c.code || c.ttgId}
+                                            </button>
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
+                            <div
+                                style={{
+                                    display: 'grid',
+                                    gridTemplateColumns: '1fr',
+                                    gap: 8,
+                                    maxWidth: 480,
+                                    fontSize: 11
+                                }}
+                            >
+                                <label>
+                                    TTG id (Telegram topic group id)
+                                    <input
+                                        data-testid="ide-artifact-confirm-ttg-id"
+                                        value={confirmTtgId}
+                                        onChange={(e) => setConfirmTtgId(e.target.value)}
+                                        placeholder="-100…"
+                                        style={{
+                                            display: 'block',
+                                            width: '100%',
+                                            marginTop: 4,
+                                            padding: 6,
+                                            background: '#13141c',
+                                            border: '1px solid var(--border-color)',
+                                            color: '#fff',
+                                            fontSize: 11
+                                        }}
+                                    />
+                                </label>
+                                <label>
+                                    TTG display name (optional)
+                                    <input
+                                        data-testid="ide-artifact-confirm-ttg-name"
+                                        value={confirmTtgName}
+                                        onChange={(e) => setConfirmTtgName(e.target.value)}
+                                        style={{
+                                            display: 'block',
+                                            width: '100%',
+                                            marginTop: 4,
+                                            padding: 6,
+                                            background: '#13141c',
+                                            border: '1px solid var(--border-color)',
+                                            color: '#fff',
+                                            fontSize: 11
+                                        }}
+                                    />
+                                </label>
+                                <label>
+                                    Reason (stored in header)
+                                    <input
+                                        value={confirmReason}
+                                        onChange={(e) => setConfirmReason(e.target.value)}
+                                        style={{
+                                            display: 'block',
+                                            width: '100%',
+                                            marginTop: 4,
+                                            padding: 6,
+                                            background: '#13141c',
+                                            border: '1px solid var(--border-color)',
+                                            color: '#fff',
+                                            fontSize: 11
+                                        }}
+                                    />
+                                </label>
+                                <button
+                                    data-testid="ide-artifact-confirm-submit"
+                                    type="button"
+                                    disabled={confirmBindingMutation.isPending || !confirmTtgId.trim()}
+                                    onClick={() => confirmBindingMutation.mutate()}
+                                    style={{
+                                        padding: '8px 14px',
+                                        fontSize: 12,
+                                        background: 'rgba(80,227,194,0.25)',
+                                        border: '1px solid rgba(80,227,194,0.5)',
+                                        color: '#50e3c2',
+                                        borderRadius: 6,
+                                        cursor: confirmTtgId.trim() ? 'pointer' : 'not-allowed'
+                                    }}
+                                >
+                                    {confirmBindingMutation.isPending ? 'Writing header…' : 'Confirm TTG (write artifact header)'}
+                                </button>
+                            </div>
+                            {confirmBindingMutation.isError && (
+                                <div style={{ color: '#e35050', marginTop: 10 }}>
+                                    {String(confirmBindingMutation.error.message)}
+                                </div>
+                            )}
+                            {selectedArtifactRecord.classificationEvidence && (
+                                <pre
+                                    style={{
+                                        marginTop: 14,
+                                        fontSize: 10,
+                                        overflow: 'auto',
+                                        maxHeight: 220,
+                                        background: '#0e0f14',
+                                        border: '1px solid var(--border-color)',
+                                        borderRadius: 6,
+                                        padding: 8
+                                    }}
+                                >
+                                    {JSON.stringify(selectedArtifactRecord.classificationEvidence, null, 2)}
+                                </pre>
+                            )}
+                        </div>
+                    )}
+                    {panel !== 'artifacts' && !selectedRel && (
                         <div style={{ color: 'var(--text-secondary)' }}>Select a file to preview full Markdown.</div>
                     )}
-                    {selectedRel && fileData?.text && (
+                    {panel !== 'artifacts' && selectedRel && fileData?.text && (
                         <>
                             {panel === 'a070' && (
                                 <div
