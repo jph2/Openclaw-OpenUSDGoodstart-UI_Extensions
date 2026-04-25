@@ -1,38 +1,36 @@
 # QA 8b.5 - IDE Memory Bridge
 
-Date: 2026-04-25
+Date: 2026-04-26 (maturity refresh)
 Scope: Final next-session gates after the §8b.5 bridge foundation
 Open Brain guardrail: `SPEC_OPEN_BRAIN_BOUNDARY_CONDITIONS.md`
 
 ## Status
 
-§8b.5 stands as a credible, tested bridge foundation for project-mapping based
-work. Browser proof of the current operator flow is automated. The architecture
-is now artifact-centered so Open Brain can become the long-term semantic/MCP
-knowledge layer without making Codex/Cursor/OpenCode separate truth stores. The
-full production workflow is not complete yet.
+§8b.5 is a **tested** bridge: project mappings, artifact headers, classifier +
+TTG review UI, artifact index, Open Brain export + stub/HTTP sync, and **B**
+(CM → `.cursor/agents` apply + stale fingerprint) are in production code paths.
+**Producer adapters** and **first-party OB1/MCP upsert** remain the largest gaps.
 
-Maturity snapshot:
+Maturity snapshot (Reifegrad — Schätzung, keine Messautomatik):
 
 | Area | Status |
 | --- | --- |
-| Project Mapping Bridge | 85-90% |
-| Promotion / Read-back Core | 90% |
-| Operator UI Completeness | 65-70% |
-| Artifact Header Binding | 35-40% |
-| Agent-assisted TTG Classification | 10-15% |
-| Open Brain Export Contract | 10-15% |
-| Open Brain Sync | 0-10% |
-| Producer Adapters (Codex/Cursor/OpenCode) | 10-25% |
+| Project Mapping Bridge | 88-92% |
+| Promotion / Read-back Core | 90-93% |
+| Operator UI (IDE tab) | 78-85% |
+| Artifact Header Binding | 88-93% |
+| Agent-assisted TTG Classification | 72-80% |
+| Artifact Index / Resolver | 85-90% |
+| Open Brain Export Contract | 88-93% |
+| Open Brain Sync (stub + HTTP + audit) | 62-72% |
+| **B: CM → Cursor** (`apply-ide-export`, engines + subs, stale check) | 78-85% |
+| Producer Adapters (Codex/Cursor/OpenCode) | 18-30% |
 
-Remaining gates:
+Remaining gates (high level):
 
-1. Artifact header resolver ingestion.
-2. Artifact index/resolver with stable ids and content hashes.
-3. Open Brain export contract and no-secrets validation.
-4. Agent-assisted TTG classification with visible review states.
-5. Open Brain sync/upsert with audit and dedup.
-6. Producer adapters.
+1. **Producer adapters** — durable artifact writes from Cursor/Codex/OpenCode surfaces.
+2. **OB1/MCP** — first-party upsert path beyond HTTP adapter; policy as you define it.
+3. **Polish** — §8b.7 topology / gateway `tools.effective` verification when API stable.
 
 Normative binding statuses:
 

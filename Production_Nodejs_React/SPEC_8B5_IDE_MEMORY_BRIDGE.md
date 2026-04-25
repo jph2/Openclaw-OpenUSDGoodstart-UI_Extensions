@@ -43,7 +43,7 @@ memory authorities. See `SPEC_OPEN_BRAIN_BOUNDARY_CONDITIONS.md`.
   the same work-unit contract.
 - Do not make producer adapters the source of truth. They feed artifacts.
 - Do not sync secrets or unreviewed inferred bindings into Open Brain.
-- Do not add topology/graph visualization in this slice. That is §8b.6.
+- Do not add topology/graph visualization in this slice. That is §8b.7.
 
 ## 3. Existing Building Blocks
 
@@ -421,45 +421,36 @@ Third implementation slice is in place:
   `channel_config.json`, and project-mapping based TTG resolution during
   summary write.
 
-Current summary verdict:
+Current summary verdict (2026-04-26):
 
-> §8b.5 stands as a credible, tested bridge foundation with clean project
-> mapping semantics and a browser-proven golden operator flow. It is ready for
-> project-based work with explicit project mappings. It is not yet complete for
-> artifact-header discovery flows, Open Brain export/sync, agent-assisted
-> fallback classification, or producer adapters.
+> §8b.5 is a **credible, tested** bridge: mappings, artifact headers, classifier
+> + TTG review, artifact index, Open Brain export + sync (stub/HTTP), E2E golden
+> paths, and **B** (CM → Cursor agent files + fingerprint stale check) are
+> **landed**. What remains for “architecturally complete” is mainly **producer
+> adapters**, **first-party OB1/MCP** (if desired), and **runtime verification**
+> UX (e.g. §8b.7) — see `030_ROADMAP.md` §8b.5.
 
-Implementation maturity snapshot:
+Implementation maturity snapshot (Reifegrad):
 
 | Area | Status |
 | --- | --- |
-| Project Mapping Bridge | 85-90% |
-| Promotion / Read-back Core | 90% |
-| Operator UI Completeness | 65-70% |
-| Artifact Header Binding | 35-40% (specified; parser/resolver not landed) |
-| Agent-assisted TTG Classification | 10-15% (concept only) |
-| Open Brain Export Contract | 10-15% |
-| Open Brain Sync | 0-10% |
-| Producer Adapters (Codex/Cursor/OpenCode) | 10-25% |
+| Project Mapping Bridge | 88-92% |
+| Promotion / Read-back Core | 90-93% |
+| Operator UI (IDE tab) | 78-85% |
+| Artifact Header Binding | 88-93% |
+| Agent-assisted TTG Classification | 72-80% |
+| Artifact Index / Resolver | 85-90% |
+| Open Brain Export Contract | 88-93% |
+| Open Brain Sync (stub + HTTP + audit) | 62-72% |
+| **B: CM → Cursor** | 78-85% |
+| Producer Adapters (Codex/Cursor/OpenCode) | 18-30% |
 
-Remaining production gates before §8b.5 is complete:
+Remaining production gates before calling §8b.5 “done” in the strict sense:
 
-1. **Artifact header resolver ingestion:** parse Discovery/Research YAML
-   headers, read `current_ttg` / `initial_ttg`, and expose
-   `binding.method = "artifact_header"` in sidecar/UI.
-2. **Agent-assisted TTG classification:** when the human left no explicit
-   binding, classify against canonical TTG definition docs and record the
-   result as `inferred` / `needs_review`, not as confirmed truth.
-3. **Artifact index/resolver:** index Studio artifacts by id, path, type, tags,
-   TTG binding, project binding, content hash, and header health.
-4. **Open Brain export contract:** produce no-secrets, fingerprinted,
-   metadata-rich records suitable for OB1 `thoughts` upsert.
-5. **Open Brain sync:** upsert reviewed artifacts into Open Brain with audit
-   and dedup/read-back.
-6. **Producer adapters:** Codex/Cursor/OpenCode/Telegram/Chat adapters create or
-   update artifacts rather than becoming memory authorities.
-7. **Review UI states:** surface `inferred`, `needs_review`, and "confirm this
-   TTG" affordances so human sloppiness can be repaired without silent guesses.
+1. **Producer adapters** — Codex/Cursor/OpenCode (and peers) create/update Studio artifacts under the same contract; CM is not the only write path for long-form context.
+2. **OB1/MCP upsert** — optional first-party client; HTTP adapter exists today.
+3. **Review / ops polish** — filters, previews, topology read-only view (§8b.7) when gateway APIs are stable.
+4. **Hardening backlog** (see below) — row-level mapping conflicts, guarded A070 edits, full ledger UX.
 
 Hardening backlog after those gates:
 
@@ -469,33 +460,23 @@ Hardening backlog after those gates:
   stale/failed states.
 - IDE bridge audit JSONL (`channel-manager-ide-summary-audit.jsonl`).
 
-MARVIN verdict for production readiness:
+MARVIN verdict for production readiness (2026-04-26):
 
-- **PASS** for "credible, operator-anchored §8b.5 bridge foundation."
-- **FAIL** for "architecturally complete / production-safe §8b.5."
+- **PASS** for "credible, operator-anchored §8b.5 bridge foundation" **including**
+  artifact header/index/classifier, OB export/sync slice, E2E coverage, and **B**
+  (Cursor apply + stale fingerprint).
+- **FAIL** only for the **strict** bar: full producer-adapter coverage +
+  first-party OB1/MCP + §8b.7-style runtime topology — i.e. "nothing left to wire."
 
-Required fix-gates before calling §8b.5 done:
-
-1. Land `ARTIFACT_HEADER_BINDING_V1`.
-2. Land `ARTIFACT_INDEX_RESOLVER_V1`.
-3. Land `OPEN_BRAIN_EXPORT_CONTRACT_V1`.
-4. Land `AGENT_TTG_CLASSIFICATION_V1` with visible review states.
-5. Land `ARTIFACT_TO_OPEN_BRAIN_SYNC_V1`.
-6. Add producer adapters as convenience importers.
+Tickets C–G (header, index, export, classification, sync stub/HTTP) are **landed**
+in code; remaining gates are **adapters**, **OB1/MCP choice**, and **polish**.
 
 Recommended next implementation steps:
 
-1. `ARTIFACT_HEADER_BINDING_V1`: parse YAML headers and bind through
-   `current_ttg`.
-2. `ARTIFACT_INDEX_RESOLVER_V1`: build a stable artifact index with content
-   hashes and header health.
-3. `OPEN_BRAIN_EXPORT_CONTRACT_V1`: define OB1-ready export/upsert records.
-4. `AGENT_TTG_CLASSIFICATION_V1`: fallback classification from TTG definition
-   docs with `inferred` / `needs_review` status.
-5. `ARTIFACT_TO_OPEN_BRAIN_SYNC_V1`: sync reviewed artifacts with audit/dedup.
-6. Producer adapters: Codex, Cursor, OpenCode, Telegram/Chat exports.
-7. Extend `E2E_GOLDEN_PATH_8B5` with artifact-header and Open Brain export/sync
-   cases.
+1. Producer adapters (Cursor/Codex/OpenCode) toward Studio artifacts.
+2. OB1/MCP upsert when you prioritize it (HTTP path exists today).
+3. §8b.7 topology / `tools.effective` when the gateway contract is stable.
+4. Hardening backlog items above (mapping conflicts, A070 edit guards, audit JSONL).
 
 ## 14. Ticket Specs - Next Session
 
@@ -752,6 +733,11 @@ trail that can be reconciled later.
    - operation result (`inserted|updated|duplicate|failed`)
    - sync timestamp
    - error if any
+
+**Channel Manager dispatch (`OPEN_BRAIN_SYNC_PROVIDER`):**
+
+- **`stub`** (default): writes `open_brain_sync_audit.json` and a deterministic local `thoughtId`; no network.
+- **`http`**: `POST` the full export record (same shape as `GET …/open-brain-export`) as JSON to **`OPEN_BRAIN_SYNC_URL`**. The response must be JSON with **`thoughtId`** or **`id`** (or `thought.id`). Optional: **`OPEN_BRAIN_SYNC_API_KEY`** → `Authorization: Bearer …`; **`OPEN_BRAIN_SYNC_TIMEOUT_MS`** (default 30000, clamped 3000–120000). Missing URL when `provider=http` returns **503** with a clear error.
 
 **Rules:**
 

@@ -17,7 +17,7 @@
 | OpenClaw Chat mirror                | Functional; auto-scroll v3 live, tool chips collapsible, CLI send + JSONL mirror; **2026-04-20 UX:** optimistic user bubble, 200 ms session tail poll, bubble timestamps with seconds (until §8c native gateway path) |
 | Cursor Summary tab                  | Read-only MVP live; A070 list + renderer                                                         |
 | IDE Bridge (MCP)                    | Live for `send_telegram_reply` and `change_agent_mode`                                           |
-| Exports (read-only projections)    | Live: `/api/exports/{canonical,openclaw,ide,cursor}`                                             |
+| Exports (read-only projections)    | Live: `/api/exports/{canonical,openclaw,ide,cursor}`; **B (2026-04-26):** `scripts/apply-ide-export.mjs` materializes engines + sub-agents under target `.cursor/agents/`, `check-ide-export-stale.mjs` guards drift |
 | Config Apply to `openclaw.json`     | **C1 + C1b.1 + C1b.2a + C1b.2b + C1b.2c + C1b.2e + C1b.3:** per-channel groups + synth `agents.list[]` / `bindings[]` (skills include **C1b.3**) + orphan prune; optional **`channels.telegram` account policy**; optional **`agents.defaults.model.primary`** when `openclawAgentsDefaultsPolicy.applyModelOnOpenClawApply`. **Stale Telegram sessions** — `scripts/cm-release-telegram-session` (**C1b.2d**). |
 | Summary promotion to memory/        | **Live (C2):** `POST /api/summaries/promote` + IDE tab modal (daily `memory/*.md` or `MEMORY.md`) |
 | `occ-ctl.mjs`                       | Not in tree; `npm start` / `npm run dev` are the current entrypoints                              |
@@ -330,14 +330,14 @@ not part of the A → B → C1 → C2 sequence above.
 | 6.4   | TARS Hub deep-link integration (`:18789/chat?session=…`) from channel cards.            |
 | 6.5   | Atomic config persistence hardening (chokidar signal on `POST /api/channels/config`).   |
 | 6.6   | Session visibility: show `sessionKey` / parity indicator in the UI.                     |
-| 6.9   | Native chat media (images/files) — see §8b.7 and `SPEC_CHANNEL_MANAGER_CHAT_MEDIA_V1.md`; requires gateway support. |
+| 6.9   | Native chat media (images/files) — see §8b.8 and `SPEC_CHANNEL_MANAGER_CHAT_MEDIA_V1.md`; requires gateway support. |
 | 6.10b | Write new A070 summary markdown from the UI (today: read-only).                         |
 | 6.11  | Skills tab filter/sort/search/custom order.                                             |
 | 6.17  | Mark `toolResult` lines so they are not rendered as plain user-facing chat history.     |
 | 6.18  | Session-native send binding (evidence `API_DIRECT_TEST_1814`).                          |
-| 6.19  | Workbench / Channel Manager boundary hardening — see §8b.8.                             |
+| 6.19  | Workbench / Channel Manager boundary hardening — see §8b.9.                             |
 | 6.20  | Workbench diff-first artifact/worktree editor hardening — see `SPEC_WORKBENCH_POSITIONING.md`. |
-| 6.21  | Slash-command parity and no-fake-send guardrails in CM chat — see §8b.9.                |
+| 6.21  | Slash-command parity and no-fake-send guardrails in CM chat — see §8b.10.               |
 | 8.3   | MCP Sovereign Bridge verification after IDE reload.                                     |
 | 9.*   | MCP whitelisting: `allowedMCPs` schema, UI, policy injection.                           |
 | 10.1  | Replacement for `occ-ctl.mjs` (Makefile or root `package.json`).                        |
@@ -532,7 +532,7 @@ making native/auto the default.
 **Spec:** `SPEC_8B5_IDE_MEMORY_BRIDGE.md`
 **Open Brain guardrail:** `SPEC_OPEN_BRAIN_BOUNDARY_CONDITIONS.md`
 
-**Current status (2026-04-25):** §8b.5 now has a belastbarer, getesteter
+**Current status (2026-04-26):** §8b.5 now has a belastbarer, getesteter
 Bridge-Unterbau with clean binding and mapping semantics. Landed slices:
 A070 sidecar metadata, `bridgeStatus`, marker-based promote/read-back, UI
 status display, backend tests, resolver/adapter safety rail
@@ -554,18 +554,14 @@ Brain integration shifts the architecture to **artifact-centered memory**:
 Cursor, Codex, OpenCode, Telegram, and Chat are producer surfaces; Studio
 Framework artifacts are durable truth; OpenClaw memory is operational agent
 continuity; Open Brain is the long-term semantic/MCP knowledge layer.
-**Maturity:** project-mapping bridge and promote/read-back core are usable now;
-artifact-header Discovery/Research binding is implemented for summary writes;
-**operator confirmation** persists a chosen TTG into the artifact YAML via
-`POST /api/ide-project-summaries/artifact-binding/confirm` (and `/api/summaries/…`,
-same router). Artifact index, classifier fallback, and **read-only Open Brain
-export contract** (`GET …/open-brain-export`) are implemented; **CM UI** can
-review TTG proposals and **preview** that export payload from the TTG review tab.
-**Not done yet:** **live** Open Brain upsert (MCP/API), producer adapters, and
-deeper TTG-review polish (full Markdown preview, tighter list filters).
-**Ticket G** (stub audit + index merge + CM button) is started; **live OB1**
-remains a **later** gate, after **§8b.6** Studio corpus onboarding and header
-normalization (see `010_VISION.md` §4).
+**Maturity (Reifegrad):** project-mapping + promote/read-back **~90%**; artifact
+header + index + classifier + TTG review UI **~80–90%**; Open Brain export **~90%**;
+sync **stub + HTTP + audit + UI ~65–72%**; **B (CM → Cursor)** apply + fingerprint
+stale check **~78–85%** — see `QA_8B5_IDE_MEMORY_BRIDGE.md` / `SPEC_8B5` tables.
+**Not done yet:** first-party **OB1/MCP** upsert, **producer adapters**, §8b.7
+topology readout, and residual TTG-review polish. **live OB1** priority stays
+downstream of **§8b.6** corpus onboarding where you freeze data imports (see
+`010_VISION.md` §4).
 
 **Next-session gates:**
 
@@ -590,17 +586,17 @@ normalization (see `010_VISION.md` §4).
    optional candidate picks. **Playwright:** `e2e/tests/e2e-golden-path-8b5.spec.js`
    includes **confirms TTG for a Studio artifact via the TTG review tab** (stub
    under `050_Artifacts/…`, then assert index `binding.status === 'confirmed'`).
-   **Remaining:** polish (full Markdown preview, stricter scope filters if the list grows noisy); optional E2E for export preview only.
+   **Remaining:** further TTG-review polish if the list grows noisy (filters are optional in UI). **E2E:** export preview + stub sync in `e2e/tests/e2e-golden-path-8b5.spec.js` (2026-04-26).
 5. ◐ **Ticket G — `ARTIFACT_TO_OPEN_BRAIN_SYNC_V1`**: **slice 2026-04-26**
    `POST /api/ide-project-summaries/open-brain-sync` with `dryRun` (default true)
    and stub provider (`OPEN_BRAIN_SYNC_PROVIDER=stub`, default): writes
    `open_brain_sync_audit.json` next to `channel_config.json`, merges
-   `openBrain.syncStatus` / `thoughtId` into `GET …/artifact-index`. **Not done:**
-   live OB1/MCP upsert, UI polish beyond CM tab button.
+   `openBrain.syncStatus` / `thoughtId` into `GET …/artifact-index`. **HTTP adapter**
+   (`OPEN_BRAIN_SYNC_PROVIDER=http` + URL) posts the export payload; **Not done:**
+   first-party MCP client, dedicated CM sync status column polish.
 6. **Producer adapters**: Codex, Cursor, OpenCode, Telegram/Chat exports create
    or update artifacts; they do not define memory truth.
-7. Extend `E2E_GOLDEN_PATH_8B5` with Open Brain **export preview** and (after
-   Ticket G live path) **sync** cases.
+7. ~~Extend `E2E_GOLDEN_PATH_8B5` with Open Brain **export preview** and stub **sync**~~ **Done 2026-04-26.** HTTP/live OB1 E2E when a stable test double exists.
 8. **§8b.6 — Studio corpus onboarding:** ingest external-repo artifacts into
    Studio Framework; mandatory header/structure normalization before treating
    bulk imports as export/sync-ready (vision §4; roadmap §8b.6).
@@ -611,31 +607,6 @@ repos into Studio Framework, then normalize headers/structure; only then priorit
 Ticket G live sync. Until the corpus is ready, **contract + stub audit** in CM
 are sufficient preparation. Ticket D polish (preview/filters) and producer
 adapters can proceed in parallel where they do not block onboarding.
-
-### 8b.6 · Studio corpus onboarding & header normalization (planned)
-
-**Intent:** Large parts of the knowledge base still live **outside** Studio
-Framework (other repositories, legacy trees). Before Open Brain live sync is
-worth prioritizing, that material must be **brought into** `Studio_Framework/`
-under governed paths and schemas.
-
-**Planned gate — mandatory for ingested artifacts:**
-
-1. **Ingest** — copy or migrate content into the correct Studio tree (e.g.
-   `050_Artifacts/…`) with traceability to source repo/commit where applicable.
-2. **Header & structure pass** — each imported artifact goes through a defined
-   process: YAML front matter (`id`, `type`, `status`, tags, `current_ttg` /
-   `initial_ttg`, project fields, timestamps) and body structure aligned to
-   Studio rules (e.g. ARYS, `TRACEABILITY_SCHEMA`, discovery templates). This may
-   be operator review, scripted lint, batch fixups, or CM/Workbench-assisted
-   editing — the exact toolchain is TBD; the **requirement** is that nothing is
-   treated as export/sync-ready until the pass is done.
-3. **Then** — artifact index + export contract + (later) OB1 upsert operate on a
-   **homogeneous** corpus; stub audit and review UIs remain meaningful.
-
-**Dependencies:** Studio-side playbooks or automation for ingestion; may span
-`Studio_Framework` repo more than CM. CM continues to **prepare** OB1 (contract,
-audit) without requiring OB1 to be fully implemented here first.
 
 **Goal:** Turn the third Channel Manager workspace tab into the operational
 bridge between producer work (Cursor/Codex/OpenCode/Chat/Telegram), TTG
@@ -698,7 +669,34 @@ artifact-centered.
 **Dependencies:** Existing C2 summary/memory promote endpoints, A070 write
 support, IDE bundle/export bridge, and the current §8b.4 chat beta.
 
-### 8b.6 · TTG agent topology visualization (after §8b.5)
+### 8b.6 · Studio corpus onboarding & header normalization (planned)
+
+**Intent:** Large parts of the knowledge base still live **outside** Studio
+Framework (other repositories, legacy trees). Before Open Brain live sync is
+worth prioritizing, that material must be **brought into** `Studio_Framework/`
+under governed paths and schemas.
+
+**Planned gate — mandatory for ingested artifacts:**
+
+1. **Ingest** — copy or migrate content into the correct Studio tree (e.g.
+   `050_Artifacts/…`) with traceability to source repo/commit where applicable.
+2. **Header & structure pass** — each imported artifact goes through a defined
+   process: YAML front matter (`id`, `type`, `status`, tags, `current_ttg` /
+   `initial_ttg`, project fields, timestamps) and body structure aligned to
+   Studio rules (e.g. ARYS, `TRACEABILITY_SCHEMA`, discovery templates). This may
+   be operator review, scripted lint, batch fixups, or CM/Workbench-assisted
+   editing — the exact toolchain is TBD; the **requirement** is that nothing is
+   treated as export/sync-ready until the pass is done.
+3. **Then** — artifact index + export contract + (later) OB1 upsert operate on a
+   **homogeneous** corpus; stub audit and review UIs remain meaningful.
+
+**Studio playbook (normative):** `Studio_Framework/050_Artifacts/README_ARTIFACT_INGESTION_AND_ONBOARDING.md`
+
+**Dependencies:** Studio-side playbooks or automation for ingestion; may span
+`Studio_Framework` repo more than CM. CM continues to **prepare** OB1 (contract,
+audit) without requiring OB1 to be fully implemented here first.
+
+### 8b.7 · TTG agent topology visualization (after §8b.5)
 
 **Goal:** Add a visual operator surface for one TTG's effective runtime shape:
 main agent → assigned model → channel skills → sub-agents → sub-agent skills.
@@ -740,7 +738,7 @@ map for fast inspection and debugging.
 runtime-effective tools/skills (`tools.effective(sessionKey=...)` or
 equivalent gateway API).
 
-### 8b.7 · Channel Manager Chat Media V1 (after boundary cleanup + §8b.5)
+### 8b.8 · Channel Manager Chat Media V1 (after boundary cleanup + §8b.5)
 
 **Status:** proposed, not next.
 
@@ -815,7 +813,7 @@ parts: [{ type: 'text', text: messageText }]
 - No Workbench dependency is introduced.
 - Build/test/E2E remain green.
 
-### 8b.8 · Workbench / Channel Manager Boundary Hardening (later)
+### 8b.9 · Workbench / Channel Manager Boundary Hardening (later)
 
 **Status:** follow-up, not blocking current §8b.5 work.
 
@@ -859,7 +857,7 @@ media behavior.
 - Shared utilities are intentionally shared, not a dumping ground.
 - Build and E2E remain green after each slice.
 
-### 8b.9 · Slash-Command Parity And Send-Path Correctness (later)
+### 8b.10 · Slash-Command Parity And Send-Path Correctness (later)
 
 **Status:** proposed, not next.
 **Priority:** medium.

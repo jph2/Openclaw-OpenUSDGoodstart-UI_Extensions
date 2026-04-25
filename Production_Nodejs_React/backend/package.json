@@ -6,7 +6,9 @@
   "scripts": {
     "test": "NODE_ENV=test node --test test/*.test.js",
     "dev": "nodemon index.js",
-    "start": "node index.js"
+    "start": "node index.js",
+    "apply-ide-export": "node ../scripts/apply-ide-export.mjs",
+    "check-ide-export-stale": "node ../scripts/check-ide-export-stale.mjs"
   },
   "keywords": [],
   "author": "",

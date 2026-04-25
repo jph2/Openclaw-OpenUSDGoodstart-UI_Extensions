@@ -13,6 +13,10 @@ import {
     OpenBrainExportBlockedError
 } from '../services/openBrainExportContract.js';
 import { writeOpenBrainSyncAuditEntry } from '../services/openBrainSyncAudit.js';
+import {
+    OpenBrainSyncDispatchError,
+    runOpenBrainLiveSync
+} from '../services/openBrainSyncDispatch.js';
 import { buildChannelMappingsFromConfig, loadTtgDefinitions } from '../services/ttgClassifier.js';
 import { runMemoryPromote } from '../services/memoryPromote.js';
 import {
@@ -345,7 +349,15 @@ router.get('/artifact-index', async (req, res, next) => {
             studioRoot: root,
             channelMappings: buildChannelMappingsFromConfig(config)
         });
-        res.json({ ok: true, ...index });
+        const obProvider = (process.env.OPEN_BRAIN_SYNC_PROVIDER || 'stub').toLowerCase();
+        res.json({
+            ok: true,
+            ...index,
+            openBrainSync: {
+                provider: obProvider,
+                httpConfigured: obProvider === 'http' && Boolean(String(process.env.OPEN_BRAIN_SYNC_URL || '').trim())
+            }
+        });
     } catch (e) {
         next(e);
     }
@@ -400,10 +412,34 @@ router.get('/open-brain-export', async (req, res, next) => {
 });
 
 /**
+ * GET /api/summaries/studio-artifact-file?sourcePath=050_Artifacts/...
+ * Read-only full Markdown for CM TTG review / preview (same path rules as export).
+ */
+router.get('/studio-artifact-file', async (req, res, next) => {
+    try {
+        const sourcePath = req.query.sourcePath;
+        if (!sourcePath || typeof sourcePath !== 'string') {
+            return res.status(400).json({ ok: false, error: 'sourcePath query required' });
+        }
+        if (sourcePath.includes('..') || path.isAbsolute(sourcePath)) {
+            return res.status(400).json({ ok: false, error: 'invalid sourcePath' });
+        }
+        const root = studioFrameworkRoot();
+        const { resolved } = await resolveSafe(root, sourcePath.split('/').join(path.sep));
+        const text = await fs.readFile(resolved, 'utf8');
+        res.json({ ok: true, sourcePath, text });
+    } catch (e) {
+        if (e.status === 403) return res.status(403).json({ ok: false, error: 'path blocked' });
+        if (e.code === 'ENOENT') return res.status(404).json({ ok: false, error: 'source artifact not found' });
+        next(e);
+    }
+});
+
+/**
  * POST /api/summaries/open-brain-sync
- * Ticket G slice 1: audited **stub** sync (no external OB1 HTTP). When
- * OPEN_BRAIN_SYNC_PROVIDER is `stub` (default), writes a local audit row and
- * returns a deterministic stub thought id. Requires export eligibility `ready`.
+ * Ticket G: audited sync. `stub` (default) is local-only; `http` POSTs the export
+ * payload to OPEN_BRAIN_SYNC_URL and records the returned thought id. Requires
+ * export eligibility `ready`.
  */
 router.post('/open-brain-sync', apiLimiter, async (req, res, next) => {
     try {
@@ -452,16 +488,22 @@ router.post('/open-brain-sync', apiLimiter, async (req, res, next) => {
                 record
             });
         }
-        const provider = (process.env.OPEN_BRAIN_SYNC_PROVIDER || 'stub').toLowerCase();
-        if (provider !== 'stub') {
-            return res.status(501).json({
-                ok: false,
-                error: `Open Brain sync provider "${provider}" is not implemented; only "stub" is supported in this build`
-            });
+        let syncResult;
+        try {
+            syncResult = await runOpenBrainLiveSync(exportRecord);
+        } catch (err) {
+            if (err instanceof OpenBrainSyncDispatchError) {
+                return res.status(err.statusCode).json({
+                    ok: false,
+                    error: err.message,
+                    details: err.details
+                });
+            }
+            throw err;
         }
-        const thoughtId = `stub-${exportRecord.dedup.identity.slice(0, 32)}`;
+        const { provider, thoughtId } = syncResult;
         await writeOpenBrainSyncAuditEntry(body.sourcePath, {
-            provider: 'stub',
+            provider,
             thoughtId,
             dedupIdentity: exportRecord.dedup.identity,
             contentHashAtSync: exportRecord.content.hash,
@@ -472,7 +514,7 @@ router.post('/open-brain-sync', apiLimiter, async (req, res, next) => {
             ok: true,
             dryRun: false,
             synced: true,
-            provider: 'stub',
+            provider,
             sourcePath: body.sourcePath,
             thoughtId,
             dedupIdentity: exportRecord.dedup.identity,

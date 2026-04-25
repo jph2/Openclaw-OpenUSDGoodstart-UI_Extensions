@@ -263,6 +263,14 @@ launches via `ssh -T … run-mcp.sh`; the Linux laptop `~/.cursor/mcp.json`
 invokes `node` with a direct path. Project-level `.cursor/mcp.json` must not
 duplicate the same server id.
 
+**Cursor agent files (B — repo-level, not `~/.cursor`):** `GET /api/exports/ide`
+returns an `ide_workbench_bundle` (suggested `.cursor/agents/*` paths and
+metadata). The operator script `scripts/apply-ide-export.mjs` materializes those
+Markdown agents under a chosen repo root (`--target`), with `--dry-run` by
+default and safe skip for hand-edited files (unless `--force`). See
+[`scripts/README_APPLY_IDE_EXPORT.md`](./scripts/README_APPLY_IDE_EXPORT.md).
+From `backend/`: `npm run apply-ide-export -- --help`. **Stale guard:** after a successful `--write`, `npm run check-ide-export-stale -- --target <repo>` compares `channel_config.json` to `.cursor/cm-ide-export-fingerprint.json` (exit 1 if CM changed).
+
 ---
 
 ## 6. Chat pipeline — current state

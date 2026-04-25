@@ -384,6 +384,7 @@ binding:
 
         assert.equal(sync.body.ok, true);
         assert.equal(sync.body.synced, true);
+        assert.equal(sync.body.provider, 'stub');
         assert.match(sync.body.thoughtId, /^stub-[a-f0-9]{32}$/);
 
         const idx = await request(app)
@@ -394,6 +395,90 @@ binding:
         assert.ok(rec);
         assert.equal(rec.openBrain.syncStatus, 'synced');
         assert.equal(rec.openBrain.thoughtId, sync.body.thoughtId);
+    });
+
+    it('studio-artifact-file returns markdown for a Studio path', async () => {
+        const sourcePath = '050_Artifacts/A010_discovery-research/studio-file-read.md';
+        await fs.mkdir(path.dirname(path.join(process.env.STUDIO_FRAMEWORK_ROOT, sourcePath)), {
+            recursive: true
+        });
+        const md = '---\nid: x\ntitle: T\ntype: DISCOVERY\nstatus: active\n---\n\n# Hello\n';
+        await fs.writeFile(path.join(process.env.STUDIO_FRAMEWORK_ROOT, sourcePath), md, 'utf8');
+
+        const res = await request(app)
+            .get('/api/ide-project-summaries/studio-artifact-file')
+            .query({ sourcePath })
+            .expect(200);
+
+        assert.equal(res.body.ok, true);
+        assert.equal(res.body.sourcePath, sourcePath);
+        assert.equal(res.body.text, md);
+    });
+
+    it('open-brain-sync http provider posts export and records audit', async () => {
+        const sourcePath = '050_Artifacts/A010_discovery-research/ob1-sync-http.md';
+        const prevFetch = globalThis.fetch;
+        process.env.OPEN_BRAIN_SYNC_PROVIDER = 'http';
+        process.env.OPEN_BRAIN_SYNC_URL = 'https://example.test/open-brain/upsert';
+
+        await fs.mkdir(path.dirname(path.join(process.env.STUDIO_FRAMEWORK_ROOT, sourcePath)), {
+            recursive: true
+        });
+        await fs.writeFile(
+            path.join(process.env.STUDIO_FRAMEWORK_ROOT, sourcePath),
+            `---
+id: "ob1-sync-http"
+title: "OB1 Sync HTTP"
+type: DISCOVERY
+status: active
+current_ttg:
+  id: "-100390983368"
+  name: "TTG010_General_Discovery_Plus_Research"
+binding:
+  status: confirmed
+  method: artifact_header
+---
+
+# HTTP sync body
+`,
+            'utf8'
+        );
+
+        try {
+            globalThis.fetch = async (url, opts) => {
+                assert.equal(url, 'https://example.test/open-brain/upsert');
+                assert.equal(opts.method, 'POST');
+                const body = JSON.parse(opts.body);
+                assert.equal(body.schema, 'studio-framework.open-brain-export.v1');
+                assert.equal(body.operation, 'upsert');
+                return {
+                    ok: true,
+                    status: 200,
+                    text: async () => JSON.stringify({ thoughtId: 'remote-thought-abc' })
+                };
+            };
+
+            const sync = await request(app)
+                .post('/api/ide-project-summaries/open-brain-sync')
+                .send({ sourcePath, dryRun: false, confirm: true, surface: 'manual' })
+                .expect(200);
+
+            assert.equal(sync.body.ok, true);
+            assert.equal(sync.body.provider, 'http');
+            assert.equal(sync.body.thoughtId, 'remote-thought-abc');
+
+            const idx = await request(app).get('/api/ide-project-summaries/artifact-index').expect(200);
+            assert.equal(idx.body.openBrainSync.provider, 'http');
+            assert.equal(idx.body.openBrainSync.httpConfigured, true);
+            const rec = idx.body.records.find((r) => r.sourcePath === sourcePath);
+            assert.ok(rec);
+            assert.equal(rec.openBrain.syncStatus, 'synced');
+            assert.equal(rec.openBrain.thoughtId, 'remote-thought-abc');
+        } finally {
+            globalThis.fetch = prevFetch;
+            delete process.env.OPEN_BRAIN_SYNC_PROVIDER;
+            delete process.env.OPEN_BRAIN_SYNC_URL;
+        }
     });
 
     it('open-brain-sync rejects artifacts that are not export-eligible', async () => {

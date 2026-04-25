@@ -123,6 +123,8 @@ export default function IdeProjectSummaryPanel({ channelId, channelName }) {
     const [confirmReason, setConfirmReason] = useState('operator confirmed TTG binding');
     const [obExportPreview, setObExportPreview] = useState(null);
     const [obExportPreviewLoading, setObExportPreviewLoading] = useState(false);
+    /** When true, artifact list keeps rows with classifier/header signal for this TTG (relevance ≥ 3). */
+    const [artifactsScopeThisTtg, setArtifactsScopeThisTtg] = useState(false);
 
     const { data, isLoading, error } = useQuery({
         queryKey: ['ide-project-summaries', channelId],
@@ -173,10 +175,29 @@ export default function IdeProjectSummaryPanel({ channelId, channelName }) {
             });
     }, [artifactIndexData, channelId]);
 
+    const visibleArtifactRecords = useMemo(() => {
+        if (!artifactsScopeThisTtg || !channelId) return reviewRecords;
+        return reviewRecords.filter((r) => channelRelevance(r, channelId) >= 3);
+    }, [reviewRecords, artifactsScopeThisTtg, channelId]);
+
     const selectedArtifactRecord = useMemo(
-        () => reviewRecords.find((r) => r.sourcePath === selectedArtifactSourcePath) || null,
-        [reviewRecords, selectedArtifactSourcePath]
+        () => visibleArtifactRecords.find((r) => r.sourcePath === selectedArtifactSourcePath) || null,
+        [visibleArtifactRecords, selectedArtifactSourcePath]
     );
+
+    const { data: studioArtifactFileData, isLoading: studioArtifactFileLoading } = useQuery({
+        queryKey: ['studio-artifact-file', selectedArtifactSourcePath],
+        enabled: Boolean(panel === 'artifacts' && selectedArtifactSourcePath),
+        queryFn: async () => {
+            const qs = new URLSearchParams({ sourcePath: selectedArtifactSourcePath });
+            const res = await fetch(`/api/ide-project-summaries/studio-artifact-file?${qs}`);
+            if (!res.ok) {
+                const j = await res.json().catch(() => ({}));
+                throw new Error(j.error || res.statusText);
+            }
+            return res.json();
+        }
+    });
 
     const { data: fileData } = useQuery({
         queryKey: ['ideSummaryFile', selectedRel, panel],
@@ -317,6 +338,15 @@ export default function IdeProjectSummaryPanel({ channelId, channelName }) {
         }
     });
 
+    useEffect(() => {
+        if (!selectedArtifactSourcePath) return;
+        if (!visibleArtifactRecords.some((r) => r.sourcePath === selectedArtifactSourcePath)) {
+            setSelectedArtifactSourcePath(null);
+            setObExportPreview(null);
+            stubOpenBrainSyncMutation.reset();
+        }
+    }, [visibleArtifactRecords, selectedArtifactSourcePath, stubOpenBrainSyncMutation]);
+
     async function loadOpenBrainExportPreview() {
         if (!selectedArtifactRecord?.sourcePath) return;
         setObExportPreviewLoading(true);
@@ -360,6 +390,14 @@ export default function IdeProjectSummaryPanel({ channelId, channelName }) {
     const selectedStatus = fileData?.bridgeStatus || selectedFile?.bridgeStatus || null;
     const statusColor = STATUS_COLORS[selectedStatus] || STATUS_COLORS.unknown;
     const canStubOpenBrainSync = selectedArtifactRecord?.exportEligibility?.status === 'ready';
+    const obSync = artifactIndexData?.openBrainSync;
+    const obSyncDisabledByConfig =
+        obSync?.provider === 'http' && obSync?.httpConfigured === false;
+    const openBrainSyncButtonLabel = (() => {
+        if (obSyncDisabledByConfig) return 'Open Brain HTTP sync not configured (set OPEN_BRAIN_SYNC_URL)';
+        if (obSync?.provider === 'http') return 'Sync to Open Brain (HTTP)';
+        return 'Record stub sync (local audit)';
+    })();
 
     return (
         <div
@@ -663,6 +701,32 @@ export default function IdeProjectSummaryPanel({ channelId, channelName }) {
                             {String(artifactIndexError.message)}
                         </div>
                     )}
+                    {panel === 'artifacts' && channelId && !artifactIndexLoading && !artifactIndexError && (
+                        <label
+                            style={{
+                                display: 'flex',
+                                alignItems: 'flex-start',
+                                gap: 8,
+                                padding: '8px 12px',
+                                borderBottom: '1px solid rgba(255,255,255,0.06)',
+                                cursor: 'pointer',
+                                fontSize: 11,
+                                color: 'var(--text-secondary)'
+                            }}
+                        >
+                            <input
+                                type="checkbox"
+                                data-testid="ide-artifact-scope-this-ttg"
+                                checked={artifactsScopeThisTtg}
+                                onChange={(e) => setArtifactsScopeThisTtg(e.target.checked)}
+                                style={{ marginTop: 2 }}
+                            />
+                            <span>
+                                Only show artifacts with a <strong>TTG signal for this row</strong> (confirmed
+                                binding, <code>current_ttg</code>, or classifier candidate for this channel).
+                            </span>
+                        </label>
+                    )}
                     {!isLoading && !list.length && panel === 'a070' && (
                         <div style={{ padding: '12px', color: 'var(--text-secondary)' }}>
                             No Markdown summaries under A070 yet, or none match this channel id in the path.
@@ -673,13 +737,25 @@ export default function IdeProjectSummaryPanel({ channelId, channelName }) {
                             No memory files matched, or memory dir is empty.
                         </div>
                     )}
-                    {!artifactIndexLoading && panel === 'artifacts' && !reviewRecords.length && (
+                    {!artifactIndexLoading &&
+                        panel === 'artifacts' &&
+                        !artifactIndexError &&
+                        !reviewRecords.length && (
                         <div style={{ padding: '12px', color: 'var(--text-secondary)' }}>
                             No Studio artifacts in the bridge queue (TTG review, or export-ready pending stub sync), or index is empty.
                         </div>
                     )}
+                    {!artifactIndexLoading &&
+                        panel === 'artifacts' &&
+                        !artifactIndexError &&
+                        reviewRecords.length > 0 &&
+                        !visibleArtifactRecords.length && (
+                        <div style={{ padding: '12px', color: '#e3c450' }}>
+                            No rows match &quot;this TTG&quot; filter. Clear the checkbox to see the full bridge queue for this channel tab.
+                        </div>
+                    )}
                     {panel === 'artifacts'
-                        && reviewRecords.map((r) => (
+                        && visibleArtifactRecords.map((r) => (
                             <button
                                 data-testid={`ide-artifact-${String(r.sourcePath || '').replace(/\//g, '__')}`}
                                 key={r.sourcePath}
@@ -924,6 +1000,39 @@ export default function IdeProjectSummaryPanel({ channelId, channelName }) {
                                 }}
                             >
                                 <div style={{ fontWeight: 600, fontSize: 11, marginBottom: 6 }}>
+                                    Artifact Markdown (read-only)
+                                </div>
+                                {studioArtifactFileLoading && (
+                                    <div style={{ fontSize: 11, color: 'var(--text-secondary)' }}>Loading…</div>
+                                )}
+                                {!studioArtifactFileLoading && studioArtifactFileData?.text && (
+                                    <div
+                                        className="markdown-preview"
+                                        style={{
+                                            maxHeight: 320,
+                                            overflow: 'auto',
+                                            border: '1px solid var(--border-color)',
+                                            borderRadius: 6,
+                                            padding: 10,
+                                            marginBottom: 12,
+                                            background: 'rgba(255,255,255,0.02)',
+                                            fontSize: 12
+                                        }}
+                                    >
+                                        <ReactMarkdown remarkPlugins={plugins}>
+                                            {studioArtifactFileData.text}
+                                        </ReactMarkdown>
+                                    </div>
+                                )}
+                            </div>
+                            <div
+                                style={{
+                                    marginTop: 14,
+                                    paddingTop: 12,
+                                    borderTop: '1px solid rgba(255,255,255,0.08)'
+                                }}
+                            >
+                                <div style={{ fontWeight: 600, fontSize: 11, marginBottom: 6 }}>
                                     Open Brain export (read-only preview)
                                 </div>
                                 <div style={{ fontSize: 10, color: 'var(--text-secondary)', marginBottom: 8 }}>
@@ -984,24 +1093,39 @@ export default function IdeProjectSummaryPanel({ channelId, channelName }) {
                                     data-testid="ide-artifact-ob-stub-sync"
                                     type="button"
                                     disabled={
-                                        !canStubOpenBrainSync || stubOpenBrainSyncMutation.isPending
+                                        !canStubOpenBrainSync ||
+                                        stubOpenBrainSyncMutation.isPending ||
+                                        obSyncDisabledByConfig
                                     }
                                     onClick={() => stubOpenBrainSyncMutation.mutate()}
                                     style={{
                                         marginTop: 10,
                                         padding: '6px 12px',
                                         fontSize: 11,
-                                        background: canStubOpenBrainSync ? '#2a2030' : '#1a1a1a',
+                                        background:
+                                            canStubOpenBrainSync && !obSyncDisabledByConfig
+                                                ? '#2a2030'
+                                                : '#1a1a1a',
                                         border: '1px solid var(--border-color)',
-                                        color: canStubOpenBrainSync ? '#e3c450' : '#666',
+                                        color:
+                                            canStubOpenBrainSync && !obSyncDisabledByConfig
+                                                ? '#e3c450'
+                                                : '#666',
                                         borderRadius: 6,
-                                        cursor: canStubOpenBrainSync ? 'pointer' : 'not-allowed'
+                                        cursor:
+                                            canStubOpenBrainSync && !obSyncDisabledByConfig
+                                                ? 'pointer'
+                                                : 'not-allowed'
                                     }}
-                                    title="Writes local audit only; does not call OB1. Requires export eligibility ready."
+                                    title={
+                                        obSync?.provider === 'http'
+                                            ? 'POSTs export payload to OPEN_BRAIN_SYNC_URL when configured.'
+                                            : 'Writes local audit only; does not call OB1. Requires export eligibility ready.'
+                                    }
                                 >
                                     {stubOpenBrainSyncMutation.isPending
-                                        ? 'Recording…'
-                                        : 'Record stub sync (local audit)'}
+                                        ? 'Syncing…'
+                                        : openBrainSyncButtonLabel}
                                 </button>
                                 {stubOpenBrainSyncMutation.isError && (
                                     <div style={{ color: '#e35050', marginTop: 8, fontSize: 11 }}>
@@ -1010,7 +1134,9 @@ export default function IdeProjectSummaryPanel({ channelId, channelName }) {
                                 )}
                                 {stubOpenBrainSyncMutation.isSuccess && (
                                     <div style={{ color: '#e3c450', marginTop: 8, fontSize: 11 }}>
-                                        Stub sync recorded. Refresh index —{' '}
+                                        Sync recorded (
+                                        <code>{String(stubOpenBrainSyncMutation.data?.provider || '')}</code>
+                                        ) — thought{' '}
                                         <code>{String(stubOpenBrainSyncMutation.data?.thoughtId || '')}</code>
                                     </div>
                                 )}

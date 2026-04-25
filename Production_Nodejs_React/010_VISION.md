@@ -155,7 +155,8 @@ tags, traceability, body conventions) so the artifact index, secret gate, and
 Open Brain export contract all see a **consistent, reviewable shape**. The IDE
 memory bridge consumes that normalized layer; it does **not** replace a
 Studio-side ingestion and normalization process (scheduled in
-[`030_ROADMAP.md`](./030_ROADMAP.md) §8b.6).
+[`030_ROADMAP.md`](./030_ROADMAP.md) §8b.6; playbook
+[`README_ARTIFACT_INGESTION_AND_ONBOARDING.md`](../../Studio_Framework/050_Artifacts/README_ARTIFACT_INGESTION_AND_ONBOARDING.md)).
 
 The Workbench fits this relationship as a local artifact/worktree editor: it
 can inspect and edit files in allowed roots and make diffs visible, but it does
