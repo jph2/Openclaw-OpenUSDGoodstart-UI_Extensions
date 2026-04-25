@@ -73,6 +73,17 @@ function recordNeedsTtgConfirmation(record) {
     return true;
 }
 
+/** TTG review rows plus export-ready artifacts awaiting stub/live Open Brain sync. */
+function recordInArtifactsBridgePanel(record) {
+    if (!record || record.secretGate?.status === 'blocked') return false;
+    if (recordNeedsTtgConfirmation(record)) return true;
+    if (record.exportEligibility?.status === 'ready') {
+        const s = record.openBrain?.syncStatus;
+        if (s !== 'synced') return true;
+    }
+    return false;
+}
+
 function confirmDraftFromRecord(record) {
     if (!record) {
         return { ttgId: '', ttgName: '', reason: 'operator confirmed TTG binding' };
@@ -151,7 +162,7 @@ export default function IdeProjectSummaryPanel({ channelId, channelName }) {
     const reviewRecords = useMemo(() => {
         const raw = artifactIndexData?.records || [];
         return raw
-            .filter(recordNeedsTtgConfirmation)
+            .filter(recordInArtifactsBridgePanel)
             .sort((a, b) => {
                 const relDiff = channelRelevance(b, channelId) - channelRelevance(a, channelId);
                 if (relDiff !== 0) return relDiff;
@@ -283,6 +294,29 @@ export default function IdeProjectSummaryPanel({ channelId, channelName }) {
         }
     });
 
+    const stubOpenBrainSyncMutation = useMutation({
+        mutationFn: async () => {
+            const sourcePath = selectedArtifactRecord?.sourcePath;
+            if (!sourcePath) throw new Error('Select an artifact first.');
+            const res = await fetch('/api/ide-project-summaries/open-brain-sync', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    sourcePath,
+                    dryRun: false,
+                    confirm: true,
+                    surface: adapterSurface || 'manual'
+                })
+            });
+            const j = await res.json().catch(() => ({}));
+            if (!res.ok) throw new Error(j.error || res.statusText);
+            return j;
+        },
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ['studio-artifact-index'] });
+        }
+    });
+
     async function loadOpenBrainExportPreview() {
         if (!selectedArtifactRecord?.sourcePath) return;
         setObExportPreviewLoading(true);
@@ -325,6 +359,7 @@ export default function IdeProjectSummaryPanel({ channelId, channelName }) {
     const selectedMeta = fileData?.meta || selectedFile?.meta || null;
     const selectedStatus = fileData?.bridgeStatus || selectedFile?.bridgeStatus || null;
     const statusColor = STATUS_COLORS[selectedStatus] || STATUS_COLORS.unknown;
+    const canStubOpenBrainSync = selectedArtifactRecord?.exportEligibility?.status === 'ready';
 
     return (
         <div
@@ -364,6 +399,7 @@ export default function IdeProjectSummaryPanel({ channelId, channelName }) {
                             setSelectedRel(null);
                             setSelectedArtifactSourcePath(null);
                             setObExportPreview(null);
+                            stubOpenBrainSyncMutation.reset();
                         }}
                     >
                         Studio A070
@@ -383,6 +419,7 @@ export default function IdeProjectSummaryPanel({ channelId, channelName }) {
                             setSelectedRel(null);
                             setSelectedArtifactSourcePath(null);
                             setObExportPreview(null);
+                            stubOpenBrainSyncMutation.reset();
                         }}
                     >
                         Studio artifacts · TTG review
@@ -401,6 +438,7 @@ export default function IdeProjectSummaryPanel({ channelId, channelName }) {
                             setSelectedRel(null);
                             setSelectedArtifactSourcePath(null);
                             setObExportPreview(null);
+                            stubOpenBrainSyncMutation.reset();
                         }}
                     >
                         OpenClaw memory (read-only)
@@ -637,7 +675,7 @@ export default function IdeProjectSummaryPanel({ channelId, channelName }) {
                     )}
                     {!artifactIndexLoading && panel === 'artifacts' && !reviewRecords.length && (
                         <div style={{ padding: '12px', color: 'var(--text-secondary)' }}>
-                            No Studio artifacts need TTG confirmation (all blocked or already confirmed), or index is empty.
+                            No Studio artifacts in the bridge queue (TTG review, or export-ready pending stub sync), or index is empty.
                         </div>
                     )}
                     {panel === 'artifacts'
@@ -649,6 +687,7 @@ export default function IdeProjectSummaryPanel({ channelId, channelName }) {
                                 onClick={() => {
                                     setSelectedArtifactSourcePath(r.sourcePath);
                                     setObExportPreview(null);
+                                    stubOpenBrainSyncMutation.reset();
                                     const d = confirmDraftFromRecord(r);
                                     setConfirmTtgId(d.ttgId);
                                     setConfirmTtgName(d.ttgName);
@@ -940,6 +979,40 @@ export default function IdeProjectSummaryPanel({ channelId, channelName }) {
                                     >
                                         {JSON.stringify(obExportPreview.export, null, 2)}
                                     </pre>
+                                )}
+                                <button
+                                    data-testid="ide-artifact-ob-stub-sync"
+                                    type="button"
+                                    disabled={
+                                        !canStubOpenBrainSync || stubOpenBrainSyncMutation.isPending
+                                    }
+                                    onClick={() => stubOpenBrainSyncMutation.mutate()}
+                                    style={{
+                                        marginTop: 10,
+                                        padding: '6px 12px',
+                                        fontSize: 11,
+                                        background: canStubOpenBrainSync ? '#2a2030' : '#1a1a1a',
+                                        border: '1px solid var(--border-color)',
+                                        color: canStubOpenBrainSync ? '#e3c450' : '#666',
+                                        borderRadius: 6,
+                                        cursor: canStubOpenBrainSync ? 'pointer' : 'not-allowed'
+                                    }}
+                                    title="Writes local audit only; does not call OB1. Requires export eligibility ready."
+                                >
+                                    {stubOpenBrainSyncMutation.isPending
+                                        ? 'Recording…'
+                                        : 'Record stub sync (local audit)'}
+                                </button>
+                                {stubOpenBrainSyncMutation.isError && (
+                                    <div style={{ color: '#e35050', marginTop: 8, fontSize: 11 }}>
+                                        {String(stubOpenBrainSyncMutation.error.message)}
+                                    </div>
+                                )}
+                                {stubOpenBrainSyncMutation.isSuccess && (
+                                    <div style={{ color: '#e3c450', marginTop: 8, fontSize: 11 }}>
+                                        Stub sync recorded. Refresh index —{' '}
+                                        <code>{String(stubOpenBrainSyncMutation.data?.thoughtId || '')}</code>
+                                    </div>
                                 )}
                             </div>
                             {selectedArtifactRecord.classificationEvidence && (

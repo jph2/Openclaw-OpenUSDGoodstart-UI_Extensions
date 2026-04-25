@@ -12,6 +12,7 @@ import {
     buildOpenBrainExportRecord,
     OpenBrainExportBlockedError
 } from '../services/openBrainExportContract.js';
+import { writeOpenBrainSyncAuditEntry } from '../services/openBrainSyncAudit.js';
 import { buildChannelMappingsFromConfig, loadTtgDefinitions } from '../services/ttgClassifier.js';
 import { runMemoryPromote } from '../services/memoryPromote.js';
 import {
@@ -110,6 +111,26 @@ const ArtifactBindingConfirmSchema = z.object({
     ttgName: z.string().optional().default(''),
     reason: z.string().optional().default('operator confirmed TTG binding')
 });
+
+const OpenBrainSyncSchema = z
+    .object({
+        sourcePath: z
+            .string()
+            .min(1)
+            .refine((s) => !s.includes('..') && !path.isAbsolute(s), 'invalid sourcePath'),
+        dryRun: z.boolean().optional().default(true),
+        confirm: z.boolean().optional().default(false),
+        surface: z.enum(['cursor', 'codex', 'manual', 'unknown', 'opencode', 'telegram', 'chat']).optional()
+    })
+    .superRefine((val, ctx) => {
+        if (!val.dryRun && !val.confirm) {
+            ctx.addIssue({
+                code: z.ZodIssueCode.custom,
+                message: 'confirm: true is required when dryRun is false',
+                path: ['confirm']
+            });
+        }
+    });
 
 function openclawMemoryDir() {
     const ws = process.env.OPENCLAW_WORKSPACE || path.join(homedir(), '.openclaw', 'workspace');
@@ -369,6 +390,98 @@ router.get('/open-brain-export', async (req, res, next) => {
         });
         res.json({ ok: true, export: exportRecord });
     } catch (e) {
+        if (e instanceof OpenBrainExportBlockedError) {
+            return res.status(e.status).json({ ok: false, error: e.message, details: e.details });
+        }
+        if (e.status === 403) return res.status(403).json({ ok: false, error: 'path blocked' });
+        if (e.code === 'ENOENT') return res.status(404).json({ ok: false, error: 'source artifact not found' });
+        next(e);
+    }
+});
+
+/**
+ * POST /api/summaries/open-brain-sync
+ * Ticket G slice 1: audited **stub** sync (no external OB1 HTTP). When
+ * OPEN_BRAIN_SYNC_PROVIDER is `stub` (default), writes a local audit row and
+ * returns a deterministic stub thought id. Requires export eligibility `ready`.
+ */
+router.post('/open-brain-sync', apiLimiter, async (req, res, next) => {
+    try {
+        const body = OpenBrainSyncSchema.parse(req.body);
+        const root = studioFrameworkRoot();
+        const { resolved } = await resolveSafe(root, body.sourcePath.split('/').join(path.sep));
+        const markdown = await fs.readFile(resolved, 'utf8');
+        const { config } = await readChannelConfigForProjectMappings();
+        const ttgDefinitions = await loadTtgDefinitions({
+            studioRoot: root,
+            channelMappings: buildChannelMappingsFromConfig(config)
+        });
+        const record = indexMarkdownArtifact({
+            studioRoot: root,
+            filePath: resolved,
+            markdown,
+            ttgDefinitions
+        });
+        if (record.exportEligibility?.status !== 'ready') {
+            return res.status(400).json({
+                ok: false,
+                error: 'Artifact is not eligible for Open Brain sync',
+                exportEligibility: record.exportEligibility,
+                header: record.header,
+                binding: record.binding,
+                secretGate: record.secretGate
+            });
+        }
+        const exportRecord = buildOpenBrainExportRecord(record, {
+            markdown,
+            producer: {
+                surface: body.surface || 'manual',
+                agent: '',
+                model: '',
+                sessionId: '',
+                operator: req.ip || '',
+                createdAt: new Date().toISOString()
+            }
+        });
+        if (body.dryRun) {
+            return res.json({
+                ok: true,
+                dryRun: true,
+                sourcePath: body.sourcePath,
+                export: exportRecord,
+                record
+            });
+        }
+        const provider = (process.env.OPEN_BRAIN_SYNC_PROVIDER || 'stub').toLowerCase();
+        if (provider !== 'stub') {
+            return res.status(501).json({
+                ok: false,
+                error: `Open Brain sync provider "${provider}" is not implemented; only "stub" is supported in this build`
+            });
+        }
+        const thoughtId = `stub-${exportRecord.dedup.identity.slice(0, 32)}`;
+        await writeOpenBrainSyncAuditEntry(body.sourcePath, {
+            provider: 'stub',
+            thoughtId,
+            dedupIdentity: exportRecord.dedup.identity,
+            contentHashAtSync: exportRecord.content.hash,
+            lastSyncedAt: new Date().toISOString(),
+            lastExportMode: exportRecord.exportMode
+        });
+        res.json({
+            ok: true,
+            dryRun: false,
+            synced: true,
+            provider: 'stub',
+            sourcePath: body.sourcePath,
+            thoughtId,
+            dedupIdentity: exportRecord.dedup.identity,
+            contentHash: exportRecord.content.hash
+        });
+    } catch (e) {
+        if (e instanceof z.ZodError) {
+            return res.status(400).json({ ok: false, error: 'Validation failed', details: e.flatten() });
+        }
         if (e instanceof OpenBrainExportBlockedError) {
             return res.status(e.status).json({ ok: false, error: e.message, details: e.details });
         }

@@ -321,6 +321,107 @@ Structured discovery and research.
         assert.match(updated, /operator accepted classifier proposal/);
     });
 
+    it('open-brain-sync dryRun returns export without writing audit', async () => {
+        const sourcePath = '050_Artifacts/A010_discovery-research/ob1-sync-dry.md';
+        await fs.mkdir(path.dirname(path.join(process.env.STUDIO_FRAMEWORK_ROOT, sourcePath)), { recursive: true });
+        await fs.writeFile(
+            path.join(process.env.STUDIO_FRAMEWORK_ROOT, sourcePath),
+            `---
+id: "ob1-sync-dry"
+title: "OB1 Sync Dry"
+type: DISCOVERY
+status: active
+current_ttg:
+  id: "-100390983368"
+  name: "TTG010_General_Discovery_Plus_Research"
+binding:
+  status: confirmed
+  method: artifact_header
+---
+
+# Body
+`,
+            'utf8'
+        );
+
+        const res = await request(app)
+            .post('/api/ide-project-summaries/open-brain-sync')
+            .send({ sourcePath, dryRun: true })
+            .expect(200);
+
+        assert.equal(res.body.ok, true);
+        assert.equal(res.body.dryRun, true);
+        assert.equal(res.body.export?.schema, 'studio-framework.open-brain-export.v1');
+    });
+
+    it('open-brain-sync stub records audit and artifact-index shows synced', async () => {
+        const sourcePath = '050_Artifacts/A010_discovery-research/ob1-sync-stub.md';
+        await fs.mkdir(path.dirname(path.join(process.env.STUDIO_FRAMEWORK_ROOT, sourcePath)), { recursive: true });
+        await fs.writeFile(
+            path.join(process.env.STUDIO_FRAMEWORK_ROOT, sourcePath),
+            `---
+id: "ob1-sync-stub"
+title: "OB1 Sync Stub"
+type: DISCOVERY
+status: active
+current_ttg:
+  id: "-100390983368"
+  name: "TTG010_General_Discovery_Plus_Research"
+binding:
+  status: confirmed
+  method: artifact_header
+---
+
+# Stub sync body
+`,
+            'utf8'
+        );
+
+        const sync = await request(app)
+            .post('/api/ide-project-summaries/open-brain-sync')
+            .send({ sourcePath, dryRun: false, confirm: true, surface: 'manual' })
+            .expect(200);
+
+        assert.equal(sync.body.ok, true);
+        assert.equal(sync.body.synced, true);
+        assert.match(sync.body.thoughtId, /^stub-[a-f0-9]{32}$/);
+
+        const idx = await request(app)
+            .get('/api/ide-project-summaries/artifact-index')
+            .expect(200);
+
+        const rec = idx.body.records.find((r) => r.sourcePath === sourcePath);
+        assert.ok(rec);
+        assert.equal(rec.openBrain.syncStatus, 'synced');
+        assert.equal(rec.openBrain.thoughtId, sync.body.thoughtId);
+    });
+
+    it('open-brain-sync rejects artifacts that are not export-eligible', async () => {
+        const sourcePath = '050_Artifacts/A010_discovery-research/ob1-sync-ineligible.md';
+        await fs.mkdir(path.dirname(path.join(process.env.STUDIO_FRAMEWORK_ROOT, sourcePath)), { recursive: true });
+        await fs.writeFile(
+            path.join(process.env.STUDIO_FRAMEWORK_ROOT, sourcePath),
+            `---
+id: "ob1-sync-ineligible"
+title: "Ineligible"
+type: DISCOVERY
+status: active
+---
+
+# No TTG
+`,
+            'utf8'
+        );
+
+        const res = await request(app)
+            .post('/api/ide-project-summaries/open-brain-sync')
+            .send({ sourcePath, dryRun: true })
+            .expect(400);
+
+        assert.equal(res.body.ok, false);
+        assert.match(res.body.error, /not eligible/i);
+    });
+
     it('promote writes marker, confirms readback, and updates sidecar meta', async () => {
         const relativePath = 'drafts/2026-04-24__-1003752539559__openclaw-control-center__summary.md';
         await request(app)

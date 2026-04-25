@@ -3,6 +3,7 @@ import fs from 'fs/promises';
 import path from 'path';
 import { extractMarkdownFrontmatter, parseArtifactHeaderBinding } from './artifactHeaderBinding.js';
 import { classifyArtifactTtg, loadTtgDefinitions } from './ttgClassifier.js';
+import { mergeOpenBrainSyncIntoRecords } from './openBrainSyncAudit.js';
 
 const SCHEMA_VERSION = 'studio-framework.artifact-index.v1';
 
@@ -268,6 +269,7 @@ export async function buildArtifactIndex({ studioRoot, roots = ['050_Artifacts']
         const markdown = await fs.readFile(filePath, 'utf8');
         records.push(indexMarkdownArtifact({ studioRoot, filePath, markdown, ttgDefinitions }));
     }
+    await mergeOpenBrainSyncIntoRecords(records);
     return {
         schema: SCHEMA_VERSION,
         studioRoot,

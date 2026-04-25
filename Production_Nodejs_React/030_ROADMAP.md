@@ -561,9 +561,10 @@ artifact-header Discovery/Research binding is implemented for summary writes;
 same router). Artifact index, classifier fallback, and **read-only Open Brain
 export contract** (`GET …/open-brain-export`) are implemented; **CM UI** can
 review TTG proposals and **preview** that export payload from the TTG review tab.
-**Not done yet:** real **Open Brain sync** (upsert + audit), producer adapters,
-and deeper TTG-review polish (full Markdown preview, tighter list filters).
-**Remaining production gate:** Ticket G — `ARTIFACT_TO_OPEN_BRAIN_SYNC_V1`.
+**Not done yet:** **live** Open Brain upsert (MCP/API), producer adapters, and
+deeper TTG-review polish (full Markdown preview, tighter list filters).
+**Ticket G** (stub audit + index merge + CM button) is started; live OB1 is still
+the main remaining gate.
 
 **Next-session gates:**
 
@@ -589,8 +590,12 @@ and deeper TTG-review polish (full Markdown preview, tighter list filters).
    includes **confirms TTG for a Studio artifact via the TTG review tab** (stub
    under `050_Artifacts/…`, then assert index `binding.status === 'confirmed'`).
    **Remaining:** polish (full Markdown preview, stricter scope filters if the list grows noisy); optional E2E for export preview only.
-5. **Ticket G — `ARTIFACT_TO_OPEN_BRAIN_SYNC_V1`**: upsert reviewed artifacts
-   into Open Brain and record returned thought ids / fingerprints / audit.
+5. ◐ **Ticket G — `ARTIFACT_TO_OPEN_BRAIN_SYNC_V1`**: **slice 2026-04-26**
+   `POST /api/ide-project-summaries/open-brain-sync` with `dryRun` (default true)
+   and stub provider (`OPEN_BRAIN_SYNC_PROVIDER=stub`, default): writes
+   `open_brain_sync_audit.json` next to `channel_config.json`, merges
+   `openBrain.syncStatus` / `thoughtId` into `GET …/artifact-index`. **Not done:**
+   live OB1/MCP upsert, UI polish beyond CM tab button.
 6. **Producer adapters**: Codex, Cursor, OpenCode, Telegram/Chat exports create
    or update artifacts; they do not define memory truth.
 7. Extend `E2E_GOLDEN_PATH_8B5` with Open Brain **export preview** and (after
