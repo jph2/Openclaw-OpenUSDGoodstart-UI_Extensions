@@ -558,10 +558,12 @@ continuity; Open Brain is the long-term semantic/MCP knowledge layer.
 artifact-header Discovery/Research binding is implemented for summary writes;
 **operator confirmation** persists a chosen TTG into the artifact YAML via
 `POST /api/ide-project-summaries/artifact-binding/confirm` (and `/api/summaries/…`,
-same router); artifact index/resolver, agent-assisted fallback classification,
-Open Brain export/sync, and producer adapters are not complete yet.
-**Remaining production gates:** agent-assisted TTG classification with review
-states and Open Brain sync.
+same router). Artifact index, classifier fallback, and **read-only Open Brain
+export contract** (`GET …/open-brain-export`) are implemented; **CM UI** can
+review TTG proposals and **preview** that export payload from the TTG review tab.
+**Not done yet:** real **Open Brain sync** (upsert + audit), producer adapters,
+and deeper TTG-review polish (full Markdown preview, tighter list filters).
+**Remaining production gate:** Ticket G — `ARTIFACT_TO_OPEN_BRAIN_SYNC_V1`.
 
 **Next-session gates:**
 
@@ -580,23 +582,23 @@ states and Open Brain sync.
    `inferred` / `needs_review` / `ambiguous` rather than pretending the result
    is confirmed. **Backend confirm path landed 2026-04-26:** `artifact-binding/confirm`
    writes `current_ttg` + confirmed binding into the Markdown header and returns
-   a fresh index record.    **CM UI slice landed 2026-04-26:** IDE tab
+   a fresh index record. **CM UI slice landed 2026-04-26:** IDE tab
    **Studio artifacts · TTG review** loads the artifact index, lists non-confirmed
    records (sorted with relevance to the active TTG row), and posts confirm with
    optional candidate picks. **Playwright:** `e2e/tests/e2e-golden-path-8b5.spec.js`
    includes **confirms TTG for a Studio artifact via the TTG review tab** (stub
    under `050_Artifacts/…`, then assert index `binding.status === 'confirmed'`).
-   **Remaining:** polish (full Markdown preview, stricter scope filters if the list grows noisy).
+   **Remaining:** polish (full Markdown preview, stricter scope filters if the list grows noisy); optional E2E for export preview only.
 5. **Ticket G — `ARTIFACT_TO_OPEN_BRAIN_SYNC_V1`**: upsert reviewed artifacts
    into Open Brain and record returned thought ids / fingerprints / audit.
 6. **Producer adapters**: Codex, Cursor, OpenCode, Telegram/Chat exports create
    or update artifacts; they do not define memory truth.
-7. Extend `E2E_GOLDEN_PATH_8B5` with artifact-header and Open Brain export/sync
-   cases after the corresponding tickets land.
+7. Extend `E2E_GOLDEN_PATH_8B5` with Open Brain **export preview** and (after
+   Ticket G) **sync** cases.
 
-**Recommended order:** UI review/confirm affordance for
-`AGENT_TTG_CLASSIFICATION_V1`, then Open Brain sync. Producer adapters follow
-as convenience importers.
+**Recommended order:** **Ticket G — Open Brain sync** (upsert + audit + UI hook)
+while keeping export contract read-only until sync is gated; then producer
+adapters. Ticket D polish (preview/filters) in parallel as needed.
 
 **Goal:** Turn the third Channel Manager workspace tab into the operational
 bridge between producer work (Cursor/Codex/OpenCode/Chat/Telegram), TTG

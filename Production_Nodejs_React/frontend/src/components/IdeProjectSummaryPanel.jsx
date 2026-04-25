@@ -110,6 +110,8 @@ export default function IdeProjectSummaryPanel({ channelId, channelName }) {
     const [confirmTtgId, setConfirmTtgId] = useState('');
     const [confirmTtgName, setConfirmTtgName] = useState('');
     const [confirmReason, setConfirmReason] = useState('operator confirmed TTG binding');
+    const [obExportPreview, setObExportPreview] = useState(null);
+    const [obExportPreviewLoading, setObExportPreviewLoading] = useState(false);
 
     const { data, isLoading, error } = useQuery({
         queryKey: ['ide-project-summaries', channelId],
@@ -277,8 +279,35 @@ export default function IdeProjectSummaryPanel({ channelId, channelName }) {
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['studio-artifact-index'] });
             setSelectedArtifactSourcePath(null);
+            setObExportPreview(null);
         }
     });
+
+    async function loadOpenBrainExportPreview() {
+        if (!selectedArtifactRecord?.sourcePath) return;
+        setObExportPreviewLoading(true);
+        setObExportPreview(null);
+        try {
+            const qs = new URLSearchParams({
+                sourcePath: selectedArtifactRecord.sourcePath,
+                surface: adapterSurface || 'manual'
+            });
+            const res = await fetch(`/api/ide-project-summaries/open-brain-export?${qs}`);
+            const j = await res.json().catch(() => ({}));
+            if (!res.ok) {
+                setObExportPreview({
+                    error: j.error || `${res.status} ${res.statusText}`,
+                    details: j.details
+                });
+            } else {
+                setObExportPreview({ export: j.export });
+            }
+        } catch (e) {
+            setObExportPreview({ error: e?.message || String(e) });
+        } finally {
+            setObExportPreviewLoading(false);
+        }
+    }
 
     const updateMappingRow = (index, patch) => {
         setMappingRows((rows) => rows.map((row, i) => (i === index ? { ...row, ...patch } : row)));
@@ -334,6 +363,7 @@ export default function IdeProjectSummaryPanel({ channelId, channelName }) {
                             setPanel('a070');
                             setSelectedRel(null);
                             setSelectedArtifactSourcePath(null);
+                            setObExportPreview(null);
                         }}
                     >
                         Studio A070
@@ -352,6 +382,7 @@ export default function IdeProjectSummaryPanel({ channelId, channelName }) {
                             setPanel('artifacts');
                             setSelectedRel(null);
                             setSelectedArtifactSourcePath(null);
+                            setObExportPreview(null);
                         }}
                     >
                         Studio artifacts · TTG review
@@ -369,6 +400,7 @@ export default function IdeProjectSummaryPanel({ channelId, channelName }) {
                             setPanel('memory');
                             setSelectedRel(null);
                             setSelectedArtifactSourcePath(null);
+                            setObExportPreview(null);
                         }}
                     >
                         OpenClaw memory (read-only)
@@ -616,6 +648,7 @@ export default function IdeProjectSummaryPanel({ channelId, channelName }) {
                                 type="button"
                                 onClick={() => {
                                     setSelectedArtifactSourcePath(r.sourcePath);
+                                    setObExportPreview(null);
                                     const d = confirmDraftFromRecord(r);
                                     setConfirmTtgId(d.ttgId);
                                     setConfirmTtgName(d.ttgName);
@@ -844,6 +877,71 @@ export default function IdeProjectSummaryPanel({ channelId, channelName }) {
                                     {String(confirmBindingMutation.error.message)}
                                 </div>
                             )}
+                            <div
+                                style={{
+                                    marginTop: 14,
+                                    paddingTop: 12,
+                                    borderTop: '1px solid rgba(255,255,255,0.08)'
+                                }}
+                            >
+                                <div style={{ fontWeight: 600, fontSize: 11, marginBottom: 6 }}>
+                                    Open Brain export (read-only preview)
+                                </div>
+                                <div style={{ fontSize: 10, color: 'var(--text-secondary)', marginBottom: 8 }}>
+                                    Calls the existing contract builder; does not sync to Open Brain. After confirming TTG,
+                                    try again if eligibility was &quot;needs_review&quot; for binding.
+                                </div>
+                                <button
+                                    data-testid="ide-artifact-ob-export-preview"
+                                    type="button"
+                                    disabled={obExportPreviewLoading}
+                                    onClick={() => loadOpenBrainExportPreview()}
+                                    style={{
+                                        padding: '6px 12px',
+                                        fontSize: 11,
+                                        background: '#1d2532',
+                                        border: '1px solid var(--border-color)',
+                                        color: '#fff',
+                                        borderRadius: 6,
+                                        cursor: obExportPreviewLoading ? 'wait' : 'pointer'
+                                    }}
+                                >
+                                    {obExportPreviewLoading ? 'Loading…' : 'Load export payload'}
+                                </button>
+                                {obExportPreview?.error && (
+                                    <div style={{ color: '#e35050', marginTop: 10, fontSize: 11 }}>
+                                        {obExportPreview.error}
+                                        {obExportPreview.details ? (
+                                            <pre
+                                                style={{
+                                                    marginTop: 6,
+                                                    fontSize: 10,
+                                                    whiteSpace: 'pre-wrap',
+                                                    wordBreak: 'break-word'
+                                                }}
+                                            >
+                                                {JSON.stringify(obExportPreview.details, null, 2)}
+                                            </pre>
+                                        ) : null}
+                                    </div>
+                                )}
+                                {obExportPreview?.export && (
+                                    <pre
+                                        style={{
+                                            marginTop: 10,
+                                            fontSize: 10,
+                                            overflow: 'auto',
+                                            maxHeight: 280,
+                                            background: '#0e0f14',
+                                            border: '1px solid var(--border-color)',
+                                            borderRadius: 6,
+                                            padding: 8
+                                        }}
+                                    >
+                                        {JSON.stringify(obExportPreview.export, null, 2)}
+                                    </pre>
+                                )}
+                            </div>
                             {selectedArtifactRecord.classificationEvidence && (
                                 <pre
                                     style={{
