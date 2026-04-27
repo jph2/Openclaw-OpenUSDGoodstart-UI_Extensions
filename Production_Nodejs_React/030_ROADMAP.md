@@ -106,6 +106,11 @@ If diagnostics say **reachable on API host**, the mount/path problem is solved;
 debug remaining capture issues as extraction, permissions, last-run errors, or
 downstream summary work.
 
+**Git (this repo, `main`):** `874f51d` — CLI-first capture flow, `030_ROADMAP_DETAILS/`
+split, UI/docs alignment; `9b56316` — ignore `**/ide_capture_settings.json` at repo
+root so operator paths stay local. **Studio_Framework** (runbook + A070 `capture/`
+hygiene): `c6dce69`, `547c9e1`.
+
 ---
 
 ## 7. Maintenance Rule
