@@ -325,6 +325,20 @@ describe('openclawApply C1b.2a — buildAgentsAndBindingsApplyPatch', () => {
         });
         assert.equal(p.agentEntries[0].model, undefined);
     });
+
+    it('rejects synth id collisions before generating ambiguous bindings', () => {
+        assert.throws(
+            () =>
+                buildAgentsAndBindingsApplyPatch({
+                    channels: [
+                        { id: '-1234567890123456-A', assignedAgent: 'tars' },
+                        { id: '-1234567890123456-B', assignedAgent: 'tars' }
+                    ],
+                    agents: [{ id: 'tars', defaultSkills: [] }]
+                }),
+            /CM synth agent id collision/
+        );
+    });
 });
 
 describe('openclawApply C1b.3 — sub-agent skills in synth allowlist', () => {

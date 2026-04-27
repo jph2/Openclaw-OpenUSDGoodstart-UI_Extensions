@@ -3,11 +3,21 @@
 **Status:** proposed active hardening block
 **Scope:** Channel Manager source-of-truth to OpenClaw runtime and Cursor repo
 projection
-**Current maturity:** OpenClaw apply **90-95%**; Cursor projection/apply
-**78-85%**
-**Next target:** Cursor projection/apply **90-95%** with repeatable operator and
-CI checks
+**Current maturity (Schätzung, Stand 2026-04-27):** OpenClaw **Apply** 92–96%;
+OpenClaw **Runtime/Readback** 55–70%; Cursor **Repo-Export** (apply + stale +
+managed blocks) 88–93%; Cursor **volle IDE-Parität** 40–55%.
+**Next target:** Cursor Repo-Export **90–95%**; Runtime-Readback und Skill/MCP
+als messbare Gates.
 **Review basis:** TARS / MARVIN / CASE countercheck, 2026-04-27
+
+### Reifegrad-Tabelle (C1c dual-target)
+
+| Ziel | Teilaspekt | Reifegrad |
+| ---- | ---------- | --------- |
+| CM → OpenClaw | Apply (Merge, Backup, Kollisionen, Synth-ID, Warnings, Restart-Hinweis) | **92–96%** |
+| CM → OpenClaw | Runtime (effektive Topologie, Live-Readback, Session vs. Binding) | **55–70%** |
+| CM → Cursor | Repo-Export (v2 bundle, managed blocks, fingerprint v2, orphan stale, Duplikate) | **88–93%** |
+| CM → Cursor | IDE-Parität (Skills vorhanden, MCP/Rules, Reload-Verifikation) | **40–55%** |
 
 ## 1. Goal
 

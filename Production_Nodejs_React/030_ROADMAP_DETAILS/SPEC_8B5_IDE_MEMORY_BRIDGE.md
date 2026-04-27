@@ -421,7 +421,7 @@ Third implementation slice is in place:
   `channel_config.json`, and project-mapping based TTG resolution during
   summary write.
 
-Current summary verdict (2026-04-26):
+Current summary verdict (2026-04-27):
 
 > §8b.5 is a **credible, tested** bridge: mappings, artifact headers, classifier
 > + TTG review, artifact index, Open Brain export + sync (stub/HTTP), E2E golden
@@ -442,15 +442,18 @@ Implementation maturity snapshot (Reifegrad):
 | Artifact Index / Resolver | 85-90% |
 | Open Brain Export Contract | 88-93% |
 | Open Brain Sync (stub + HTTP + audit) | 62-72% |
-| **B: CM → Cursor** | 78-85% |
+| **B: CM → Cursor** | 88-93% |
 | Producer Adapters (Codex/Cursor/OpenCode) | 18-30% |
 
-**B hardening target:** C1c / §8b.7A is now split into
+**C1c dual-target (Schätzung, Stand 2026-04-27):** CM → OpenClaw **Apply** 92–96%,
+**Runtime/Readback** 55–70%; CM → Cursor **Repo-Export** 88–93%, **volle IDE-Parität**
+(Skills/MCP/Rules/Reload) 40–55%. Detail in
 [`SPEC_CM_DUAL_TARGET_AGENT_SKILL_CONFIG_V1.md`](./SPEC_CM_DUAL_TARGET_AGENT_SKILL_CONFIG_V1.md).
-That spec owns the next CM → Cursor lift toward **90-95%** (bundle v2, shared
-renderer, managed blocks, fingerprint v2, target-repo stale checks, tests) and
-the OpenClaw runtime/readback criteria that prove Apply success is also runtime
-success.
+
+**B / C1c:** C1c / §8b.7A ist in
+[`SPEC_CM_DUAL_TARGET_AGENT_SKILL_CONFIG_V1.md`](./SPEC_CM_DUAL_TARGET_AGENT_SKILL_CONFIG_V1.md)
+festgehalten (Managed Blocks, Fingerprint v2, Orphan-Stale, Synth-ID-Kollision,
+offene Gates: Runtime-Readback, `--prune-managed`, Skill/MCP-Verifikation).
 
 Remaining production gates before calling §8b.5 “done” in the strict sense:
 

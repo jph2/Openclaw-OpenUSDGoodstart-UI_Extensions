@@ -41,7 +41,7 @@ node scripts/apply-ide-export.mjs --write --target /path/to/repo \
 
 ## Stale check (CI / pre-commit)
 
-After `--write`, `.cursor/cm-ide-export-fingerprint.json` stores **fingerprint v2** (hash of per-file **managed-region** shas) plus a legacy v1 payload hash. If `channel_config.json` changes but you forgot to re-run apply, or someone edited a managed region on disk:
+After `--write`, `.cursor/cm-ide-export-fingerprint.json` stores **fingerprint v2** (hash of per-file **managed-region** shas) plus a legacy v1 payload hash. If `channel_config.json` changes but you forgot to re-run apply, someone edited a managed region on disk, or a CM-managed `.cursor/agents/*.md` file remains after it disappeared from CM:
 
 ```bash
 cd Production_Nodejs_React/backend
@@ -50,7 +50,7 @@ npm run check-ide-export-stale -- --target /path/to/Studio_Framework
 ```
 
 - Exit **0** — fingerprint v2 matches current CM **and** on-disk managed regions match.
-- Exit **1** — stale or drift; re-run apply.
+- Exit **1** — stale, drift, or orphan CM-managed file; re-run apply and remove/resolve orphans.
 - Exit **2** — no fingerprint file yet (run `--write` once).
 
 Older fingerprint files may still use schema `cm.ide-export-fingerprint.v1`; re-run `--write` once to upgrade to v2.

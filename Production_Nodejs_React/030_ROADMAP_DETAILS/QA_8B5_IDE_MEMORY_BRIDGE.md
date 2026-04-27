@@ -1,6 +1,6 @@
 # QA 8b.5 - IDE Memory Bridge
 
-Date: 2026-04-26 (maturity refresh)
+Date: 2026-04-27 (maturity refresh — C1c Cursor export hardening landed)
 Scope: Final next-session gates after the §8b.5 bridge foundation
 Open Brain guardrail: `SPEC_OPEN_BRAIN_BOUNDARY_CONDITIONS.md`
 
@@ -23,14 +23,22 @@ Maturity snapshot (Reifegrad — Schätzung, keine Messautomatik):
 | Artifact Index / Resolver | 85-90% |
 | Open Brain Export Contract | 88-93% |
 | Open Brain Sync (stub + HTTP + audit) | 62-72% |
-| **B: CM → Cursor** (`apply-ide-export`, engines + subs, stale check) | 78-85% |
+| **B: CM → Cursor** (`apply-ide-export`, engines + subs, stale v2, managed blocks) | 88-93% |
 | Producer Adapters (Codex/Cursor/OpenCode) | 18-30% |
 
-**B hardening target:** the next C1c / §8b.7A slice is tracked in
+### C1c dual-target — Reifegrad (Schätzung, Stand 2026-04-27)
+
+Zusätzlich zur Zeile **B** oben: Aufspaltung nach **Zielsystem** und **Was genau gemeint ist**.
+
+| Ziel | Teilaspekt | Reifegrad |
+| ---- | ---------- | --------- |
+| **CM → OpenClaw** | Apply: Merge, Backup, Kollisionen, Synth-ID-Kollisionsverweigerung, `channelConfigWarnings`, Gateway-Restart-Hinweis | **92-96%** |
+| **CM → OpenClaw** | Runtime: Gateway/TTG effektive Topologie, Live-Readback, Session-Pins vs. Binding | **55-70%** |
+| **CM → Cursor** | Repo-Export: Bundle v2, Managed Blocks, Fingerprint v2, On-Disk-Managed-Hash, Orphan-Stale, Duplikat-Checks | **88-93%** |
+| **CM → Cursor** | Volle IDE-Parität: Skills physisch vorhanden, MCP/Rules, Verifikation nach Reload | **40-55%** |
+
+**C1c / §8b.7A:** Normative Detail-Spec und nächste Gates in
 [`SPEC_CM_DUAL_TARGET_AGENT_SKILL_CONFIG_V1.md`](./SPEC_CM_DUAL_TARGET_AGENT_SKILL_CONFIG_V1.md).
-It raises CM → Cursor toward **90-95%** by adding bundle v2, managed-block
-rendering, file/fingerprint validation, stale-check governance, and tests; it
-also records the OpenClaw runtime/readback gates needed beyond file writes.
 
 Remaining gates (high level):
 
@@ -38,15 +46,16 @@ Remaining gates (high level):
 2. **OB1/MCP** — first-party upsert path beyond HTTP adapter; policy as you define it.
 3. **Polish** — §8b.7 topology / gateway `tools.effective` verification when API stable.
 
-### Reifegrad — drei Dokumente (Stand 2026-04-26)
+### Reifegrad — drei Dokumente (Stand 2026-04-27)
 
 Die **numerische Tabelle** oben ist die Referenz; sie ist an **drei Stellen** mit dem Code abgestimmt:
 
 | Dokument | Inhalt |
 | -------- | ------ |
-| **`QA_8B5_IDE_MEMORY_BRIDGE.md`** (diese Datei) | Datum + Status-Text; **Master-%** (Artifact Header 88–93%, Classification 72–80%, Index 85–90%, OB Export 88–93%, OB Sync 62–72%, **B** 78–85%, Producer 18–30%); Remaining gates → Adapter / OB1-MCP / §8b.7-Polish. |
-| **`SPEC_8B5_IDE_MEMORY_BRIDGE.md`** | **Gleiche %-Tabelle** (inkl. Zeile **B**); Verdict; MARVIN PASS/FAIL; empfohlene Schritte (Adapter, OB1, Topologie). |
-| **`030_ROADMAP.md`** §8b.5 | **Current status** 2026-04-26; **Maturity** als kompakte Prozentspannen + Verweis auf QA/SPEC; „Not done“ → OB1/MCP, Producer, §8b.7, Polish. |
+| **`QA_8B5_IDE_MEMORY_BRIDGE.md`** (diese Datei) | Datum + Status-Text; **Master-%** (Artifact Header 88–93%, Classification 72–80%, Index 85–90%, OB Export 88–93%, OB Sync 62–72%, **B** 88–93%, Producer 18–30%); **C1c-Tabelle** OpenClaw vs Cursor; Remaining gates → Adapter / OB1-MCP / §8b.7 / Cursor prune+skill verify. |
+| **`SPEC_8B5_IDE_MEMORY_BRIDGE.md`** | **Gleiche %-Tabelle** (inkl. Zeile **B**); Verdict; empfohlene Schritte (Adapter, OB1, Topologie). |
+| **`030_ROADMAP.md`** §8b.5 | **Current status**; **Maturity** als kompakte Prozentspannen + Verweis auf QA/SPEC; „Not done“ → OB1/MCP, Producer, §8b.7, Polish, C1c Rest. |
+| **`SPEC_CM_DUAL_TARGET_AGENT_SKILL_CONFIG_V1.md`** | C1c Zielbild, Akzeptanzkriterien, offene Gates (Runtime-Readback, `--prune-managed`, Skill/MCP). |
 
 Normative binding statuses:
 

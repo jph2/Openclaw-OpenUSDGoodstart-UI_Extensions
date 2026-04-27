@@ -532,6 +532,7 @@ export function buildAgentsAndBindingsApplyPatch(rawChannelConfig) {
     const agentEntries = [];
     const bindingEntries = [];
     const perChannel = [];
+    const synthSources = new Map();
 
     for (const c of channels) {
         if (c?.id == null || !c?.assignedAgent) continue;
@@ -540,6 +541,17 @@ export function buildAgentsAndBindingsApplyPatch(rawChannelConfig) {
         const agentDef = agentsById.get(assignedAgent);
 
         const synthId = `${assignedAgent}-${groupIdSlug(groupId)}`;
+        const existingSource = synthSources.get(synthId);
+        if (existingSource && existingSource !== groupId) {
+            const err = new Error(
+                `CM synth agent id collision: channels "${existingSource}" and "${groupId}" both map to "${synthId}". ` +
+                    'Rename one channel id or change groupIdSlug() before applying.'
+            );
+            err.status = 409;
+            err.details = { synthAgentId: synthId, sourceGroupIds: [existingSource, groupId] };
+            throw err;
+        }
+        synthSources.set(synthId, groupId);
         const bindingComment = makeCmComment(groupId);
         const modelStr =
             typeof c.model === 'string' && c.model.trim().length > 0 ? c.model.trim() : null;

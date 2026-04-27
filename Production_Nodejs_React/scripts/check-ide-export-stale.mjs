@@ -20,7 +20,7 @@ import {
     FINGERPRINT_SCHEMA_V2,
     ideExportManagedManifestV2
 } from './ideExportFingerprint.mjs';
-import { extractManagedRegion } from './lib/ideAgentRenderer.mjs';
+import { extractManagedRegion, isChannelManagerIdeExportFile } from './lib/ideAgentRenderer.mjs';
 
 function parseArgs(argv) {
     const out = { target: '', apiBase: '', config: '' };
@@ -82,6 +82,30 @@ async function hashManagedOnDisk(targetRoot, rel) {
     const managed = extractManagedRegion(txt);
     const sha = crypto.createHash('sha256').update(managed ?? txt, 'utf8').digest('hex');
     return { rel, missing: false, sha256: sha };
+}
+
+async function listOrphanCmAgentMarkdown(targetRoot, expectedRels) {
+    const agentsDir = path.join(targetRoot, '.cursor', 'agents');
+    const expected = new Set(expectedRels);
+    const orphans = [];
+    if (!(await pathExists(agentsDir))) return orphans;
+    const names = await fs.readdir(agentsDir);
+    for (const n of names) {
+        if (!n.endsWith('.md')) continue;
+        const rel = path.posix.join('.cursor/agents', n);
+        if (expected.has(rel)) continue;
+        const abs = path.join(agentsDir, n);
+        let txt = '';
+        try {
+            txt = await fs.readFile(abs, 'utf8');
+        } catch {
+            continue;
+        }
+        if (isChannelManagerIdeExportFile(txt)) {
+            orphans.push(rel);
+        }
+    }
+    return orphans.sort();
 }
 
 async function main() {
@@ -149,6 +173,17 @@ Env: WORKSPACE_ROOT (for default config when not using --api-base)
                 console.error(`  on disk:  ${got.sha256}`);
                 process.exit(1);
             }
+        }
+
+        const orphans = await listOrphanCmAgentMarkdown(
+            targetRoot,
+            expectedManifest.map((x) => x.rel)
+        );
+        if (orphans.length > 0) {
+            console.error('STALE: orphan CM-managed Cursor agent files exist:');
+            for (const rel of orphans) console.error(`  - ${rel}`);
+            console.error('  Remove them manually or add an explicit prune workflow.');
+            process.exit(1);
         }
 
         console.log(`OK: IDE export v2 matches Channel Manager and on-disk managed regions (${currentV2.slice(0, 12)}…).`);

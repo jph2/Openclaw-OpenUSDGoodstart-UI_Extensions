@@ -92,14 +92,28 @@ async function loadBundle({ apiBase, configPath }) {
 
 function validateBundleForApply(bundle) {
     const errors = [];
+    const seenIds = new Map();
+    const seenRels = new Map();
+    const recordUnique = (map, key, label, origin) => {
+        if (!key) return;
+        if (map.has(key)) {
+            errors.push(`Duplicate ${label} "${key}" from ${map.get(key)} and ${origin}.`);
+        } else {
+            map.set(key, origin);
+        }
+    };
     for (const e of bundle.engines || []) {
         const id = String(e.id || '').trim();
+        const origin = `engine "${id}"`;
         if (id && !isSafeCursorAgentId(id)) {
             errors.push(`Unsafe engine id "${id}" (allowed: lowercase [a-z0-9_-]).`);
         }
+        recordUnique(seenIds, id, 'agent id', origin);
+        recordUnique(seenRels, `.cursor/agents/${id}.md`, 'relativePath', origin);
     }
     for (const s of bundle.subagents || []) {
         const id = String(s.name || '').trim();
+        const origin = `sub-agent "${id}"`;
         if (id && !isSafeCursorAgentId(id)) {
             errors.push(`Unsafe sub-agent id "${id}" (allowed: lowercase [a-z0-9_-]).`);
         }
@@ -108,6 +122,11 @@ function validateBundleForApply(bundle) {
         if (!norm.startsWith('.cursor/agents/') || norm.includes('..')) {
             errors.push(`Invalid relativePath "${rel}".`);
         }
+        if (norm !== `.cursor/agents/${id}.md`) {
+            errors.push(`relativePath "${rel}" must match agent id "${id}" exactly.`);
+        }
+        recordUnique(seenIds, id, 'agent id', origin);
+        recordUnique(seenRels, norm, 'relativePath', origin);
     }
     return errors;
 }

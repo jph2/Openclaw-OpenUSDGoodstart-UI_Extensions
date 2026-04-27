@@ -12,6 +12,17 @@ export const CM_MANAGED_END = '<!-- cm-managed:end -->';
 const LEGACY_USER_SECTION_SUB =
     /^_Add workflow-specific instructions below this line.*$/m;
 const LEGACY_USER_SECTION_ENGINE = /^_Add triad \/ persona prose below this line if needed\._$/m;
+const LEGACY_GENERATED_PLACEHOLDER =
+    /^_(Add workflow-specific instructions below this line|Add triad \/ persona prose below this line).*_$/s;
+
+function delimiterLineIndex(lines, marker) {
+    return lines.findIndex((line) => line.trim() === marker);
+}
+
+function normalizePreservedSuffix(suffix) {
+    const trimmed = String(suffix || '').trimEnd();
+    return LEGACY_GENERATED_PLACEHOLDER.test(trimmed.trim()) ? '' : trimmed;
+}
 
 /** True if file is CM-owned (v1 or v2 marker on first line). */
 export function isChannelManagerIdeExportFile(content) {
@@ -22,17 +33,23 @@ export function isChannelManagerIdeExportFile(content) {
 /** Extract user-editable suffix after managed block, or legacy heuristic. */
 export function extractPreservedSuffix(existingContent) {
     const text = String(existingContent);
-    const endIdx = text.indexOf(CM_MANAGED_END);
-    if (endIdx !== -1) {
-        return text.slice(endIdx + CM_MANAGED_END.length).replace(/^\s*\n/, '');
+    const lines = text.split(/\r?\n/);
+    const endLine = delimiterLineIndex(lines, CM_MANAGED_END);
+    if (endLine !== -1) {
+        return normalizePreservedSuffix(
+            lines
+                .slice(endLine + 1)
+                .join('\n')
+                .replace(/^\s*\n/, '')
+        );
     }
     if (LEGACY_USER_SECTION_SUB.test(text)) {
         const m = text.match(LEGACY_USER_SECTION_SUB);
-        return m ? text.slice(m.index).trimEnd() : '';
+        return m ? normalizePreservedSuffix(text.slice(m.index)) : '';
     }
     if (LEGACY_USER_SECTION_ENGINE.test(text)) {
         const m = text.match(LEGACY_USER_SECTION_ENGINE);
-        return m ? text.slice(m.index).trimEnd() : '';
+        return m ? normalizePreservedSuffix(text.slice(m.index)) : '';
     }
     return '';
 }
@@ -72,7 +89,7 @@ ${skillsLine}${inactive}
 
 _Sub-agents with \`parent: ${id}\` are separate files in this folder._
 
-_Generated in \`<!-- cm-managed:start -->\` — edit only below \`${CM_MANAGED_END}\`._
+_Generated in the managed region. Edit custom prose only below the managed end marker._
 `;
 }
 
@@ -113,7 +130,7 @@ readonly: ${fm.readonly === true}
 
 ${skillsLine}${inactive}
 
-_Generated in managed region — custom prose belongs below \`${CM_MANAGED_END}\`._
+_Generated in the managed region. Custom prose belongs below the managed end marker._
 `;
 }
 
@@ -127,17 +144,18 @@ export function composeAgentMarkdownFile({ managedInner, preservedSuffix = '' })
 ${CM_MANAGED_START}
 ${managedInner.trim()}
 ${CM_MANAGED_END}
-${suffix ? `\n${suffix}\n` : '\n'}`;
+${suffix ? `\n${suffix}\n` : ''}`;
     return body;
 }
 
 /** @returns {string|null} */
 export function extractManagedRegion(content) {
     const text = String(content);
-    const s = text.indexOf(CM_MANAGED_START);
-    const e = text.indexOf(CM_MANAGED_END);
+    const lines = text.split(/\r?\n/);
+    const s = delimiterLineIndex(lines, CM_MANAGED_START);
+    const e = delimiterLineIndex(lines, CM_MANAGED_END);
     if (s === -1 || e === -1 || e < s) return null;
-    return text.slice(s, e + CM_MANAGED_END.length);
+    return lines.slice(s, e + 1).join('\n');
 }
 
 /**
