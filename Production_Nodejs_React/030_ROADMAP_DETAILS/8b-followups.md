@@ -319,32 +319,76 @@ artifact-centered.
 **Dependencies:** Existing C2 summary/memory promote endpoints, A070_ide_cursor_summaries write
 support, IDE bundle/export bridge, and the current §8b.4 chat beta.
 
-### 8b.6 · Studio corpus onboarding & header normalization (planned)
+### 8b.6 · General_Dev -> Studio corpus migration & header normalization (active planning)
 
-**Intent:** Large parts of the knowledge base still live **outside** Studio
-Framework (other repositories, legacy trees). Before Open Brain live sync is
-worth prioritizing, that material must be **brought into** `Studio_Framework/`
-under governed paths and schemas.
+**Detailed spec:** [`SPEC_GENERAL_DEV_STUDIO_MIGRATION_V1.md`](./SPEC_GENERAL_DEV_STUDIO_MIGRATION_V1.md)
 
-**Planned gate — mandatory for ingested artifacts:**
+**Intent:** `General_Dev` contains the last ~1.5 years of work: domain folders,
+general folders, ARYS-classified artifacts, tag/index systems, RAG/search tools,
+Obsidian/Open Brain experiments, and operational material. Before Open Brain
+live sync is worth prioritizing, this corpus must be migrated into
+`Studio_Framework/` through a repeatable quality/security gate.
 
-1. **Ingest** — copy or migrate content into the correct Studio tree (e.g.
-   `050_Artifacts/…`) with traceability to source repo/commit where applicable.
-2. **Header & structure pass** — each imported artifact goes through a defined
-   process: YAML front matter (`id`, `type`, `status`, tags, `current_ttg` /
-   `initial_ttg`, project fields, timestamps) and body structure aligned to
-   Studio rules (e.g. ARYS, `TRACEABILITY_SCHEMA`, discovery templates). This may
-   be operator review, scripted lint, batch fixups, or CM/Workbench-assisted
-   editing — the exact toolchain is TBD; the **requirement** is that nothing is
-   treated as export/sync-ready until the pass is done.
-3. **Then** — artifact index + export contract + (later) OB1 upsert operate on a
-   **homogeneous** corpus; stub audit and review UIs remain meaningful.
+**Required migration shape:**
+
+1. **Freeze source** — commit and push `General_Dev`, then record the source
+   commit in each migration batch.
+2. **Inventory first** — generate a read-only overview of domains, general
+   folders, file counts, headers, indexes, tags, search/RAG tooling, Obsidian and
+   Open Brain signals, and risk areas.
+3. **Stage/quarantine** — copy candidates into
+   `Studio_Framework/095_Migration_Staging/General_Dev/<batch-id>/` with
+   `manifest.jsonl`, `inventory.md`, header/security/target-map reports, and no
+   export eligibility.
+4. **Normalize** — update ARYS/Studio headers, source provenance, TTG/project
+   mapping, tags, local paths, and links in staging copies only.
+5. **Admit deliberately** — move only accepted files into final Studio targets
+   such as `050_Artifacts/…` or relevant standards/tooling areas.
+6. **Reindex after import** — regenerate search/RAG/tag indexes from normalized
+   Studio files; do not treat legacy Everything/RAG DB state as canonical.
+
+**Hard constraints:**
+
+- No one-shot bulk copy from `General_Dev` into final Studio folders.
+- No mutation of `General_Dev` during migration transforms.
+- No live OB1 upsert from raw or staged material.
+- Admin/finance/ops and MCP/config material require explicit security review.
 
 **Studio playbook (normative):** `Studio_Framework/050_Artifacts/README_ARTIFACT_INGESTION_AND_ONBOARDING.md`
 
-**Dependencies:** Studio-side playbooks or automation for ingestion; may span
-`Studio_Framework` repo more than CM. CM continues to **prepare** OB1 (contract,
-audit) without requiring OB1 to be fully implemented here first.
+**Dependencies:** Studio-side playbooks or automation for inventory, staging,
+header normalization, duplicate detection, and security checks. CM continues to
+prepare OB1/export/audit contracts, but final import governance lives in the
+Studio corpus.
+
+### 8b.6B · General_Dev lessons & reimplementation candidates (planned companion)
+
+**Detailed spec:** [`SPEC_GENERAL_DEV_LESSONS_REIMPLEMENTATION_CANDIDATES_V1.md`](./SPEC_GENERAL_DEV_LESSONS_REIMPLEMENTATION_CANDIDATES_V1.md)
+
+**Intent:** The `General_Dev` migration must not only ask "which files should be
+imported?" It must also ask "what did the old system already solve that the new
+Studio/CM stack should learn from?" Some legacy material should become final
+artifacts; other material should become clean reimplementation candidates.
+
+**Candidate themes:**
+
+1. Search and discovery: Everything workflow, `framework_rag.py`, context and
+   horizon indexes.
+2. Tags and semantic vocabulary: `TAG_SEMANTIC_INDEX.md`,
+   `master_tag_system.yml`, tag validators/proposers.
+3. Header and artifact governance: ARYS tools, header normalization,
+   structural validators.
+4. Domain routing and TTG mapping: `Domain_*`, router identity docs, domain
+   guardrails.
+5. Obsidian, Open Brain, MCP/tool config, and operator UX experiments.
+
+**Required output per candidate:** source path/commit, problem solved, what is
+still valuable, what should not be copied, target surface, risk, priority, and
+decision (`reimplement`, `document-only`, `archive`, `defer`, `reject`).
+
+**Hard constraint:** raw legacy tools are not promoted to production by copying
+them. Valuable behavior is re-specified and rebuilt in the current Studio/CM
+architecture after review.
 
 ### 8b.7 · TTG agent topology visualization (after §8b.5)
 
