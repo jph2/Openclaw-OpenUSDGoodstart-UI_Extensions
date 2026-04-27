@@ -36,7 +36,7 @@ becomes too long for this index, move it into a linked file under
 | Area | State |
 | ---- | ----- |
 | Configuration tab | Functional; TTG CRUD, sub-agent CRUD, skills list, row heights persist. |
-| OpenClaw Chat mirror | Functional; auto-scroll v3, tool chips collapsed, optimistic user bubble, gateway-native transport slice shipped with CLI fallback. |
+| OpenClaw Chat mirror | Functional; auto-scroll v3, tool chips collapsed, optimistic user bubble, gateway-native transport slice shipped with CLI fallback. Next active backlog pull-forward: structured chat media attachments. |
 | Cursor / IDE summaries tab | Live; A070 summary list/renderer, summary drafts, memory promote modal, project mapping, artifact index/review, Open Brain export/stub sync. |
 | IDE chat capture | **Partially shipped (6.22):** backend capture endpoints + Summaries UI. Linux flow is **Step 0 terminal mount** + **required Step 1 Save path**. Old in-UI SMB wizard removed. Remaining: nightly summary-delta job, retention, other producers. |
 | IDE Bridge (MCP) | Live for `send_telegram_reply` and `change_agent_mode`. |
@@ -68,6 +68,7 @@ Details live in [`030_ROADMAP_DETAILS/historical-bundles.md`](./030_ROADMAP_DETA
 | Block | Status | Next useful action |
 | ----- | ------ | ------------------ |
 | §8b.5 — IDE Memory Bridge | Mostly implemented foundation; next slice is **Summary → TTG scoring/review** on top of the existing resolver. See [`SPEC_8B5_IDE_MEMORY_BRIDGE.md`](./030_ROADMAP_DETAILS/SPEC_8B5_IDE_MEMORY_BRIDGE.md) and [`QA_8B5_IDE_MEMORY_BRIDGE.md`](./030_ROADMAP_DETAILS/QA_8B5_IDE_MEMORY_BRIDGE.md). | Build the hybrid TTG scorer: hard signals stay authoritative; content/tags produce a ranked percentage distribution, evidence, ambiguity thresholds, review UI, and confirmed header write-back before promotion. |
+| §8b.8 / 6.9 — Channel Manager chat media attachments | **Pulled forward 2026-04-27** from backlog; active next product slice. See [`SPEC_CHANNEL_MANAGER_CHAT_MEDIA_V1.md`](./030_ROADMAP_DETAILS/SPEC_CHANNEL_MANAGER_CHAT_MEDIA_V1.md). | Implement structured `parts[]` chat messages and V1 image attachments first (paste/attach, preview, send, render, mirror). Keep audio/video/file support as later explicit phases after gateway capability and safety checks are proven. |
 | C1c / §8b.7A — Dual-target Agent/Skill configuration | Active; OpenClaw **Apply** ~92–96%, **Runtime** ~55–70%; Cursor **Repo-Export** ~88–93%, **IDE-Parität** ~40–55%. See [`SPEC_CM_DUAL_TARGET_AGENT_SKILL_CONFIG_V1.md`](./030_ROADMAP_DETAILS/SPEC_CM_DUAL_TARGET_AGENT_SKILL_CONFIG_V1.md). | Close Cursor export gap (~90–95%): `--prune-managed`, skill existence checks, MCP bridge verification. OpenClaw: configured-vs-runtime topology/readback, stale-session guidance. |
 | 6.22 — IDE chat capture pipeline | Partially shipped; see [`030_ROADMAP_DETAILS/ide-chat-capture-a070.md`](./030_ROADMAP_DETAILS/ide-chat-capture-a070.md). | After path/mount UX stabilization, implement nightly summary-delta job and retention policy. |
 | §8b.6 — Studio corpus onboarding | Planned gate before live Open Brain priority. | Ingest external materials into Studio Framework, normalize headers/structure, then treat export/sync as meaningful. |
@@ -82,7 +83,7 @@ The backlog table and release cadence live in
 
 High-signal later items:
 
-- Channel Manager chat media V1: [`SPEC_CHANNEL_MANAGER_CHAT_MEDIA_V1.md`](./030_ROADMAP_DETAILS/SPEC_CHANNEL_MANAGER_CHAT_MEDIA_V1.md).
+- Channel Manager chat media V1 is now active as §8b.8 / 6.9 above.
 - Workbench / Channel Manager boundary hardening: [`SPEC_WORKBENCH_POSITIONING.md`](./030_ROADMAP_DETAILS/SPEC_WORKBENCH_POSITIONING.md) and [`SESSION_CLEANUP_2026-04-25.md`](./030_ROADMAP_DETAILS/SESSION_CLEANUP_2026-04-25.md).
 - Slash-command parity and no-fake-send guardrails in CM chat (§8b.10).
 - MCP whitelisting and Sovereign Bridge verification (after C1c / Cursor bundle v2 contracts stabilize).

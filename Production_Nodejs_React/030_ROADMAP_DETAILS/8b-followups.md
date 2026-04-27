@@ -388,14 +388,17 @@ map for fast inspection and debugging.
 runtime-effective tools/skills (`tools.effective(sessionKey=...)` or
 equivalent gateway API).
 
-### 8b.8 · Channel Manager Chat Media V1 (after boundary cleanup + §8b.5)
+### 8b.8 · Channel Manager Chat Media Attachments (active next)
 
-**Status:** proposed, not next.
+**Status:** pulled forward from backlog on 2026-04-27; next planned product
+slice after the current §8b.5 scoring implementation.
 
 **Spec:** [`SPEC_CHANNEL_MANAGER_CHAT_MEDIA_V1.md`](./SPEC_CHANNEL_MANAGER_CHAT_MEDIA_V1.md)
 
-**Goal:** Let the Channel Manager OpenClaw Chat handle one image plus optional
-text as one logical chat message, without introducing a Workbench dependency.
+**Goal:** Let the Channel Manager OpenClaw Chat handle structured media
+attachments as one logical chat message, without introducing a Workbench
+dependency. Start with one image + optional text; plan audio/video/files as
+later explicit phases.
 
 **Why:** Operators will need to paste screenshots or visual context into a TTG
 conversation. This belongs to the Channel Manager chat surface, not the
@@ -415,19 +418,19 @@ Existing text-only messages must normalize to:
 parts: [{ type: 'text', text: messageText }]
 ```
 
-**Scope (V1):**
+**Phasing:**
 
-1. One image per user message.
-2. Optional text/caption in the same logical message.
-3. Paste from clipboard; optional attach button if low risk.
-4. Inline image rendering in the Channel Manager chat history.
-5. Lightweight enlarge/preview behavior on click.
-6. Mirror/read path normalizes inbound media into the same `parts[]` shape.
+1. **V1 image:** one image per user message, optional text/caption, paste/attach,
+   preview, inline render, enlarge preview, mirror normalization.
+2. **V1b audio:** one audio clip/file per message, duration/size limits,
+   player UI, no autoplay.
+3. **V2 video/files:** video and general files only after gateway support,
+   storage policy, MIME allowlist, and retention rules are explicit.
 
 **Out of scope for V1:**
 
 - Multi-image messages.
-- General file/PDF/video/audio upload.
+- General file/PDF/video/audio upload in the first implementation slice.
 - Workbench media browser or Workbench file-tree integration.
 - A generalized asset library.
 - Text-marker hacks where the UI guesses an image from raw transcript text.
@@ -441,7 +444,8 @@ parts: [{ type: 'text', text: messageText }]
 - Backend must validate MIME type and size before accepting or forwarding
   media.
 - Allowed V1 MIME types: `image/png`, `image/jpeg`, `image/webp`; `image/gif`
-  only if explicitly enabled. No SVG in V1.
+  only if explicitly enabled. No SVG in V1. Audio/video require later explicit
+  MIME allowlists and size/duration gates.
 
 **Likely implementation order:**
 
@@ -452,6 +456,7 @@ parts: [{ type: 'text', text: messageText }]
    gateway path is confirmed.
 5. Extend mirror/read normalization for media events.
 6. Add browser QA: paste image + optional text, send, render, mirror.
+7. Only after V1 is green: define audio and video follow-up gates.
 
 **Acceptance:**
 

@@ -18,7 +18,7 @@ from the relevant roadmap row.
 | `SPEC_8B5_IDE_MEMORY_BRIDGE.md` | Main IDE Memory Bridge spec. |
 | `QA_8B5_IDE_MEMORY_BRIDGE.md` | QA and maturity notes for §8b.5. |
 | `SPEC_OPEN_BRAIN_BOUNDARY_CONDITIONS.md` | Open Brain boundary rules. |
-| `SPEC_CHANNEL_MANAGER_CHAT_MEDIA_V1.md` | Channel Manager chat media V1 spec. |
+| `SPEC_CHANNEL_MANAGER_CHAT_MEDIA_V1.md` | Channel Manager chat media attachments V1 spec (image-first, audio/video later phases). |
 | `SPEC_WORKBENCH_POSITIONING.md` | Workbench product boundary. |
 | `SESSION_CLEANUP_2026-04-24.md` | Cleanup / gateway transport boundary context. |
 | `SESSION_CLEANUP_2026-04-25.md` | Workbench / Channel Manager boundary cleanup context. |

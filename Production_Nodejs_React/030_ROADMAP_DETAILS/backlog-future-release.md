@@ -13,7 +13,7 @@ not part of the A → B → C1 → C2 sequence above.
 | 6.4   | TARS Hub deep-link integration (`:18789/chat?session=…`) from channel cards.            |
 | 6.5   | Atomic config persistence hardening (chokidar signal on `POST /api/channels/config`).   |
 | 6.6   | Session visibility: show `sessionKey` / parity indicator in the UI.                     |
-| 6.9   | Native chat media (images/files) — see §8b.8 and [`SPEC_CHANNEL_MANAGER_CHAT_MEDIA_V1.md`](./SPEC_CHANNEL_MANAGER_CHAT_MEDIA_V1.md); requires gateway support. |
+| 6.9   | **Promoted active 2026-04-27:** Channel Manager chat media attachments — see §8b.8 and [`SPEC_CHANNEL_MANAGER_CHAT_MEDIA_V1.md`](./SPEC_CHANNEL_MANAGER_CHAT_MEDIA_V1.md). First slice: images; later phases: audio/video/files after gateway and safety gates. |
 | 6.10b | A070 summary drafts from Channel Manager UI (`POST /api/ide-project-summaries`); **landed** — residual polish/guards per §8b.5. |
 | 6.22  | **IDE chat capture pipeline:** **slice 2026-04-27:** `GET/POST …/capture/{status,run,settings,ensure-path,mount…}` + CM UI (Summaries tab) + `backend/services/ideChatCapture.js` (Cursor `workspaceStorage` → `capture/` + `manifest.jsonl`). **CM UX:** Linux SMB via **Step 0** terminal mount + mandatory **Step 1 Save path**; in-UI SMB wizard removed from the primary flow; save-status + diagnostics distinguish saved/path OK vs missing. **Remaining:** nightly Studio summary-delta job, other IDEs, retention policy. See [`ide-chat-capture-a070.md`](./ide-chat-capture-a070.md), `SPEC_8B5` §15–§15.10. |
 | 6.11  | Skills tab filter/sort/search/custom order.                                             |
