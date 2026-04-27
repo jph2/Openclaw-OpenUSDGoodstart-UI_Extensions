@@ -3,17 +3,24 @@
  * Exit 0 if .cursor/cm-ide-export-fingerprint.json matches current channel_config / API bundle.
  * Exit 1 if stale or mismatch. Exit 2 if no fingerprint file (never applied).
  *
- *   node scripts/check-ide-export-stale.mjs --target /path/to/Studio_Framework
- *   WORKSPACE_ROOT=... node scripts/check-ide-export-stale.mjs --target ...
+ * v2: compares managed-region hashes per file; custom prose below cm-managed:end ignored.
  */
 
 import fs from 'node:fs/promises';
+import crypto from 'node:crypto';
 import path from 'node:path';
 import process from 'node:process';
 import { fileURLToPath } from 'node:url';
 
 import { buildCanonicalSnapshot, buildIdeWorkbenchBundle } from '../backend/services/ideConfigBridge.js';
-import { computeIdeExportFingerprint, FINGERPRINT_SCHEMA } from './ideExportFingerprint.mjs';
+import {
+    computeIdeExportFingerprint,
+    computeIdeExportFingerprintV2,
+    FINGERPRINT_SCHEMA,
+    FINGERPRINT_SCHEMA_V2,
+    ideExportManagedManifestV2
+} from './ideExportFingerprint.mjs';
+import { extractManagedRegion } from './lib/ideAgentRenderer.mjs';
 
 function parseArgs(argv) {
     const out = { target: '', apiBase: '', config: '' };
@@ -68,6 +75,15 @@ async function pathExists(p) {
     }
 }
 
+async function hashManagedOnDisk(targetRoot, rel) {
+    const abs = path.join(targetRoot, rel.split('/').join(path.sep));
+    if (!(await pathExists(abs))) return { rel, missing: true, sha256: null };
+    const txt = await fs.readFile(abs, 'utf8');
+    const managed = extractManagedRegion(txt);
+    const sha = crypto.createHash('sha256').update(managed ?? txt, 'utf8').digest('hex');
+    return { rel, missing: false, sha256: sha };
+}
+
 async function main() {
     const args = parseArgs(process.argv);
     if (args.help) {
@@ -95,7 +111,9 @@ Env: WORKSPACE_ROOT (for default config when not using --api-base)
     }
 
     const bundle = await loadBundle({ apiBase: args.apiBase, configPath: args.config });
-    const current = computeIdeExportFingerprint(bundle);
+    const currentV1 = computeIdeExportFingerprint(bundle);
+    const currentV2 = computeIdeExportFingerprintV2(bundle);
+    const expectedManifest = ideExportManagedManifestV2(bundle);
 
     let stored;
     try {
@@ -105,18 +123,52 @@ Env: WORKSPACE_ROOT (for default config when not using --api-base)
         process.exit(1);
     }
 
+    if (stored.schema === FINGERPRINT_SCHEMA_V2) {
+        if (stored.fingerprint !== currentV2) {
+            console.error('STALE: CM bundle changed (fingerprint v2 mismatch).');
+            console.error(`  stored:   ${stored.fingerprint}`);
+            console.error(`  current:  ${currentV2}`);
+            console.error('  Run: npm run apply-ide-export -- --dry-run --target … then --write');
+            process.exit(1);
+        }
+
+        const diskChecks = [];
+        for (const entry of expectedManifest) {
+            diskChecks.push(await hashManagedOnDisk(targetRoot, entry.rel));
+        }
+        for (let i = 0; i < expectedManifest.length; i++) {
+            const exp = expectedManifest[i];
+            const got = diskChecks[i];
+            if (got.missing) {
+                console.error(`STALE: missing file ${exp.rel}`);
+                process.exit(1);
+            }
+            if (got.sha256 !== exp.sha256) {
+                console.error(`STALE: managed region drift in ${exp.rel}`);
+                console.error(`  expected: ${exp.sha256}`);
+                console.error(`  on disk:  ${got.sha256}`);
+                process.exit(1);
+            }
+        }
+
+        console.log(`OK: IDE export v2 matches Channel Manager and on-disk managed regions (${currentV2.slice(0, 12)}…).`);
+        process.exit(0);
+    }
+
     if (stored.schema && stored.schema !== FINGERPRINT_SCHEMA) {
         console.warn(`Warning: fingerprint schema ${stored.schema} !== ${FINGERPRINT_SCHEMA}`);
     }
 
-    if (stored.fingerprint === current) {
-        console.log(`OK: IDE export fingerprint matches Channel Manager (${current.slice(0, 12)}…).`);
+    if (stored.fingerprint === currentV1) {
+        console.log(
+            `OK: IDE export fingerprint v1 matches Channel Manager (${currentV1.slice(0, 12)}…). Re-run apply --write to upgrade to v2.`
+        );
         process.exit(0);
     }
 
     console.error('STALE: channel_config (or API bundle) differs from last apply-ide-export.');
     console.error(`  stored:   ${stored.fingerprint}`);
-    console.error(`  current:  ${current}`);
+    console.error(`  current:  ${currentV1}`);
     console.error('  Run: npm run apply-ide-export -- --dry-run --target … then --write');
     process.exit(1);
 }

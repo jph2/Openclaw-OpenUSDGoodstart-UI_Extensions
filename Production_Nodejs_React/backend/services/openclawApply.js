@@ -39,6 +39,7 @@ import { execFile } from 'child_process';
 import { promisify } from 'util';
 import lockfile from 'proper-lockfile';
 import { z } from 'zod';
+import { collectChannelConfigApplyWarnings } from './ideConfigBridge.js';
 
 const execFileAsync = promisify(execFile);
 
@@ -918,8 +919,13 @@ export async function runOpenClawApply({ channelConfigRaw, dryRun = true, confir
     const release = await lockfile.lock(targetPath, { retries: 5 });
     /** Filled only after a successful disk write; gateway restart runs after lock release. */
     let applyWriteResult = null;
+    let channelConfigWarnings = [];
+    const runtimeVerificationNote =
+        'Writing openclaw.json does not prove live gateway routing. After Apply, confirm Telegram ' +
+        'and gateway behavior separately (C1c — SPEC_CM_DUAL_TARGET_AGENT_SKILL_CONFIG_V1).';
 
     try {
+        channelConfigWarnings = collectChannelConfigApplyWarnings(channelConfigRaw);
         const raw = await fsPromises.readFile(targetPath, 'utf8');
         const current = JSON.parse(raw);
 
@@ -964,7 +970,9 @@ export async function runOpenClawApply({ channelConfigRaw, dryRun = true, confir
                 agentsBindingsSummary,
                 orphanPruneSummary,
                 collisions,
-                perChannel: agentsAndBindingsPatch.perChannel
+                perChannel: agentsAndBindingsPatch.perChannel,
+                channelConfigWarnings,
+                runtimeVerificationNote
             };
         }
 
@@ -989,7 +997,9 @@ export async function runOpenClawApply({ channelConfigRaw, dryRun = true, confir
                 beforePretty,
                 afterPretty,
                 diffHash,
-                unchanged: beforePretty === afterPretty
+                unchanged: beforePretty === afterPretty,
+                channelConfigWarnings,
+                runtimeVerificationNote
             };
         }
 
@@ -1042,7 +1052,9 @@ export async function runOpenClawApply({ channelConfigRaw, dryRun = true, confir
             agentsDefaultsPolicy: agentsDefaultsBuild,
             agentsBindingsSummary,
             orphanPruneSummary,
-            perChannel: agentsAndBindingsPatch.perChannel
+            perChannel: agentsAndBindingsPatch.perChannel,
+            channelConfigWarnings,
+            runtimeVerificationNote
         };
     } finally {
         await release();
@@ -1050,6 +1062,10 @@ export async function runOpenClawApply({ channelConfigRaw, dryRun = true, confir
 
     if (applyWriteResult) {
         applyWriteResult.gatewayRestart = await restartOpenClawGatewayUserService();
+        if (applyWriteResult.gatewayRestart?.ok === false && !applyWriteResult.gatewayRestart?.skipped) {
+            applyWriteResult.gatewayRestartWarning =
+                'openclaw.json was written but the user-level gateway restart failed; runtime may still use the previous config until you restart manually.';
+        }
     }
     return applyWriteResult;
 }

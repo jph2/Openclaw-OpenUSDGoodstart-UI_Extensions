@@ -3,6 +3,13 @@
  * No filesystem writes — pure JSON for APIs and tooling.
  */
 
+/** Safe id for `.cursor/agents/<id>.md` (lowercase slug). */
+export const CURSOR_AGENT_ID_PATTERN = /^[a-z][a-z0-9_-]{0,62}$/;
+
+export function isSafeCursorAgentId(id) {
+    return CURSOR_AGENT_ID_PATTERN.test(String(id || '').trim());
+}
+
 /**
  * @param {object} raw - Parsed channel_config.json
  */
@@ -23,15 +30,20 @@ export function buildCanonicalSnapshot(raw) {
             name: a.name,
             role: a.role,
             color: a.color,
+            description: a.description,
             defaultSkills: a.defaultSkills || [],
-            inactiveSkills: a.inactiveSkills || []
+            inactiveSkills: a.inactiveSkills || [],
+            enabled: a.enabled !== false
         })),
         subAgents: subAgents.map((s) => ({
             id: s.id,
             name: s.name,
             parent: s.parent,
+            role: s.role,
+            description: s.description,
             additionalSkills: s.additionalSkills || [],
-            inactiveSkills: s.inactiveSkills || []
+            inactiveSkills: s.inactiveSkills || [],
+            enabled: s.enabled !== false
         })),
         channels: channels.map((c) => ({
             id: c.id,
@@ -43,6 +55,67 @@ export function buildCanonicalSnapshot(raw) {
             inactiveCaseSkills: c.inactiveCaseSkills || []
         }))
     };
+}
+
+function subtractInactive(ids, inactiveSet) {
+    return [...ids].map(String).filter((x) => x && !inactiveSet.has(x));
+}
+
+/**
+ * Warnings for OpenClaw Apply preview and IDE export (shared CM semantics).
+ * @param {object} raw - channel_config.json
+ * @returns {{ code: string, message: string, detail?: object }[]}
+ */
+export function collectChannelConfigApplyWarnings(raw) {
+    const snap = buildCanonicalSnapshot(raw);
+    const agentIds = new Set(snap.agents.map((a) => String(a.id || '').trim()).filter(Boolean));
+    const warnings = [];
+
+    for (const s of snap.subAgents) {
+        const id = String(s.id || '').trim();
+        if (!id) continue;
+        if (!isSafeCursorAgentId(id)) {
+            warnings.push({
+                code: 'unsafe_cursor_agent_id',
+                message: `Sub-agent id "${id}" is not a safe Cursor filename token (use lowercase letters, digits, _ -).`,
+                detail: { subAgentId: id }
+            });
+        }
+        const parent = s.parent == null || s.parent === '' ? '' : String(s.parent);
+        if (!parent || !agentIds.has(parent)) {
+            warnings.push({
+                code: 'subagent_parent_missing',
+                message: `Sub-agent "${id}" has parent "${parent || 'null'}" that does not match a CM main agent id.`,
+                detail: { subAgentId: id, parent }
+            });
+        }
+    }
+
+    for (const a of snap.agents) {
+        const id = String(a.id || '').trim();
+        if (!id) continue;
+        if (!isSafeCursorAgentId(id)) {
+            warnings.push({
+                code: 'unsafe_cursor_agent_id',
+                message: `Main agent id "${id}" is not a safe Cursor filename token (use lowercase letters, digits, _ -).`,
+                detail: { agentId: id }
+            });
+        }
+    }
+
+    for (const c of snap.channels) {
+        const cid = String(c.id || '');
+        const aa = c.assignedAgent == null || c.assignedAgent === '' ? '' : String(c.assignedAgent);
+        if (aa && !agentIds.has(aa)) {
+            warnings.push({
+                code: 'channel_assigned_agent_unknown',
+                message: `Channel "${cid}" assignedAgent "${aa}" is not a CM main agent id.`,
+                detail: { channelId: cid, assignedAgent: aa }
+            });
+        }
+    }
+
+    return warnings;
 }
 
 /**
@@ -69,30 +142,90 @@ export function buildOpenClawProjection(snapshot) {
  * IDE workbench bundle (tool-agnostic name): typical paths follow `.cursor/` layout used by Cursor-class IDEs.
  */
 export function buildIdeWorkbenchBundle(snapshot) {
-    const subagentFiles = snapshot.subAgents.map((s) => ({
-        relativePath: `.cursor/agents/${s.id}.md`,
-        name: s.id,
-        displayName: s.name,
-        parentEngine: s.parent,
-        suggestedFrontmatter: {
+    const agentIds = new Set(snapshot.agents.map((a) => String(a.id || '').trim()).filter(Boolean));
+    const warnings = [];
+
+    for (const s of snapshot.subAgents) {
+        const id = String(s.id || '').trim();
+        if (!id) continue;
+        const parent = s.parent == null || s.parent === '' ? '' : String(s.parent);
+        if (!parent || !agentIds.has(parent)) {
+            warnings.push({
+                code: 'subagent_parent_missing',
+                subAgentId: id,
+                parent: parent || null
+            });
+        }
+        if (!isSafeCursorAgentId(id)) {
+            warnings.push({ code: 'unsafe_cursor_agent_id', agentId: id, kind: 'subagent' });
+        }
+    }
+
+    for (const a of snapshot.agents) {
+        const id = String(a.id || '').trim();
+        if (id && !isSafeCursorAgentId(id)) {
+            warnings.push({ code: 'unsafe_cursor_agent_id', agentId: id, kind: 'engine' });
+        }
+    }
+
+    for (const c of snapshot.channels) {
+        const aa =
+            c.assignedAgent == null || c.assignedAgent === '' ? '' : String(c.assignedAgent);
+        if (aa && !agentIds.has(aa)) {
+            warnings.push({
+                code: 'channel_assigned_agent_unknown',
+                channelId: c.id,
+                assignedAgent: aa
+            });
+        }
+    }
+
+    const subagentFiles = snapshot.subAgents.map((s) => {
+        const inactive = new Set((s.inactiveSkills || []).map(String));
+        const effectiveSkillIds = subtractInactive(s.additionalSkills || [], inactive);
+        const parent = s.parent == null || s.parent === '' ? null : String(s.parent);
+        const descFromCm = s.description ? String(s.description) : '';
+        const descBase = descFromCm || `${s.name} — parent engine: ${parent ?? 'null'}`;
+        return {
+            relativePath: `.cursor/agents/${s.id}.md`,
             name: s.id,
-            description: `${s.name} — parent engine: ${s.parent}`,
-            model: 'inherit',
-            readonly: false
-        },
-        skillIds: s.additionalSkills || []
-    }));
+            displayName: s.name,
+            parentEngine: parent,
+            enabled: s.enabled !== false,
+            inactiveSkills: [...inactive],
+            effectiveSkillIds,
+            skillIds: effectiveSkillIds,
+            suggestedFrontmatter: {
+                name: s.id,
+                description: descBase,
+                model: 'inherit',
+                readonly: false
+            }
+        };
+    });
+
+    const engines = snapshot.agents.map((a) => {
+        const inactive = new Set((a.inactiveSkills || []).map(String));
+        const effectiveDefaultSkills = subtractInactive(a.defaultSkills || [], inactive);
+        return {
+            id: a.id,
+            name: a.name,
+            role: a.role,
+            enabled: a.enabled !== false,
+            defaultSkills: a.defaultSkills || [],
+            inactiveSkills: [...inactive],
+            effectiveDefaultSkills
+        };
+    });
 
     return {
         kind: 'ide_workbench_bundle',
+        bundleSchemaVersion: 2,
         version: 1,
-        note: 'IDE workbench projection: markdown agents under .cursor/agents/, rules under .cursor/rules/, MCP in .cursor/mcp.json (paths follow common Cursor-class layouts; other IDEs may map differently). Manifest only — apply via export script or manual paste.',
+        note: 'IDE workbench projection v2: markdown agents under .cursor/agents/. CM sub-agent skills use inactive filtering. Apply via scripts/apply-ide-export.mjs; stale check uses fingerprint v2.',
+        warnings,
         subagents: subagentFiles,
-        engines: snapshot.agents.map((a) => ({
-            id: a.id,
-            name: a.name,
-            defaultSkills: a.defaultSkills
-        }))
+        engines
     };
 }
 

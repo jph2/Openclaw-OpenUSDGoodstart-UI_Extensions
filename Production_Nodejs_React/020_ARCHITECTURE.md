@@ -269,7 +269,7 @@ metadata). The operator script `scripts/apply-ide-export.mjs` materializes those
 Markdown agents under a chosen repo root (`--target`), with `--dry-run` by
 default and safe skip for hand-edited files (unless `--force`). See
 [`scripts/README_APPLY_IDE_EXPORT.md`](./scripts/README_APPLY_IDE_EXPORT.md).
-From `backend/`: `npm run apply-ide-export -- --help`. **Stale guard:** after a successful `--write`, `npm run check-ide-export-stale -- --target <repo>` compares `channel_config.json` to `.cursor/cm-ide-export-fingerprint.json` (exit 1 if CM changed).
+From `backend/`: `npm run apply-ide-export -- --help`. **Stale guard:** after a successful `--write`, `npm run check-ide-export-stale -- --target <repo>` compares the current CM bundle to `.cursor/cm-ide-export-fingerprint.json` (**v2:** per-file managed-region hashes; exit 1 if CM changed or managed content on disk drifted).
 
 ---
 
