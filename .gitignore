@@ -1,0 +1,2 @@
+# Local IDE capture path on disk (operator machine; may contain sensitive paths)
+**/ide_capture_settings.json
