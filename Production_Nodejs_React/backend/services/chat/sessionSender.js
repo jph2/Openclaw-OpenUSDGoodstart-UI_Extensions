@@ -2,6 +2,7 @@ import { resolveCanonicalSession } from './sessionIndex.js';
 import { clip, logOpenclawSend } from './chatSendUtils.js';
 import { sendViaOpenclawCli } from './openclawCliTransport.js';
 import {
+    GatewayNativeTransportUnavailable,
     isGatewayNativeForced,
     isGatewayNativeUnavailable,
     resolveGatewaySendMode,
@@ -9,7 +10,8 @@ import {
     shouldAttemptGatewayNative
 } from './openclawGatewayTransport.js';
 
-export async function sendMessageToChat(chatId, text) {
+export async function sendMessageToChat(chatId, text, options = {}) {
+    const attachments = options.attachments;
     const requestStartedAt = Date.now();
     const canonical = resolveCanonicalSession(chatId);
     const realChatId = canonical.chatId;
@@ -22,10 +24,22 @@ export async function sendMessageToChat(chatId, text) {
         sessionId: canonical.sessionId,
         sendMode,
         textLen: String(text).length,
+        attachmentCount: Array.isArray(attachments) ? attachments.length : 0,
         requestStartedAt
     });
 
-    if (!text || !text.trim()) {
+    const trimmedText = String(text || '').trim();
+    const hasAttachments = Array.isArray(attachments) && attachments.length > 0;
+
+    if (hasAttachments && !shouldAttemptGatewayNative(sendMode)) {
+        const err = new GatewayNativeTransportUnavailable(
+            'Media attachments require OPENCLAW_CM_SEND_TRANSPORT=gateway or auto with a reachable gateway'
+        );
+        err.status = 501;
+        throw err;
+    }
+
+    if (!trimmedText && !hasAttachments) {
         logOpenclawSend('inject_skip', { reason: 'empty_message', realChatId: String(realChatId) });
         return { message_id: `ui-empty-${Date.now()}`, transport: 'noop', timing: { totalMs: Date.now() - requestStartedAt } };
     }
@@ -35,12 +49,22 @@ export async function sendMessageToChat(chatId, text) {
             return await sendViaOpenclawGateway({
                 canonical,
                 realChatId,
-                text,
+                text: trimmedText,
+                attachments,
                 requestStartedAt,
                 log: logOpenclawSend
             });
         } catch (err) {
             if (sendMode === 'auto' && isGatewayNativeUnavailable(err)) {
+                if (hasAttachments) {
+                    logOpenclawSend('gateway_native_no_cli_fallback_media', {
+                        reason: clip(err?.message, 400),
+                        realChatId: String(realChatId),
+                        sessionId: canonical.sessionId
+                    });
+                    if (!err.status) err.status = 501;
+                    throw err;
+                }
                 logOpenclawSend('gateway_native_fallback_cli', {
                     reason: clip(err?.message, 400),
                     realChatId: String(realChatId),
@@ -56,7 +80,7 @@ export async function sendMessageToChat(chatId, text) {
     return sendViaOpenclawCli({
         canonical,
         realChatId,
-        text,
+        text: trimmedText,
         requestStartedAt,
         log: logOpenclawSend
     });

@@ -19,38 +19,132 @@ function flattenToolResultContent(block) {
     return '';
 }
 
+function mediaFilenameFromPath(p) {
+    if (!p || typeof p !== 'string') return '';
+    const norm = p.replace(/\\/g, '/');
+    const idx = norm.lastIndexOf('/');
+    return idx >= 0 ? norm.slice(idx + 1) : norm;
+}
+
+function appendOpenclawMediaParts(message, parts) {
+    const paths =
+        Array.isArray(message.MediaPaths) && message.MediaPaths.length > 0
+            ? message.MediaPaths
+            : message.MediaPath
+              ? [message.MediaPath]
+              : [];
+    const types =
+        Array.isArray(message.MediaTypes) && message.MediaTypes.length > 0
+            ? message.MediaTypes
+            : message.MediaType
+              ? [message.MediaType]
+              : [];
+
+    for (let i = 0; i < paths.length; i++) {
+        const id = mediaFilenameFromPath(paths[i]);
+        if (!id) continue;
+        const mime = types[i] && String(types[i]).trim() ? String(types[i]).split(';')[0].trim() : 'application/octet-stream';
+        parts.push({
+            type: 'image',
+            mediaId: id,
+            mimeType: mime,
+            url: `/api/chat/media/inbound/${encodeURIComponent(id)}`
+        });
+    }
+}
+
+/**
+ * Normalize text + media into `parts[]` (Channel Manager chat media v1).
+ * @param {string} text
+ * @param {Array<object>} parts
+ */
+function buildNormalizedParts(text, parts) {
+    const out = [];
+    const trimmed = String(text || '').trim();
+    if (trimmed) {
+        out.push({ type: 'text', text: trimmed });
+    }
+    for (const p of parts) {
+        if (p?.type === 'image') out.push(p);
+    }
+    return out;
+}
+
 export function buildMsgObjFromGatewayLine(parsed) {
     if (!parsed || parsed.type !== 'message' || !parsed.message) return null;
     const data = parsed;
     const role = data.message.role;
-    const contentBlocks = data.message.content || [];
+    const rawContent = data.message.content;
+
     let text = '';
+    const mediaParts = [];
     const toolCalls = [];
     const toolResults = [];
-    contentBlocks.forEach((b) => {
-        if (b.type === 'text') {
-            text += b.text + '\n';
-        } else if (b.type === 'toolCall') {
-            toolCalls.push({
-                id: b.id || null,
-                name: b.name || 'tool',
-                input: b.input ?? b.arguments ?? b.args ?? null
-            });
-        } else if (b.type === 'toolResult') {
-            toolResults.push({
-                id: b.id || null,
-                toolUseId: b.toolUseId || null,
-                toolName: b.toolName || 'tool',
-                output: flattenToolResultContent(b),
-                isError: b.isError === true
-            });
-        }
-    });
+
+    if (typeof rawContent === 'string') {
+        text = rawContent;
+    } else if (Array.isArray(rawContent)) {
+        rawContent.forEach((b) => {
+            if (!b) return;
+            if (b.type === 'text' && typeof b.text === 'string') {
+                text += b.text + '\n';
+            } else if (b.type === 'image') {
+                const id =
+                    (typeof b.mediaId === 'string' && b.mediaId) ||
+                    (typeof b.id === 'string' && b.id) ||
+                    '';
+                const mime =
+                    (typeof b.mimeType === 'string' && b.mimeType.split(';')[0].trim()) || 'image/png';
+                mediaParts.push({
+                    type: 'image',
+                    mediaId: id,
+                    mimeType: mime,
+                    url: typeof b.url === 'string' ? b.url : undefined
+                });
+            } else if (b.type === 'toolCall') {
+                toolCalls.push({
+                    id: b.id || null,
+                    name: b.name || 'tool',
+                    input: b.input ?? b.arguments ?? b.args ?? null
+                });
+            } else if (b.type === 'toolResult') {
+                toolResults.push({
+                    id: b.id || null,
+                    toolUseId: b.toolUseId || null,
+                    toolName: b.toolName || 'tool',
+                    output: flattenToolResultContent(b),
+                    isError: b.isError === true
+                });
+            }
+        });
+    }
+
     text = text.trim();
-    if (!text && toolCalls.length === 0 && toolResults.length === 0) return null;
+    appendOpenclawMediaParts(data.message, mediaParts);
+
+    const normalizedParts = buildNormalizedParts(text, mediaParts);
+    const hasImagePart = normalizedParts.some((p) => p.type === 'image');
+    const cmAttachKind = hasImagePart ? 'image' : undefined;
+
+    if (
+        !text &&
+        toolCalls.length === 0 &&
+        toolResults.length === 0 &&
+        normalizedParts.length === 0
+    ) {
+        return null;
+    }
+
     return {
         id: data.id || `gen_${Math.random()}`,
         text,
+        parts:
+            normalizedParts.length > 0
+                ? normalizedParts
+                : text
+                  ? [{ type: 'text', text }]
+                  : [],
+        cmAttachKind,
         toolCalls,
         toolResults,
         sender: role === 'assistant' ? 'TARS (Engine)' : role === 'toolResult' ? 'System (Tool)' : 'User (Telegram)',

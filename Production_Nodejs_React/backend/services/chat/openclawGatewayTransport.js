@@ -42,7 +42,7 @@ export function isGatewayNativeForced(mode = resolveGatewaySendMode()) {
     return mode === 'gateway';
 }
 
-export function buildGatewayChatSendParams({ canonical, text, idempotencyKey, timeoutMs }) {
+export function buildGatewayChatSendParams({ canonical, text, attachments, idempotencyKey, timeoutMs }) {
     if (!canonical.sessionKey) {
         throw new GatewayNativeTransportUnavailable(
             'canonical sessionKey is unavailable for native chat.send'
@@ -55,6 +55,10 @@ export function buildGatewayChatSendParams({ canonical, text, idempotencyKey, ti
         deliver: false,
         idempotencyKey
     };
+
+    if (Array.isArray(attachments) && attachments.length > 0) {
+        params.attachments = attachments;
+    }
 
     if (Number.isFinite(timeoutMs) && timeoutMs > 0) {
         params.timeoutMs = timeoutMs;
@@ -155,6 +159,7 @@ export async function sendViaOpenclawGateway({
     canonical,
     realChatId,
     text,
+    attachments,
     requestStartedAt,
     log = logOpenclawSend,
     loadModule = loadGatewayCallModule
@@ -173,7 +178,7 @@ export async function sendViaOpenclawGateway({
     const gatewayModule = await loadModule();
     const timeoutMs = parseGatewayTimeoutMs();
     const idempotencyKey = createIdempotencyKey(gatewayModule.randomIdempotencyKey);
-    const params = buildGatewayChatSendParams({ canonical, text, idempotencyKey, timeoutMs });
+    const params = buildGatewayChatSendParams({ canonical, text, attachments, idempotencyKey, timeoutMs });
     const transport = 'session-native-gateway-chat';
 
     log('gateway_native_call_start', {
@@ -184,6 +189,7 @@ export async function sendViaOpenclawGateway({
         gatewayUrl: url,
         callModule: gatewayModule.source || null,
         textLen: params.message.length,
+        attachmentCount: Array.isArray(params.attachments) ? params.attachments.length : 0,
         timeoutMs
     });
 

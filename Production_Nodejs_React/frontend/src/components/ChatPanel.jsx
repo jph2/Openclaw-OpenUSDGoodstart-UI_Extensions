@@ -1,8 +1,9 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
-import { Send, Copy, Image, ChevronRight, Wrench } from 'lucide-react';
+import { Send, Copy, Image, ChevronRight, Wrench, X, Paperclip } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { useChatSession } from '../hooks/useChatSession';
+import { apiUrl } from '../utils/apiUrl';
 
 const RENDER_PLUGINS = [remarkGfm];
 
@@ -301,6 +302,40 @@ const RENDER_COMPONENTS = {
     h3: ({ node: _node, ...props }) => <h3 style={{ color: BUBBLE_TEXT, fontSize: '1em', margin: '6px 0 4px' }} {...props} />
 };
 
+function fileToImagePayload(file) {
+    return new Promise((resolve, reject) => {
+        const r = new FileReader();
+        r.onload = () => {
+            const dataUrl = String(r.result || '');
+            const m = /^data:([^;]+);base64,(.*)$/i.exec(dataUrl);
+            if (!m) {
+                reject(new Error('read failed'));
+                return;
+            }
+            resolve({
+                previewUrl: dataUrl,
+                mimeType: m[1],
+                base64: m[2],
+                filename: file.name || 'image'
+            });
+        };
+        r.onerror = () => reject(r.error || new Error('read error'));
+        r.readAsDataURL(file);
+    });
+}
+
+function shallowPartsEqual(a, b) {
+    const aa = a || [];
+    const bb = b || [];
+    if (aa.length !== bb.length) return false;
+    for (let i = 0; i < aa.length; i++) {
+        if (aa[i]?.type !== bb[i]?.type || aa[i]?.text !== bb[i]?.text || aa[i]?.url !== bb[i]?.url) {
+            return false;
+        }
+    }
+    return true;
+}
+
 const MessageBubble = React.memo(({ msg }) => {
     const isMe = msg.senderRole === 'user';
     const isToolResult = msg.senderRole === 'toolResult';
@@ -335,11 +370,17 @@ const MessageBubble = React.memo(({ msg }) => {
     }
 
     const toolCalls = Array.isArray(msg.toolCalls) ? msg.toolCalls : [];
+    const imageParts = (msg.parts || []).filter((p) => p.type === 'image');
+    const textFromParts = (msg.parts || [])
+        .filter((p) => p.type === 'text' && typeof p.text === 'string')
+        .map((p) => p.text)
+        .join('\n');
+    const sourceText = textFromParts || msg.text || '';
     // Hide the inline `⚙️ [Tool Call: ...]` markers the backend emits in
     // the flattened text; we render toolCalls as chips instead. Also
-    // suppress bubbles that would render as empty (no text and no chips).
-    const cleanedText = stripToolCallMarkers(msg.text);
-    if (!cleanedText && toolCalls.length === 0) return null;
+    // suppress bubbles that would render as empty (no text, no images, no chips).
+    const cleanedText = stripToolCallMarkers(sourceText);
+    if (!cleanedText && toolCalls.length === 0 && imageParts.length === 0) return null;
 
     const copyToClipboard = async (text) => {
         try {
@@ -360,7 +401,7 @@ const MessageBubble = React.memo(({ msg }) => {
                 border: isMe ? `1px solid ${ACCENT}` : '1px solid rgba(255,255,255,0.1)',
                 boxSizing: 'border-box',
                 opacity: isPending ? 0.72 : 1,
-                padding: cleanedText ? '10px 14px 36px 14px' : '8px 14px',
+                padding: cleanedText || imageParts.length ? '10px 14px 36px 14px' : '8px 14px',
                 borderRadius: '8px',
                 borderBottomRightRadius: isMe ? 0 : '8px',
                 borderBottomLeftRadius: isMe ? '8px' : 0,
@@ -370,6 +411,59 @@ const MessageBubble = React.memo(({ msg }) => {
                 lineHeight: '1.45',
                 position: 'relative'
             }}>
+                {imageParts.length > 0 && (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginBottom: cleanedText ? '10px' : 0 }}>
+                        {imageParts.map((part, idx) => {
+                            const src = part.url ? apiUrl(part.url) : '';
+                            return src ? (
+                                <button
+                                    key={`${part.mediaId || idx}`}
+                                    type="button"
+                                    onClick={() => window.open(src, '_blank', 'noopener,noreferrer')}
+                                    style={{
+                                        padding: 0,
+                                        margin: 0,
+                                        border: 'none',
+                                        background: 'transparent',
+                                        cursor: 'pointer',
+                                        borderRadius: '6px',
+                                        overflow: 'hidden',
+                                        maxWidth: '100%'
+                                    }}
+                                    title="Bild vergrößern"
+                                >
+                                    <img
+                                        src={src}
+                                        alt={part.alt || 'Chat image'}
+                                        style={{
+                                            display: 'block',
+                                            maxWidth: '100%',
+                                            maxHeight: '280px',
+                                            objectFit: 'contain',
+                                            borderRadius: '6px'
+                                        }}
+                                        onError={(ev) => {
+                                            ev.currentTarget.style.opacity = '0.35';
+                                        }}
+                                    />
+                                </button>
+                            ) : (
+                                <div
+                                    key={idx}
+                                    style={{
+                                        fontSize: '11px',
+                                        color: '#888',
+                                        border: `1px dashed ${FENCED_BORDER}`,
+                                        padding: '8px',
+                                        borderRadius: '6px'
+                                    }}
+                                >
+                                    Bild (keine Vorschau-URL)
+                                </div>
+                            );
+                        })}
+                    </div>
+                )}
                 {cleanedText && (
                     <div style={{ position: 'absolute', bottom: '8px', right: '8px', zIndex: 2 }}>
                         <button
@@ -404,7 +498,7 @@ const MessageBubble = React.memo(({ msg }) => {
                     </div>
                 )}
                 {toolCalls.length > 0 && (
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', marginTop: cleanedText ? '8px' : 0 }}>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', marginTop: cleanedText || imageParts.length ? '8px' : 0 }}>
                         {toolCalls.map((call, i) => (
                             <ToolCallChip key={call.id || `${call.name}-${i}`} call={call} />
                         ))}
@@ -421,6 +515,7 @@ const MessageBubble = React.memo(({ msg }) => {
         prevProps.msg.id === nextProps.msg.id &&
         prevProps.msg.text === nextProps.msg.text &&
         prevProps.msg.pending === nextProps.msg.pending &&
+        shallowPartsEqual(prevProps.msg.parts, nextProps.msg.parts) &&
         (prevProps.msg.toolCalls?.length || 0) === (nextProps.msg.toolCalls?.length || 0) &&
         (prevProps.msg.toolResults?.length || 0) === (nextProps.msg.toolResults?.length || 0)
     );
@@ -440,20 +535,24 @@ export default function ChatPanel({
         sessionBindingError,
         lastSendMeta,
         isSending,
-        sendMessage
+        sendMessage,
+        sendMedia
     } = useChatSession(channelId);
 
     const [inputValue, setInputValue] = useState('');
     const [showSystemMessages, setShowSystemMessages] = useState(false);
     const [pasteHint, setPasteHint] = useState(null);
+    const [pendingImage, setPendingImage] = useState(null);
 
     const containerRef = useRef(null);
     const messagesInnerRef = useRef(null);
     const stuckToBottomRef = useRef(true);
+    const fileInputRef = useRef(null);
 
     useEffect(() => {
         if (!channelId) return;
         stuckToBottomRef.current = true;
+        setPendingImage(null);
     }, [channelId]);
 
     // OPTIMIZED: useMemo to prevent recalculation on every render
@@ -471,10 +570,17 @@ export default function ChatPanel({
 
                 return true;
             })
-            .map(msg => ({
-                ...msg,
-                displayChatText: cleanMessageTextStatic(msg.text || '', showSystemMessages)
-            }))
+            .map((msg) => {
+                const displayChatText = cleanMessageTextStatic(msg.text || '', showSystemMessages);
+                const parts = Array.isArray(msg.parts)
+                    ? msg.parts.map((p) =>
+                          p?.type === 'text' && typeof p.text === 'string'
+                              ? { ...p, text: cleanMessageTextStatic(p.text, showSystemMessages) }
+                              : p
+                      )
+                    : msg.parts;
+                return { ...msg, displayChatText, parts };
+            })
             // Keep the bubble when any of: there's readable text, we're in
             // "show system" mode, or it carries structured tool data that
             // MessageBubble renders on its own (chips / collapsed output).
@@ -482,7 +588,8 @@ export default function ChatPanel({
                 msg.displayChatText.length > 0 ||
                 showSystemMessages ||
                 (msg.toolCalls?.length || 0) > 0 ||
-                (msg.toolResults?.length || 0) > 0
+                (msg.toolResults?.length || 0) > 0 ||
+                (msg.parts || []).some((p) => p.type === 'image')
             );
     }, [messages, showSystemMessages]);
 
@@ -557,10 +664,31 @@ export default function ChatPanel({
     }, [filteredMessages.length]);
 
     const handleSendMessage = async () => {
-        if (!inputValue.trim() || isSending) return;
-
         const textToSend = inputValue.trim();
-        console.log('[ChatPanel] Sending message:', textToSend.substring(0, 50), 'Session:', sessionBinding?.sessionId ? 'YES' : 'NO');
+        if ((!textToSend && !pendingImage) || isSending) return;
+
+        console.log(
+            '[ChatPanel] Sending:',
+            pendingImage ? '[media]' : textToSend.substring(0, 50),
+            'Session:',
+            sessionBinding?.sessionId ? 'YES' : 'NO'
+        );
+
+        if (pendingImage) {
+            const cap = textToSend;
+            const img = pendingImage;
+            setInputValue('');
+            setPendingImage(null);
+            const result = await sendMedia({ text: cap, image: img });
+            if (!result.ok) {
+                console.error(result.error);
+                alert('Bild konnte nicht gesendet werden (Gateway nötig, max. 5 MB, PNG/JPEG/WebP/GIF).');
+                setPendingImage(img);
+                setInputValue(cap);
+            }
+            return;
+        }
+
         setInputValue('');
 
         const result = await sendMessage(textToSend);
@@ -577,8 +705,15 @@ export default function ChatPanel({
         for (let i = 0; i < items.length; i++) {
             if (items[i].type.startsWith('image/')) {
                 e.preventDefault();
-                setPasteHint('Bilder: noch nicht angebunden (API sendet nur Text). Fotos bitte direkt in Telegram oder später: Backend sendPhoto / OpenClaw-Media).');
-                window.setTimeout(() => setPasteHint(null), 7000);
+                const f = items[i].getAsFile();
+                if (f) {
+                    fileToImagePayload(f)
+                        .then(setPendingImage)
+                        .catch(() => {
+                            setPasteHint('Bild aus der Zwischenablage konnte nicht gelesen werden.');
+                            window.setTimeout(() => setPasteHint(null), 6000);
+                        });
+                }
                 return;
             }
         }
@@ -698,6 +833,70 @@ export default function ChatPanel({
 
             {/* Input Area */}
             <div style={{ padding: '12px 16px 16px', borderTop: '1px solid var(--border-color)', background: '#1a1b26', flexShrink: 0 }}>
+                <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept="image/png,image/jpeg,image/jpg,image/webp,image/gif"
+                    style={{ display: 'none' }}
+                    onChange={(e) => {
+                        const f = e.target.files?.[0];
+                        e.target.value = '';
+                        if (!f) return;
+                        fileToImagePayload(f)
+                            .then(setPendingImage)
+                            .catch(() => {
+                                setPasteHint('Datei konnte nicht gelesen werden (nur PNG/JPEG/WebP/GIF).');
+                                window.setTimeout(() => setPasteHint(null), 6000);
+                            });
+                    }}
+                />
+                {pendingImage && (
+                    <div
+                        style={{
+                            display: 'flex',
+                            alignItems: 'flex-start',
+                            gap: '10px',
+                            marginBottom: '10px',
+                            padding: '8px',
+                            background: 'rgba(0,0,0,0.25)',
+                            border: '1px solid rgba(80,227,194,0.25)',
+                            borderRadius: '8px'
+                        }}
+                    >
+                        <img
+                            src={pendingImage.previewUrl}
+                            alt=""
+                            style={{
+                                maxHeight: '72px',
+                                maxWidth: '120px',
+                                objectFit: 'contain',
+                                borderRadius: '6px',
+                                border: '1px solid rgba(255,255,255,0.12)'
+                            }}
+                        />
+                        <div style={{ flex: 1, fontSize: '12px', color: '#a8b0c4', lineHeight: 1.4 }}>
+                            Bild anhängen (optional Text als Caption). Wird über den OpenClaw-Gateway geschickt (CLI-Modus: nicht unterstützt).
+                        </div>
+                        <button
+                            type="button"
+                            onClick={() => setPendingImage(null)}
+                            title="Anhang entfernen"
+                            aria-label="Anhang entfernen"
+                            style={{
+                                background: 'rgba(255,100,100,0.15)',
+                                border: '1px solid rgba(255,120,120,0.35)',
+                                color: '#ffb3b3',
+                                borderRadius: '6px',
+                                padding: '6px',
+                                cursor: 'pointer',
+                                display: 'flex',
+                                alignItems: 'center'
+                            }}
+                        >
+                            <X size={16} />
+                        </button>
+                    </div>
+                )}
                 <div style={{
                     position: 'relative',
                     background: '#13141c',
@@ -722,7 +921,7 @@ export default function ChatPanel({
                             border: 'none',
                             color: '#fff',
                             outline: 'none',
-                            padding: '12px 44px 12px 12px',
+                            padding: '12px 88px 12px 12px',
                             resize: 'vertical',
                             fontSize: '14px',
                             lineHeight: '1.45',
@@ -731,8 +930,35 @@ export default function ChatPanel({
                     />
                     <button
                         type="button"
+                        onClick={() => fileInputRef.current?.click()}
+                        disabled={isSending}
+                        title="Bild wählen"
+                        aria-label="Bild wählen"
+                        style={{
+                            position: 'absolute',
+                            bottom: '8px',
+                            right: '48px',
+                            width: '32px',
+                            height: '32px',
+                            padding: 0,
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            background: '#2a2b36',
+                            border: '1px solid rgba(255,255,255,0.12)',
+                            borderRadius: '6px',
+                            color: '#9ff0dc',
+                            cursor: isSending ? 'not-allowed' : 'pointer',
+                            opacity: isSending ? 0.5 : 1,
+                            transition: 'background 0.15s ease'
+                        }}
+                    >
+                        <Paperclip size={16} strokeWidth={2.2} />
+                    </button>
+                    <button
+                        type="button"
                         onClick={handleSendMessage}
-                        disabled={isSending || !inputValue.trim()}
+                        disabled={isSending || (!inputValue.trim() && !pendingImage)}
                         title="Senden (Enter)"
                         aria-label="Senden"
                         style={{
@@ -745,11 +971,11 @@ export default function ChatPanel({
                             display: 'flex',
                             alignItems: 'center',
                             justifyContent: 'center',
-                            background: inputValue.trim() ? '#50e3c2' : '#2a2b36',
+                            background: (inputValue.trim() || pendingImage) ? '#50e3c2' : '#2a2b36',
                             border: 'none',
                             borderRadius: '6px',
-                            color: inputValue.trim() ? '#000' : 'var(--text-muted)',
-                            cursor: inputValue.trim() && !isSending ? 'pointer' : 'not-allowed',
+                            color: (inputValue.trim() || pendingImage) ? '#000' : 'var(--text-muted)',
+                            cursor: (inputValue.trim() || pendingImage) && !isSending ? 'pointer' : 'not-allowed',
                             transition: 'background 0.15s ease'
                         }}
                     >
@@ -758,7 +984,7 @@ export default function ChatPanel({
                 </div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '8px', color: '#666', fontSize: '11px' }}>
                     <Image size={12} />
-                    <span>Text per Paste ok; Bilder aus der Zwischenablage: noch nicht unterstützt (nur Text-API).</span>
+                    <span>Bild: Paste oder Büroklammer · max. 5 MB · Gateway-Send (OPENCLAW_CM_SEND_TRANSPORT=auto/gateway).</span>
                 </div>
                 {pasteHint && (
                     <div style={{ marginTop: '8px', fontSize: '12px', color: '#e0a030', lineHeight: 1.4 }}>

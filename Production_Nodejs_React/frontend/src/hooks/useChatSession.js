@@ -21,16 +21,29 @@ function mirrorUserTextForOptimisticMatch(text) {
 }
 
 function removeMatchedOptimisticMessages(currentMessages, incomingMessages) {
+    const incoming = incomingMessages || [];
     const incomingUserTexts = new Set(
-        (incomingMessages || [])
+        incoming
             .filter((m) => m?.senderRole === 'user' && typeof m.text === 'string')
             .map((m) => mirrorUserTextForOptimisticMatch(m.text))
             .filter(Boolean)
     );
-    if (incomingUserTexts.size === 0) return currentMessages;
+
     return currentMessages.filter((m) => {
         if (!m.cmOptimistic) return true;
+
+        if (m.cmAttachKind === 'image') {
+            const matched = incoming.some((inc) => {
+                if (inc?.senderRole !== 'user' || inc.cmAttachKind !== 'image') return false;
+                const a = mirrorUserTextForOptimisticMatch(m.text);
+                const b = mirrorUserTextForOptimisticMatch(inc.text);
+                return a === b;
+            });
+            return !matched;
+        }
+
         const normalized = mirrorUserTextForOptimisticMatch(m.text);
+        if (!normalized) return true;
         return !incomingUserTexts.has(normalized);
     });
 }
@@ -233,12 +246,95 @@ export function useChatSession(groupId) {
         }
     };
 
+    /**
+     * Send one image (+ optional caption) via gateway-native chat.send attachments.
+     * @param {{ text?: string, image: { base64: string, mimeType: string, filename?: string, previewUrl?: string } }} payload
+     */
+    const sendMedia = async (payload) => {
+        const img = payload?.image;
+        const cap = String(payload?.text || '').trim();
+        if (!img?.base64 || !img?.mimeType || isSending) return { ok: false, error: 'bad_image_or_busy' };
+
+        const optimisticId = `cm-opt-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
+        const parts = [];
+        if (cap) parts.push({ type: 'text', text: cap });
+        parts.push({
+            type: 'image',
+            mediaId: 'pending',
+            mimeType: String(img.mimeType).split(';')[0].trim(),
+            url: img.previewUrl || undefined
+        });
+
+        const optimisticMsg = {
+            id: optimisticId,
+            text: cap,
+            parts,
+            sender: 'User (Telegram)',
+            senderRole: 'user',
+            senderId: 'user',
+            date: Math.floor(Date.now() / 1000),
+            isBot: false,
+            pending: true,
+            cmOptimistic: true,
+            cmAttachKind: 'image'
+        };
+        setMessages((prev) => [...prev, optimisticMsg]);
+
+        setIsSending(true);
+        try {
+            const resolved = sessionBinding;
+            let res;
+
+            const body = {
+                text: cap,
+                image: {
+                    mimeType: img.mimeType,
+                    base64: img.base64,
+                    filename: img.filename
+                }
+            };
+
+            if (resolved?.sessionId) {
+                res = await fetch(apiUrl(`/api/chat/session/${resolved.sessionId}/send-media`), {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        message: cap,
+                        sessionKey: resolved.sessionKey,
+                        image: body.image
+                    })
+                });
+            } else {
+                res = await fetch(apiUrl(`/api/chat/${groupId}/send-media`), {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(body)
+                });
+            }
+
+            if (!res.ok) throw new Error('Send failed');
+            const data = await res.json();
+            setLastSendMeta(data);
+            setMessages((prev) =>
+                prev.map((m) => (m.id === optimisticId ? { ...m, pending: false } : m))
+            );
+            return { ok: true, data };
+        } catch (err) {
+            console.error('[useChatSession] sendMedia', err);
+            setMessages((prev) => prev.filter((m) => m.id !== optimisticId));
+            return { ok: false, error: err };
+        } finally {
+            setIsSending(false);
+        }
+    };
+
     return {
         messages,
         sessionBinding,
         sessionBindingError,
         lastSendMeta,
         isSending,
-        sendMessage
+        sendMessage,
+        sendMedia
     };
 }

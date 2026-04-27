@@ -3,6 +3,8 @@
  * Mounted at `/api/chat`. Legacy `/api/telegram/*` and `/api/openclaw/*` stay as thin aliases.
  */
 import express from 'express';
+import fs from 'fs';
+import path from 'path';
 import { z } from 'zod';
 import {
     telegramEvents,
@@ -13,6 +15,7 @@ import {
     resolveCanonicalSession
 } from '../services/telegramService.js';
 import { apiLimiter } from '../utils/rateLimiter.js';
+import { normalizeGatewayImageAttachment, resolveInboundMediaAbsolutePath } from '../services/chat/chatSendMedia.js';
 
 const GroupSendSchema = z.object({
     text: z.string().min(1)
@@ -22,6 +25,33 @@ const SessionSendSchema = z.object({
     message: z.string().min(1),
     sessionKey: z.string().optional()
 });
+
+const SendImageBodySchema = z.object({
+    filename: z.string().max(240).optional(),
+    mimeType: z.string().min(1),
+    base64: z.string().min(1)
+});
+
+const GroupSendMediaSchema = z.object({
+    text: z.string().optional().default(''),
+    image: SendImageBodySchema
+});
+
+const SessionSendMediaSchema = z.object({
+    message: z.string().optional().default(''),
+    sessionKey: z.string().optional(),
+    image: SendImageBodySchema
+});
+
+const EXT_TO_MIME = {
+    '.png': 'image/png',
+    '.jpg': 'image/jpeg',
+    '.jpeg': 'image/jpeg',
+    '.webp': 'image/webp',
+    '.gif': 'image/gif',
+    '.heic': 'image/heic',
+    '.heif': 'image/heif'
+};
 
 /** @param {string} groupIdParam */
 export function handleGroupSession(req, res, groupIdParam, opts = {}) {
@@ -77,6 +107,97 @@ export function handleGroupStream(req, res, groupIdParam) {
 }
 
 /** POST body: `{ text }` — `groupId` is the Telegram group (path). */
+/** GET — stream a single inbound OpenClaw media file (session mirror thumbnails). */
+export async function handleInboundMediaFile(req, res, next) {
+    try {
+        const rawId = req.params.mediaId;
+        const mediaId = rawId ? decodeURIComponent(String(rawId)) : '';
+        const abs = resolveInboundMediaAbsolutePath(mediaId);
+        const stat = await fs.promises.stat(abs);
+        if (!stat.isFile()) {
+            res.status(404).end();
+            return;
+        }
+        const ext = path.extname(abs).toLowerCase();
+        const mime = EXT_TO_MIME[ext] || 'application/octet-stream';
+        res.setHeader('Content-Type', mime);
+        res.setHeader('Cache-Control', 'private, max-age=3600');
+        fs.createReadStream(abs).pipe(res);
+    } catch (e) {
+        if (e && e.code === 'ENOENT') {
+            res.status(404).end();
+            return;
+        }
+        if (/unsafe media id|path escapes/i.test(e?.message || '')) {
+            res.status(400).end();
+            return;
+        }
+        next(e);
+    }
+}
+
+export async function handleGroupSendMedia(req, res, next, groupIdParam) {
+    const requestStartedAt = Date.now();
+    try {
+        const body = GroupSendMediaSchema.parse(req.body);
+        const attachment = normalizeGatewayImageAttachment(body.image);
+        const result = await sendMessageToChat(String(groupIdParam), body.text, {
+            attachments: [attachment]
+        });
+        const totalMs = Date.now() - requestStartedAt;
+        console.log(
+            `[chat send-media] groupId=${String(groupIdParam)} messageId=${result.message_id} transport=${result.transport || 'unknown'} httpMs=${totalMs}`
+        );
+        res.json({
+            ok: true,
+            messageId: result.message_id,
+            transport: result.transport || null,
+            sessionKey: result.sessionKey || null,
+            sessionId: result.sessionId || null,
+            sessionFile: result.sessionFile || null,
+            spawnedPid: result.spawnedPid || null,
+            gatewayResultId: result.gatewayResultId || null,
+            timing: {
+                ...result.timing,
+                httpTotalMs: totalMs
+            }
+        });
+    } catch (error) {
+        if (error instanceof z.ZodError) error.status = 400;
+        next(error);
+    }
+}
+
+export async function handleSessionSendMedia(req, res, next) {
+    const requestStartedAt = Date.now();
+    try {
+        const { sessionId } = req.params;
+        const body = SessionSendMediaSchema.parse(req.body);
+        const attachment = normalizeGatewayImageAttachment(body.image);
+        const result = await sendMessageToChat(sessionId, body.message, {
+            attachments: [attachment]
+        });
+        const totalMs = Date.now() - requestStartedAt;
+        res.json({
+            ok: true,
+            messageId: result.message_id,
+            transport: result.transport,
+            sessionKey: result.sessionKey,
+            sessionId: result.sessionId,
+            sessionFile: result.sessionFile,
+            gatewayResultId: result.gatewayResultId || null,
+            timing: {
+                ...result.timing,
+                apiTotalMs: totalMs
+            },
+            timestamp: Date.now()
+        });
+    } catch (error) {
+        if (error instanceof z.ZodError) error.status = 400;
+        next(error);
+    }
+}
+
 export async function handleGroupSend(req, res, next, groupIdParam) {
     const requestStartedAt = Date.now();
     try {
@@ -191,12 +312,17 @@ export function handleSessionStream(req, res) {
 
 const router = express.Router();
 
+router.get('/media/inbound/:mediaId', handleInboundMediaFile);
+router.post('/session/:sessionId/send-media', apiLimiter, handleSessionSendMedia);
 router.post('/session/:sessionId/send', apiLimiter, handleSessionSend);
 router.get('/session/:sessionId/messages', handleSessionMessages);
 router.get('/session/:sessionId/stream', handleSessionStream);
 
 router.get('/:groupId/session', (req, res) => handleGroupSession(req, res, req.params.groupId));
 router.get('/:groupId/stream', (req, res) => handleGroupStream(req, res, req.params.groupId));
+router.post('/:groupId/send-media', apiLimiter, (req, res, next) =>
+    handleGroupSendMedia(req, res, next, req.params.groupId)
+);
 router.post('/:groupId/send', apiLimiter, (req, res, next) =>
     handleGroupSend(req, res, next, req.params.groupId)
 );

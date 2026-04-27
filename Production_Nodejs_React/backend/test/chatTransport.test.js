@@ -141,6 +141,29 @@ test('sendViaOpenclawGateway calls chat.send with explicit gateway auth', async 
     });
 });
 
+test('buildGatewayChatSendParams forwards optional attachments for chat.send', () => {
+    const att = {
+        type: 'image',
+        mimeType: 'image/png',
+        fileName: 'x.png',
+        content: 'iVBORw0KGgo='
+    };
+    const params = buildGatewayChatSendParams({
+        canonical: {
+            sessionId: '11111111-2222-4333-8444-555555555555',
+            sessionKey: 'agent:tars-100:telegram:group:-100'
+        },
+        text: 'see screenshot',
+        attachments: [att],
+        idempotencyKey: 'idem-9',
+        timeoutMs: 5000
+    });
+
+    assert.equal(params.message, 'see screenshot');
+    assert.deepEqual(params.attachments, [att]);
+    assert.equal(params.idempotencyKey, 'idem-9');
+});
+
 test('sendViaOpenclawGateway reports native transport unavailable without gateway token', async () => {
     await withEnv(
         {
@@ -165,4 +188,60 @@ test('sendViaOpenclawGateway reports native transport unavailable without gatewa
             );
         }
     );
+});
+
+test('sendViaOpenclawGateway passes attachments into chat.send params', async () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'cm-gateway-transport-media-'));
+    const cfg = path.join(dir, 'openclaw.json');
+    fs.writeFileSync(
+        cfg,
+        JSON.stringify({
+            gateway: { port: 19997, auth: { token: 'native-token-2' } }
+        })
+    );
+    const attachment = {
+        type: 'image',
+        mimeType: 'image/png',
+        fileName: 'z.png',
+        content: 'iVBORw0KGgo='
+    };
+    const calls = [];
+    try {
+        await withEnv(
+            {
+                OPENCLAW_CONFIG_PATH: cfg,
+                OPENCLAW_GATEWAY_TOKEN: undefined,
+                OPENCLAW_GATEWAY_URL: undefined,
+                OPENCLAW_CM_GATEWAY_TIMEOUT_MS: '999'
+            },
+            async () => {
+                await sendViaOpenclawGateway({
+                    canonical: {
+                        chatId: '-100',
+                        sessionId: '11111111-2222-4333-8444-555555555555',
+                        sessionKey: 'agent:tars-100:telegram:group:-100',
+                        sessionFile: '/tmp/session.jsonl'
+                    },
+                    realChatId: '-100',
+                    text: 'caption',
+                    attachments: [attachment],
+                    requestStartedAt: Date.now(),
+                    log: () => {},
+                    loadModule: async () => ({
+                        source: 'fake-gateway-call-module',
+                        randomIdempotencyKey: () => 'idem-media',
+                        callGateway: async (opts) => {
+                            calls.push(opts);
+                            return { requestId: 'gw-req-2' };
+                        }
+                    })
+                });
+            }
+        );
+    } finally {
+        fs.rmSync(dir, { recursive: true, force: true });
+    }
+    assert.equal(calls.length, 1);
+    assert.deepEqual(calls[0].params.attachments, [attachment]);
+    assert.equal(calls[0].params.message, 'caption');
 });
