@@ -130,10 +130,21 @@ const STATUS_COLORS = {
 };
 
 /** Resolver may return string ids or classifier candidate objects. */
+function candidateTtgId(candidate) {
+    if (typeof candidate === 'string') return candidate;
+    if (!candidate || typeof candidate !== 'object') return '';
+    return candidate.ttgId || candidate.id || candidate.channelId || '';
+}
+
+function candidateTtgName(candidate) {
+    if (!candidate || typeof candidate === 'string') return '';
+    return candidate.ttgName || candidate.name || candidate.code || '';
+}
+
 function formatBindingCandidates(candidates) {
     if (!Array.isArray(candidates) || !candidates.length) return '';
     return candidates
-        .map((c) => (typeof c === 'string' ? c : c.ttgId || c.ttgName || c.code || ''))
+        .map((c) => candidateTtgId(c) || candidateTtgName(c))
         .filter(Boolean)
         .join(', ');
 }
@@ -163,7 +174,7 @@ function channelRelevance(record, channelId) {
     const b = record.binding || {};
     if (b.ttgId === channelId) return 4;
     if (record.ttg?.current?.id === channelId) return 4;
-    if ((b.candidates || []).some((c) => c.ttgId === channelId)) return 3;
+    if ((b.candidates || []).some((c) => candidateTtgId(c) === channelId)) return 3;
     if (String(record.sourcePath || '').includes(channelId)) return 2;
     return 0;
 }
@@ -230,8 +241,9 @@ function confirmDraftFromRecord(record) {
     }
     const b = record.binding || {};
     const cur = record.ttg?.current;
-    const id = b.ttgId || cur?.id || b.candidates?.[0]?.ttgId || '';
-    const name = cur?.name || b.candidates?.[0]?.ttgName || '';
+    const firstCandidate = Array.isArray(b.candidates) ? b.candidates[0] : null;
+    const id = b.ttgId || cur?.id || candidateTtgId(firstCandidate) || '';
+    const name = cur?.name || candidateTtgName(firstCandidate) || '';
     return {
         ttgId: id ? String(id) : '',
         ttgName: name ? String(name) : '',

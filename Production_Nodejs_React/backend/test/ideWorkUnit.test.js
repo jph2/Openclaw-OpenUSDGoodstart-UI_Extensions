@@ -113,7 +113,26 @@ binding:
                     ttgId: '-1003752539559',
                     binding: { status: 'inferred', method: 'agent_classification' }
                 }),
-            /classifier-only|confirm TTG/i
+            /binding must be confirmed/i
+        );
+    });
+
+    it('assertPromoteBindingAllowed rejects future or unreviewed binding states by default', () => {
+        assert.throws(
+            () =>
+                assertPromoteBindingAllowed({
+                    ttgId: '-1003752539559',
+                    binding: { status: 'trusted_by_ai', method: 'agent_classification' }
+                }),
+            /binding must be confirmed/i
+        );
+        assert.throws(
+            () =>
+                assertPromoteBindingAllowed({
+                    ttgId: '-1003752539559',
+                    binding: { status: 'needs_review', method: 'project_mapping' }
+                }),
+            /binding must be confirmed/i
         );
     });
 

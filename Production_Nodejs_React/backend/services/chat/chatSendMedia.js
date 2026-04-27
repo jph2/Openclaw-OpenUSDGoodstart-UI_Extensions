@@ -3,6 +3,7 @@ import os from 'os';
 
 /** Match OpenClaw gateway `parseMessageWithAttachments` default (5 MiB). */
 export const CM_CHAT_IMAGE_MAX_BYTES = 5_000_000;
+export const CM_CHAT_IMAGE_BASE64_MAX_CHARS = Math.ceil((CM_CHAT_IMAGE_MAX_BYTES * 4) / 3) + 256;
 
 export const CM_CHAT_IMAGE_MIME_WHITELIST = new Set([
     'image/png',
@@ -27,6 +28,10 @@ export function resolveOpenclawConfigDir() {
     return path.join(os.homedir(), '.openclaw');
 }
 
+export function resolveInboundMediaDirectory() {
+    return path.join(resolveOpenclawConfigDir(), 'media', 'inbound');
+}
+
 /**
  * Resolve `media/inbound/<id>` the same way OpenClaw stores attachment files.
  * @param {string} mediaId — filename only (no path separators)
@@ -36,7 +41,7 @@ export function resolveInboundMediaAbsolutePath(mediaId) {
     if (!id || id.includes('/') || id.includes('\\') || id.includes('\0') || id === '..') {
         throw new Error('unsafe media id');
     }
-    const inboundDir = path.join(resolveOpenclawConfigDir(), 'media', 'inbound');
+    const inboundDir = resolveInboundMediaDirectory();
     const resolved = path.join(inboundDir, id);
     const prefix = inboundDir + path.sep;
     if (!resolved.startsWith(prefix)) throw new Error('path escapes media inbound dir');

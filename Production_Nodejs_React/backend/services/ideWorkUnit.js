@@ -240,18 +240,11 @@ export function assertPromoteBindingAllowed(meta) {
     }
     const st = meta.binding?.status;
     const method = meta.binding?.method;
-    if (st === 'ambiguous' || st === 'unknown') {
-        const err = new Error(`Promotion blocked: binding status is ${st}`);
-        err.status = 400;
-        throw err;
-    }
-    if (st === 'needs_review') {
-        const err = new Error('Promotion blocked: binding needs review — confirm TTG (re-save with explicit TTG or artifact header)');
-        err.status = 400;
-        throw err;
-    }
-    if (method === 'agent_classification') {
-        const err = new Error('Promotion blocked: confirm TTG in artifact header or re-save with explicit TTG (classifier-only binding is not promotable)');
+    const promotableMethods = new Set(['explicit', 'artifact_header', 'project_mapping', 'path_hint']);
+    if (st !== 'confirmed' || !promotableMethods.has(method)) {
+        const err = new Error(
+            `Promotion blocked: binding must be confirmed by explicit, artifact_header, project_mapping, or path_hint (got ${st || 'unknown'} / ${method || 'none'})`
+        );
         err.status = 400;
         throw err;
     }

@@ -26,6 +26,23 @@ function mediaFilenameFromPath(p) {
     return idx >= 0 ? norm.slice(idx + 1) : norm;
 }
 
+function isImageMime(mime) {
+    return typeof mime === 'string' && mime.toLowerCase().startsWith('image/');
+}
+
+function imageMimeFromMediaPath(filePath, explicitMime) {
+    const mime = explicitMime && String(explicitMime).trim()
+        ? String(explicitMime).split(';')[0].trim().toLowerCase()
+        : '';
+    if (mime) return mime;
+    const lower = String(filePath || '').toLowerCase();
+    if (lower.endsWith('.png')) return 'image/png';
+    if (lower.endsWith('.jpg') || lower.endsWith('.jpeg')) return 'image/jpeg';
+    if (lower.endsWith('.webp')) return 'image/webp';
+    if (lower.endsWith('.gif')) return 'image/gif';
+    return 'application/octet-stream';
+}
+
 function appendOpenclawMediaParts(message, parts) {
     const paths =
         Array.isArray(message.MediaPaths) && message.MediaPaths.length > 0
@@ -43,7 +60,8 @@ function appendOpenclawMediaParts(message, parts) {
     for (let i = 0; i < paths.length; i++) {
         const id = mediaFilenameFromPath(paths[i]);
         if (!id) continue;
-        const mime = types[i] && String(types[i]).trim() ? String(types[i]).split(';')[0].trim() : 'application/octet-stream';
+        const mime = imageMimeFromMediaPath(paths[i], types[i]);
+        if (!isImageMime(mime)) continue;
         parts.push({
             type: 'image',
             mediaId: id,
@@ -95,6 +113,7 @@ export function buildMsgObjFromGatewayLine(parsed) {
                     '';
                 const mime =
                     (typeof b.mimeType === 'string' && b.mimeType.split(';')[0].trim()) || 'image/png';
+                if (!isImageMime(mime)) return;
                 mediaParts.push({
                     type: 'image',
                     mediaId: id,

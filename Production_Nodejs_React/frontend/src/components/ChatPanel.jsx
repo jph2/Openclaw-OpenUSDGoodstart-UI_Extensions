@@ -13,6 +13,14 @@ const BUBBLE_BG = '#2a2b36';
 const BUBBLE_TEXT = '#e0e0e0';
 const INLINE_CODE_BORDER = 'rgba(255,255,255,0.14)';
 const FENCED_BORDER = 'rgba(255,255,255,0.16)';
+const CHAT_IMAGE_MAX_BYTES = 5_000_000;
+const CHAT_IMAGE_MIME_WHITELIST = new Set([
+    'image/png',
+    'image/jpeg',
+    'image/jpg',
+    'image/webp',
+    'image/gif'
+]);
 
 /** Preview length for the header chip of a collapsed tool output. */
 const TOOL_OUTPUT_PREVIEW_CHARS = 72;
@@ -304,6 +312,19 @@ const RENDER_COMPONENTS = {
 
 function fileToImagePayload(file) {
     return new Promise((resolve, reject) => {
+        const mime = String(file?.type || '').split(';')[0].trim().toLowerCase();
+        if (!CHAT_IMAGE_MIME_WHITELIST.has(mime)) {
+            reject(new Error('unsupported_image_type'));
+            return;
+        }
+        if (!Number.isFinite(file?.size) || file.size <= 0) {
+            reject(new Error('empty_image'));
+            return;
+        }
+        if (file.size > CHAT_IMAGE_MAX_BYTES) {
+            reject(new Error('image_too_large'));
+            return;
+        }
         const r = new FileReader();
         r.onload = () => {
             const dataUrl = String(r.result || '');
@@ -322,6 +343,12 @@ function fileToImagePayload(file) {
         r.onerror = () => reject(r.error || new Error('read error'));
         r.readAsDataURL(file);
     });
+}
+
+function resolveChatMediaSrc(url) {
+    const s = String(url || '');
+    if (/^(data|blob|https?):/i.test(s)) return s;
+    return s ? apiUrl(s) : '';
 }
 
 function shallowPartsEqual(a, b) {
@@ -414,7 +441,7 @@ const MessageBubble = React.memo(({ msg }) => {
                 {imageParts.length > 0 && (
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginBottom: cleanedText ? '10px' : 0 }}>
                         {imageParts.map((part, idx) => {
-                            const src = part.url ? apiUrl(part.url) : '';
+                            const src = resolveChatMediaSrc(part.url);
                             return src ? (
                                 <button
                                     key={`${part.mediaId || idx}`}
@@ -709,8 +736,11 @@ export default function ChatPanel({
                 if (f) {
                     fileToImagePayload(f)
                         .then(setPendingImage)
-                        .catch(() => {
-                            setPasteHint('Bild aus der Zwischenablage konnte nicht gelesen werden.');
+                        .catch((err) => {
+                            const msg = err?.message === 'image_too_large'
+                                ? 'Bild ist zu groß (max. 5 MB).'
+                                : 'Bild aus der Zwischenablage konnte nicht gelesen werden (nur PNG/JPEG/WebP/GIF).';
+                            setPasteHint(msg);
                             window.setTimeout(() => setPasteHint(null), 6000);
                         });
                 }
@@ -844,8 +874,11 @@ export default function ChatPanel({
                         if (!f) return;
                         fileToImagePayload(f)
                             .then(setPendingImage)
-                            .catch(() => {
-                                setPasteHint('Datei konnte nicht gelesen werden (nur PNG/JPEG/WebP/GIF).');
+                            .catch((err) => {
+                                const msg = err?.message === 'image_too_large'
+                                    ? 'Datei ist zu groß (max. 5 MB).'
+                                    : 'Datei konnte nicht gelesen werden (nur PNG/JPEG/WebP/GIF).';
+                                setPasteHint(msg);
                                 window.setTimeout(() => setPasteHint(null), 6000);
                             });
                     }}

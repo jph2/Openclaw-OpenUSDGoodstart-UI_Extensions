@@ -15,7 +15,12 @@ import {
     resolveCanonicalSession
 } from '../services/telegramService.js';
 import { apiLimiter } from '../utils/rateLimiter.js';
-import { normalizeGatewayImageAttachment, resolveInboundMediaAbsolutePath } from '../services/chat/chatSendMedia.js';
+import {
+    CM_CHAT_IMAGE_BASE64_MAX_CHARS,
+    normalizeGatewayImageAttachment,
+    resolveInboundMediaAbsolutePath,
+    resolveInboundMediaDirectory
+} from '../services/chat/chatSendMedia.js';
 
 const GroupSendSchema = z.object({
     text: z.string().min(1)
@@ -29,7 +34,7 @@ const SessionSendSchema = z.object({
 const SendImageBodySchema = z.object({
     filename: z.string().max(240).optional(),
     mimeType: z.string().min(1),
-    base64: z.string().min(1)
+    base64: z.string().min(1).max(CM_CHAT_IMAGE_BASE64_MAX_CHARS)
 });
 
 const GroupSendMediaSchema = z.object({
@@ -106,15 +111,27 @@ export function handleGroupStream(req, res, groupIdParam) {
     });
 }
 
-/** POST body: `{ text }` — `groupId` is the Telegram group (path). */
 /** GET — stream a single inbound OpenClaw media file (session mirror thumbnails). */
 export async function handleInboundMediaFile(req, res, next) {
     try {
         const rawId = req.params.mediaId;
         const mediaId = rawId ? decodeURIComponent(String(rawId)) : '';
         const abs = resolveInboundMediaAbsolutePath(mediaId);
-        const stat = await fs.promises.stat(abs);
-        if (!stat.isFile()) {
+        const inboundDir = resolveInboundMediaDirectory();
+        const [dirStat, fileStat] = await Promise.all([
+            fs.promises.lstat(inboundDir),
+            fs.promises.lstat(abs)
+        ]);
+        if (dirStat.isSymbolicLink() || fileStat.isSymbolicLink() || !fileStat.isFile()) {
+            res.status(404).end();
+            return;
+        }
+        const [realDir, realFile] = await Promise.all([
+            fs.promises.realpath(inboundDir),
+            fs.promises.realpath(abs)
+        ]);
+        const realPrefix = realDir + path.sep;
+        if (!realFile.startsWith(realPrefix)) {
             res.status(404).end();
             return;
         }
@@ -122,6 +139,7 @@ export async function handleInboundMediaFile(req, res, next) {
         const mime = EXT_TO_MIME[ext] || 'application/octet-stream';
         res.setHeader('Content-Type', mime);
         res.setHeader('Cache-Control', 'private, max-age=3600');
+        res.setHeader('X-Content-Type-Options', 'nosniff');
         fs.createReadStream(abs).pipe(res);
     } catch (e) {
         if (e && e.code === 'ENOENT') {
