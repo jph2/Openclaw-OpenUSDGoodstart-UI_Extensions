@@ -29,7 +29,7 @@ Es gibt **zwei** konzeptionelle Zielbilder (A: IDE liefert Verdichtung; B: IDE w
 |-----|----------|
 | **Configuration** | Wie bisher: Kanäle (TG), Modelle, Skills, Agenten/Subagenten. |
 | **OpenClaw Chat** | **Live:** Gateway-gespiegelter Verlauf (SSE), gebunden an die gewählte Gruppe — gleicher Stream wie OpenClaw Web; kein zweiter Sendepfad. |
-| **Cursor Summary** | **Teil-MVP:** Listet & zeigt Markdown aus **A070** (`GET /api/summaries` unter `STUDIO_FRAMEWORK_ROOT`); Filter optional per `telegramId` im Pfad. Schreiben/Promotion nach `memory/` weiterhin backlog. |
+| **Cursor Summary** | **Teil-MVP:** Listet & zeigt Markdown aus **A070_ide_cursor_summaries** (`GET /api/summaries` unter `STUDIO_FRAMEWORK_ROOT`); Filter optional per `telegramId` im Pfad. Schreiben/Promotion nach `memory/` weiterhin backlog. |
 
 **Zusatz:** Dual-Export-API (`/api/exports/*`) + `ideConfigBridge` für Projektionen nach OpenClaw vs Cursor — siehe [CHANNEL_MANAGER_IDE_BRIDGE_DISCOVERY.md](CHANNEL_MANAGER_IDE_BRIDGE_DISCOVERY.md).
 
@@ -68,7 +68,7 @@ Die Tab-Ziele **„OpenClaw Chat“** und **„TARS in IDE · IDE project summar
 
 1. **Spec:** [CHANNEL_MANAGER_SPECIFICATION.md](CHANNEL_MANAGER_SPECIFICATION.md) §3.4a–e als **Ground Truth** für Chat; Traceability **Studio** [TRACEABILITY_SCHEMA_V1.1.md](../../Studio_Framework/020_Standards_Definitions_Rules/010_Schema/TRACEABILITY_SCHEMA_V1.1.md).  
 2. **Doku:** `CHANNEL_MANAGER_DOCUMENTATION_16-04-2026.md` §2.13 vs. §2.14 (Architektur vs. Restaurationsstand).  
-3. **Skills / A070:** Schreiben und Promotion nach `memory/` — weiter **Backlog** (Plan 6.10b).
+3. **Skills / A070_ide_cursor_summaries:** Schreiben und Promotion nach `memory/` — weiter **Backlog** (Plan 6.10b).
 
 ---
 *Status: Scope-of-Record für MVP-Entscheidung. **16.04.2026:** Workbench + Skill-Herkunft-UX in Spec/Doku/Plan referenziert (§2.10, §3.2c–d, R6, Sub-Task 6.14). **18.04.2026:** MVP-Grenze Read vs. Send; Restore explizit **nicht** MVP-Feature; „Nächste Schritte“ modernisiert.*

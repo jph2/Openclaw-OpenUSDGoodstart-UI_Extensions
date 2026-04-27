@@ -32,6 +32,16 @@ Remaining gates (high level):
 2. **OB1/MCP** — first-party upsert path beyond HTTP adapter; policy as you define it.
 3. **Polish** — §8b.7 topology / gateway `tools.effective` verification when API stable.
 
+### Reifegrad — drei Dokumente (Stand 2026-04-26)
+
+Die **numerische Tabelle** oben ist die Referenz; sie ist an **drei Stellen** mit dem Code abgestimmt:
+
+| Dokument | Inhalt |
+| -------- | ------ |
+| **`QA_8B5_IDE_MEMORY_BRIDGE.md`** (diese Datei) | Datum + Status-Text; **Master-%** (Artifact Header 88–93%, Classification 72–80%, Index 85–90%, OB Export 88–93%, OB Sync 62–72%, **B** 78–85%, Producer 18–30%); Remaining gates → Adapter / OB1-MCP / §8b.7-Polish. |
+| **`SPEC_8B5_IDE_MEMORY_BRIDGE.md`** | **Gleiche %-Tabelle** (inkl. Zeile **B**); Verdict; MARVIN PASS/FAIL; empfohlene Schritte (Adapter, OB1, Topologie). |
+| **`030_ROADMAP.md`** §8b.5 | **Current status** 2026-04-26; **Maturity** als kompakte Prozentspannen + Verweis auf QA/SPEC; „Not done“ → OB1/MCP, Producer, §8b.7, Polish. |
+
 Normative binding statuses:
 
 - `confirmed`
@@ -68,8 +78,8 @@ logic.
 4. Ensure the E2E project mapping exists.
 5. Set adapter to `manual`.
 6. Set project id to `e2e-bridge-smoke`.
-7. Save a new A070 draft.
-8. Select the newly created file from the A070 list.
+7. Save a new A070_ide_cursor_summaries draft.
+8. Select the newly created file from the A070_ide_cursor_summaries list.
 9. Verify the preview ledger fields:
    - TTG
    - Project
@@ -160,7 +170,7 @@ than hardcoded demo metadata.
 
 1. Capture one real Cursor work context and one real Codex work context.
 2. Normalize each into the shared work-unit contract.
-3. Save each as an A070 summary with sidecar metadata.
+3. Save each as a summary in A070_ide_cursor_summaries (with sidecar metadata).
 4. Inspect sidecar metadata.
 
 **Expected for Cursor input:**
@@ -263,7 +273,7 @@ syncing to Open Brain or promoting to operational memory.
 **Tests to add:**
 
 1. index includes A010 Discovery/Research artifacts.
-2. index includes A070 summaries and sidecars.
+2. index includes A070_ide_cursor_summaries and sidecars.
 3. missing/invalid headers are represented as `unknown` / `needs_review`.
 4. content hash changes when content changes.
 5. index never includes secrets.

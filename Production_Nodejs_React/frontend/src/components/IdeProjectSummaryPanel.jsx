@@ -1,10 +1,102 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import MemoryPromoteModal from './MemoryPromoteModal.jsx';
 
 const plugins = [remarkGfm];
+
+/** Avoid useless mutation messages like literal "true" when the API body omits `error`. */
+function formatApiFailureMessage(status, j, fallbackDetail) {
+    const err = j?.error;
+    let part =
+        typeof err === 'string'
+            ? err
+            : err != null && typeof err === 'object'
+              ? JSON.stringify(err)
+              : err === true || err === false
+                ? ''
+                : err != null
+                  ? String(err)
+                  : '';
+    if (part === 'true' || part === 'false' || part === '') {
+        part = `HTTP ${status}`;
+    }
+    const det = j?.details != null ? ` — ${JSON.stringify(j.details)}` : '';
+    const extra = fallbackDetail ? ` — ${fallbackDetail}` : '';
+    return part + det + extra;
+}
+
+/** Steps 1–2 after Step 0 (terminal) in the capture UI. */
+const IDE_CAPTURE_WORKFLOW_STEPS = [
+    {
+        n: 1,
+        title: 'Save path (required)',
+        text: 'Required after Step 0: paste the workspaceStorage path and click Save path. Mount/mkdir in Step 0 only prepares the disk — the backend does not pick up that path until it is saved here (unless the server already sets CURSOR_WORKSPACE_STORAGE_ROOT — see More info).'
+    },
+    {
+        n: 2,
+        title: 'Optional',
+        text: 'UI “Create folders” runs mkdir -p for the path you saved — same as the terminal one-liner in Step 0. Empty dirs are not Cursor data until you copy/rsync contents from the PC.'
+    }
+];
+
+const captureStepSectionStyle = {
+    marginBottom: '12px',
+    padding: '10px 12px',
+    border: '1px solid var(--border-color)',
+    borderRadius: '6px',
+    background: 'rgba(19, 20, 28, 0.55)'
+};
+
+const captureStepHeadingStyle = {
+    fontWeight: 700,
+    marginBottom: '8px',
+    color: 'var(--text-primary)',
+    fontSize: '14px'
+};
+
+const captureDetailsSummaryStyle = {
+    cursor: 'pointer',
+    fontWeight: 600,
+    color: 'var(--text-secondary)',
+    fontSize: '13px',
+    marginBottom: '6px'
+};
+
+/** Blue step boxes — clean-slate terminal sequence (Step 0). */
+const ideCaptureCleanSlateStepBox = {
+    margin: '0 0 8px 0',
+    padding: '8px 10px',
+    borderRadius: '6px',
+    border: '1px solid rgba(110, 165, 255, 0.55)',
+    background: 'rgba(65, 125, 235, 0.16)',
+    fontSize: '11px',
+    lineHeight: 1.45,
+    color: 'var(--text-secondary)'
+};
+
+const ideCaptureCleanSlateStepTitle = {
+    fontWeight: 700,
+    color: 'var(--accent)',
+    marginBottom: '6px',
+    fontSize: '11px'
+};
+
+const ideCaptureCleanSlatePre = {
+    margin: 0,
+    padding: '8px',
+    background: '#13141c',
+    borderRadius: '4px',
+    fontSize: '10px',
+    overflowX: 'auto',
+    color: '#e8e8e8',
+    border: '1px solid var(--border-color)',
+    lineHeight: 1.4
+};
+
+const LS_IDE_CAPTURE_CONNECT_PANEL = 'cm.ide_capture.connect_panel_open.v1';
 
 function todaySlug() {
     const d = new Date();
@@ -84,6 +176,45 @@ function recordInArtifactsBridgePanel(record) {
     return false;
 }
 
+/** POSIX path to workspaceStorage from a mount point plus path under the mounted tree. */
+function posixFromSmbForm(mountPoint, afterRelativePath) {
+    const mp = String(mountPoint || '').trim().replace(/\/+$/, '');
+    const rel = String(afterRelativePath || '').trim().replace(/^\/+/, '');
+    if (!mp.startsWith('/') || !rel) return '';
+    return `${mp}/${rel}`;
+}
+
+const DEFAULT_WINDOWS_WORKSPACE_STORAGE = 'C:\\Users\\YOUR_USERNAME\\AppData\\Roaming\\Cursor\\User\\workspaceStorage';
+
+/** Parse standard Cursor workspaceStorage path on Windows → profile folder name + SMB relative path. */
+function parseWindowsWorkspaceStoragePath(input) {
+    const norm = String(input || '')
+        .trim()
+        .replace(/\//g, '\\');
+    const re =
+        /^[a-zA-Z]:\\Users\\([^\\]+)\\AppData\\Roaming\\Cursor\\User\\workspaceStorage\\?$/i;
+    const m = re.exec(norm);
+    if (!m) return { ok: false, winUser: '', afterRelativePath: '' };
+    const winUser = m[1];
+    return {
+        ok: true,
+        winUser,
+        afterRelativePath: `${winUser}/AppData/Roaming/Cursor/User/workspaceStorage`
+    };
+}
+
+/** ISO timestamp from ide_capture_settings.json for human-readable “last saved” in the UI. */
+function formatIdeCaptureSavedAt(iso) {
+    if (!iso || typeof iso !== 'string') return null;
+    try {
+        const d = new Date(iso);
+        if (Number.isNaN(d.getTime())) return null;
+        return d.toLocaleString(undefined, { dateStyle: 'short', timeStyle: 'short' });
+    } catch {
+        return null;
+    }
+}
+
 function confirmDraftFromRecord(record) {
     if (!record) {
         return { ttgId: '', ttgName: '', reason: 'operator confirmed TTG binding' };
@@ -99,7 +230,7 @@ function confirmDraftFromRecord(record) {
     };
 }
 
-/** Third workspace tab: IDE project summaries (Studio A070) + optional OpenClaw memory (read-only). Tool-agnostic. */
+/** Third workspace tab: IDE project summaries (Studio A070_ide_cursor_summaries) + optional OpenClaw memory (read-only). Tool-agnostic. */
 export default function IdeProjectSummaryPanel({ channelId, channelName }) {
     const queryClient = useQueryClient();
     const [selectedRel, setSelectedRel] = useState(null);
@@ -125,6 +256,177 @@ export default function IdeProjectSummaryPanel({ channelId, channelName }) {
     const [obExportPreviewLoading, setObExportPreviewLoading] = useState(false);
     /** When true, artifact list keeps rows with classifier/header signal for this TTG (relevance ≥ 3). */
     const [artifactsScopeThisTtg, setArtifactsScopeThisTtg] = useState(false);
+    /** Saved workspaceStorage path (written to ide_capture_settings.json when env is unset). */
+    const [capturePathDraft, setCapturePathDraft] = useState('');
+    /** Last stdout/stderr from POST capture/mount (optional operator hook). */
+    const [mountOutput, setMountOutput] = useState(null);
+    /** Editable suggested POSIX path when the saved value is still a Windows path (Linux host). */
+    const [posixPathHintDraft, setPosixPathHintDraft] = useState('');
+    const [ideCaptureConnectOpen, setIdeCaptureConnectOpen] = useState(() => {
+        try {
+            const v = localStorage.getItem(LS_IDE_CAPTURE_CONNECT_PANEL);
+            if (v === null) return false;
+            return v === '1';
+        } catch {
+            return false;
+        }
+    });
+    const [ideCaptureDiagnosticsOpen, setIdeCaptureDiagnosticsOpen] = useState(false);
+    const ideCaptureDiagPrevExistsRef = useRef(undefined);
+
+    const { data: captureStatus, refetch: refetchCaptureStatus } = useQuery({
+        queryKey: ['ide-capture-status'],
+        queryFn: async () => {
+            const r = await fetch('/api/ide-project-summaries/capture/status');
+            return r.json();
+        },
+        staleTime: 30_000
+    });
+
+    useEffect(() => {
+        if (captureStatus && typeof captureStatus.savedWorkspaceStorageRoot === 'string') {
+            setCapturePathDraft(captureStatus.savedWorkspaceStorageRoot);
+        } else if (captureStatus && captureStatus.savedWorkspaceStorageRoot == null) {
+            setCapturePathDraft((prev) => (String(prev).trim() === '' ? DEFAULT_WINDOWS_WORKSPACE_STORAGE : prev));
+        }
+    }, [captureStatus?.savedWorkspaceStorageRoot, captureStatus?.settingsUpdatedAt]);
+
+    useEffect(() => {
+        const ok = captureStatus?.workspaceRootExists;
+        const prev = ideCaptureDiagPrevExistsRef.current;
+        if (prev !== ok && ok === false) {
+            setIdeCaptureDiagnosticsOpen(true);
+        }
+        ideCaptureDiagPrevExistsRef.current = ok;
+    }, [captureStatus?.workspaceRootExists]);
+
+    const captureSettingsMutation = useMutation({
+        mutationFn: async (workspaceStorageRoot) => {
+            const r = await fetch('/api/ide-project-summaries/capture/settings', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    workspaceStorageRoot: workspaceStorageRoot === '' ? null : workspaceStorageRoot
+                })
+            });
+            const j = await r.json().catch(() => ({}));
+            if (!r.ok) {
+                const det = j.details != null ? ` — ${JSON.stringify(j.details)}` : '';
+                throw new Error((j.error || `HTTP ${r.status}`) + det);
+            }
+            return j;
+        },
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ['ide-capture-status'] });
+            refetchCaptureStatus();
+        }
+    });
+
+    const captureEnsurePathMutation = useMutation({
+        mutationFn: async () => {
+            const p = capturePathDraft.trim();
+            const r = await fetch('/api/ide-project-summaries/capture/ensure-path', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(p ? { path: p } : {})
+            });
+            const j = await r.json().catch(() => ({}));
+            if (!r.ok) {
+                throw new Error(formatApiFailureMessage(r.status, j));
+            }
+            if (j.ok === false) {
+                throw new Error(formatApiFailureMessage(r.status || 500, j));
+            }
+            return j;
+        },
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ['ide-capture-status'] });
+            refetchCaptureStatus();
+        }
+    });
+
+    const captureRunMutation = useMutation({
+        mutationFn: async (force) => {
+            const r = await fetch('/api/ide-project-summaries/capture/run', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ force: Boolean(force) })
+            });
+            const j = await r.json().catch(() => ({}));
+            if (!r.ok) throw new Error(j.error || `${r.status} ${r.statusText}`);
+            return j;
+        },
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ['ide-capture-status'] });
+            refetchCaptureStatus();
+        }
+    });
+
+    const captureMountMutation = useMutation({
+        mutationFn: async (action) => {
+            const r = await fetch('/api/ide-project-summaries/capture/mount', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ action })
+            });
+            const j = await r.json().catch(() => ({}));
+            if (!r.ok) throw new Error(j.error || `${r.status}`);
+            return j;
+        },
+        onSuccess: (data) => {
+            const parts = [];
+            if (data.stdout) parts.push(`stdout:\n${data.stdout}`);
+            if (data.stderr) parts.push(`stderr:\n${data.stderr}`);
+            parts.push(`exit: ${data.exitCode}`);
+            setMountOutput(parts.join('\n\n'));
+            queryClient.invalidateQueries({ queryKey: ['ide-capture-status'] });
+            refetchCaptureStatus();
+        },
+        onError: (e) => setMountOutput(String(e.message || e))
+    });
+
+    /** Typical SMB mount point from Step 0; used to suggest a POSIX path when settings still store a Windows path. */
+    const defaultSmbMountPoint = '/media/cursor-workspace';
+
+    const suggestedLinuxPathFromDraft = useMemo(() => {
+        const p = parseWindowsWorkspaceStoragePath(capturePathDraft);
+        if (!p.ok) return '';
+        return posixFromSmbForm(defaultSmbMountPoint, p.afterRelativePath);
+    }, [capturePathDraft]);
+
+    const showPosixPathSaveHint = useMemo(() => {
+        if (!captureStatus?.pathMappingApplied || !suggestedLinuxPathFromDraft) return false;
+        if (captureStatus?.captureBackend?.platform !== 'linux') return false;
+        if (captureStatus?.envOverrideActive) return false;
+        const wr = String(captureStatus?.workspaceRoot || '');
+        if (captureStatus?.workspaceRootExists && !wr.startsWith('/mnt/')) return false;
+        if (wr === suggestedLinuxPathFromDraft) return false;
+        return true;
+    }, [captureStatus, suggestedLinuxPathFromDraft]);
+
+    /** Draft vs persisted settings file (not vs env override — see env note in UI). */
+    const capturePathSaveStatus = useMemo(() => {
+        if (!captureStatus) return null;
+        const draft = String(capturePathDraft ?? '').trim();
+        const raw = captureStatus.savedWorkspaceStorageRoot;
+        const saved = raw == null || String(raw).trim() === '' ? '' : String(raw).trim();
+        return {
+            draft,
+            saved,
+            dirty: draft !== saved,
+            pending: captureSettingsMutation.isPending,
+            envOn: Boolean(captureStatus.envOverrideActive),
+            updatedAt: captureStatus.settingsUpdatedAt || null
+        };
+    }, [
+        captureStatus,
+        capturePathDraft,
+        captureSettingsMutation.isPending
+    ]);
+
+    useEffect(() => {
+        setPosixPathHintDraft(suggestedLinuxPathFromDraft);
+    }, [suggestedLinuxPathFromDraft]);
 
     const { data, isLoading, error } = useQuery({
         queryKey: ['ide-project-summaries', channelId],
@@ -399,19 +701,39 @@ export default function IdeProjectSummaryPanel({ channelId, channelName }) {
         return 'Record stub sync (local audit)';
     })();
 
+    const switchIdePanel = (next) => {
+        setPanel(next);
+        setSelectedRel(null);
+        setSelectedArtifactSourcePath(null);
+        setObExportPreview(null);
+        stubOpenBrainSyncMutation.reset();
+    };
+
     return (
         <div
             data-testid={`ide-summary-panel-${channelId || 'all'}`}
             style={{ display: 'flex', flexDirection: 'column', height: '100%', minHeight: 0, background: 'var(--bg-primary)' }}
         >
-            <div style={{ padding: '8px 12px', borderBottom: '1px solid var(--border-color)', fontSize: '11px', color: 'var(--text-secondary)' }}>
-                <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
-                    <strong style={{ color: 'var(--text-primary)' }}>TARS in IDE · IDE project summary</strong>
-                    <span>—</span>
-                    <span>{channelName || channelId || 'all'}</span>
+            <div style={{ padding: '8px 12px', borderBottom: '1px solid var(--border-color)', fontSize: '13px', color: 'var(--text-secondary)' }}>
+                <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'nowrap' }}>
+                    <strong style={{ color: 'var(--text-primary)', flexShrink: 0 }}>TARS in IDE · IDE project summary</strong>
+                    <span style={{ flexShrink: 0 }}>—</span>
+                    <span
+                        style={{
+                            color: 'var(--text-primary)',
+                            minWidth: 0,
+                            overflow: 'hidden',
+                            textOverflow: 'ellipsis',
+                            whiteSpace: 'nowrap'
+                        }}
+                    >
+                        {channelName || channelId || 'all'}
+                    </span>
                     {panel === 'a070' && (
                         <span
                             style={{
+                                marginLeft: 'auto',
+                                flexShrink: 0,
                                 color: statusColor,
                                 border: `1px solid ${statusColor}`,
                                 borderRadius: 4,
@@ -422,64 +744,45 @@ export default function IdeProjectSummaryPanel({ channelId, channelName }) {
                             {STATUS_LABELS[selectedStatus] || (files.length ? 'Select summary' : 'No summary')}
                         </span>
                     )}
+                </div>
+                <div
+                    role="tablist"
+                    aria-label="IDE project workflow"
+                    style={{ marginTop: '6px', display: 'flex', gap: '4px', width: '100%' }}
+                >
                     <button
                         type="button"
+                        role="tab"
+                        aria-selected={panel === 'a070'}
+                        title="Studio A070_ide_cursor_summaries — IDE summaries (artifact root)"
                         className={panel === 'a070' ? 'tab active' : 'tab'}
-                        style={{
-                            padding: '4px 10px',
-                            fontSize: '11px',
-                            borderRadius: '4px',
-                            border: '1px solid var(--border-color)',
-                            background: panel === 'a070' ? 'rgba(80,227,194,0.15)' : 'transparent'
-                        }}
-                        onClick={() => {
-                            setPanel('a070');
-                            setSelectedRel(null);
-                            setSelectedArtifactSourcePath(null);
-                            setObExportPreview(null);
-                            stubOpenBrainSyncMutation.reset();
-                        }}
+                        style={{ flex: 1, minWidth: 0, fontSize: '13px' }}
+                        onClick={() => switchIdePanel('a070')}
                     >
-                        Studio A070
+                        Summaries
                     </button>
                     <button
                         type="button"
+                        role="tab"
+                        aria-selected={panel === 'artifacts'}
+                        title="Studio artifacts · TTG review"
                         data-testid="ide-summary-tab-artifacts"
-                        style={{
-                            padding: '4px 10px',
-                            fontSize: '11px',
-                            borderRadius: '4px',
-                            border: '1px solid var(--border-color)',
-                            background: panel === 'artifacts' ? 'rgba(80,227,194,0.15)' : 'transparent'
-                        }}
-                        onClick={() => {
-                            setPanel('artifacts');
-                            setSelectedRel(null);
-                            setSelectedArtifactSourcePath(null);
-                            setObExportPreview(null);
-                            stubOpenBrainSyncMutation.reset();
-                        }}
+                        className={panel === 'artifacts' ? 'tab active' : 'tab'}
+                        style={{ flex: 1, minWidth: 0, fontSize: '13px' }}
+                        onClick={() => switchIdePanel('artifacts')}
                     >
-                        Studio artifacts · TTG review
+                        Artifacts
                     </button>
                     <button
                         type="button"
-                        style={{
-                            padding: '4px 10px',
-                            fontSize: '11px',
-                            borderRadius: '4px',
-                            border: '1px solid var(--border-color)',
-                            background: panel === 'memory' ? 'rgba(80,227,194,0.15)' : 'transparent'
-                        }}
-                        onClick={() => {
-                            setPanel('memory');
-                            setSelectedRel(null);
-                            setSelectedArtifactSourcePath(null);
-                            setObExportPreview(null);
-                            stubOpenBrainSyncMutation.reset();
-                        }}
+                        role="tab"
+                        aria-selected={panel === 'memory'}
+                        title="OpenClaw memory (read-only)"
+                        className={panel === 'memory' ? 'tab active' : 'tab'}
+                        style={{ flex: 1, minWidth: 0, fontSize: '13px' }}
+                        onClick={() => switchIdePanel('memory')}
                     >
-                        OpenClaw memory (read-only)
+                        Memory
                     </button>
                 </div>
                 {data?.note && panel === 'a070' && <span style={{ display: 'block', marginTop: '6px' }}>{data.note}</span>}
@@ -492,8 +795,894 @@ export default function IdeProjectSummaryPanel({ channelId, channelName }) {
             </div>
 
             {panel === 'a070' && (
-                <div style={{ padding: '8px 12px', borderBottom: '1px solid var(--border-color)', fontSize: '11px' }}>
-                    <div style={{ fontWeight: 600, marginBottom: '6px' }}>New summary (writes under A070)</div>
+                <div
+                    style={{
+                        padding: '8px 12px',
+                        borderBottom: '1px solid var(--border-color)',
+                        fontSize: '13px',
+                        color: 'var(--text-secondary)'
+                    }}
+                >
+                    <div style={{ fontWeight: 600, marginBottom: '6px', color: 'var(--text-primary)' }}>
+                        IDE chat capture (Cursor → A070/capture/)
+                    </div>
+                    {!captureStatus?.enabled && (
+                        <span style={{ color: '#e3c450' }}>Disabled (IDE_CAPTURE_ENABLED=false on server).</span>
+                    )}
+                    {captureStatus?.enabled && (
+                        <details
+                            open={ideCaptureConnectOpen}
+                            onToggle={(e) => {
+                                const next = e.currentTarget.open;
+                                setIdeCaptureConnectOpen(next);
+                                try {
+                                    localStorage.setItem(LS_IDE_CAPTURE_CONNECT_PANEL, next ? '1' : '0');
+                                } catch {
+                                    /* ignore */
+                                }
+                            }}
+                            style={{
+                                marginBottom: '12px',
+                                border: '1px solid var(--border-color)',
+                                borderRadius: '6px',
+                                background: 'rgba(19, 20, 28, 0.35)'
+                            }}
+                        >
+                            <summary
+                                style={{
+                                    cursor: 'pointer',
+                                    fontWeight: 700,
+                                    color: 'var(--text-primary)',
+                                    fontSize: '14px',
+                                    padding: '10px 12px',
+                                    listStyle: 'none',
+                                    userSelect: 'none',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    gap: '8px'
+                                }}
+                            >
+                                <span
+                                    aria-hidden
+                                    style={{
+                                        display: 'inline-block',
+                                        flexShrink: 0,
+                                        width: '1em',
+                                        textAlign: 'center',
+                                        color: 'var(--text-secondary)',
+                                        transform: ideCaptureConnectOpen ? 'rotate(90deg)' : 'rotate(0deg)',
+                                        transition: 'transform 0.15s ease'
+                                    }}
+                                >
+                                    ▶
+                                </span>
+                                <span>Connect IDE Chat Capture</span>
+                                <span
+                                    style={{
+                                        fontWeight: 500,
+                                        fontSize: '12px',
+                                        color: 'var(--text-tertiary)'
+                                    }}
+                                >
+                                    (click to expand)
+                                </span>
+                            </summary>
+                            <div style={{ padding: '0 12px 12px 12px' }}>
+                                <ol
+                                style={{
+                                    margin: '0 0 14px 0',
+                                    paddingLeft: '22px',
+                                    color: 'var(--text-secondary)',
+                                    lineHeight: 1.55,
+                                    fontSize: '12px',
+                                    listStyleType: 'decimal'
+                                }}
+                            >
+                                {IDE_CAPTURE_WORKFLOW_STEPS.map((s) => (
+                                    <li key={s.n} style={{ marginBottom: '8px' }}>
+                                        <strong style={{ color: 'var(--text-primary)' }}>
+                                            {s.n}. {s.title}
+                                        </strong>{' '}
+                                        — {s.text}
+                                    </li>
+                                ))}
+                            </ol>
+
+                            {captureStatus?.captureBackend?.platform === 'linux' && (
+                                <div
+                                    style={{
+                                        marginBottom: '14px',
+                                        padding: '10px 12px',
+                                        borderRadius: '6px',
+                                        border: '1px solid rgba(80, 227, 194, 0.45)',
+                                        background: 'rgba(80, 227, 194, 0.1)',
+                                        fontSize: '12px',
+                                        lineHeight: 1.5,
+                                        color: 'var(--text-secondary)'
+                                    }}
+                                >
+                                    <div style={{ fontWeight: 700, color: 'var(--text-primary)', marginBottom: '6px' }}>
+                                        Step 0 — terminal on this Linux server
+                                    </div>
+                                    <p style={{ margin: '0 0 6px 0', fontSize: '11px', color: 'var(--text-tertiary)', lineHeight: 1.5 }}>
+                                        <strong>Default:</strong> <strong>A</strong> — Cursor on Windows, backend here, network works → mount <code style={{ fontSize: '11px' }}>Users</code>.{' '}
+                                        <strong>B</strong> only if data is already on this Linux host (rsync/WSL path) and you will not SMB-mount that folder.
+                                    </p>
+                                    <div
+                                        style={{
+                                            margin: '0 0 8px 0',
+                                            padding: '8px',
+                                            borderRadius: '4px',
+                                            border: '1px solid rgba(255, 143, 143, 0.5)',
+                                            background: 'rgba(255, 143, 143, 0.08)',
+                                            fontSize: '11px',
+                                            lineHeight: 1.5,
+                                            color: 'var(--text-secondary)'
+                                        }}
+                                    >
+                                        <strong style={{ color: '#ff8f8f' }}>CAUTION!!!</strong> File browsers often cannot delete this tree (root mount,
+                                        permissions). Use SSH. <code style={{ fontSize: '10px' }}>rm -rf</code> cannot be undone — only target{' '}
+                                        <code style={{ fontSize: '10px' }}>/media/cursor-workspace</code>, <strong>never</strong>{' '}
+                                        <code style={{ fontSize: '10px' }}>/media</code> alone.
+                                    </div>
+                                    <div style={ideCaptureCleanSlateStepBox}>
+                                        <div style={ideCaptureCleanSlateStepTitle}>1 — Unmount (only if something is mounted here)</div>
+                                        <p style={{ margin: '0 0 6px 0', fontSize: '10px', color: 'var(--text-tertiary)' }}>
+                                            If nothing is mounted, <code style={{ fontSize: '10px' }}>findmnt</code> fails and <code style={{ fontSize: '10px' }}>umount</code> is skipped — that is OK.
+                                        </p>
+                                        <pre style={ideCaptureCleanSlatePre}>
+                                            {`findmnt /media/cursor-workspace && sudo umount /media/cursor-workspace`}
+                                        </pre>
+                                    </div>
+                                    <div style={ideCaptureCleanSlateStepBox}>
+                                        <div style={ideCaptureCleanSlateStepTitle}>2 — Delete the folder (irreversible)</div>
+                                        <p style={{ margin: '0 0 6px 0', fontSize: '10px', color: 'var(--text-tertiary)' }}>
+                                            <strong style={{ color: '#ff8f8f' }}>CAUTION!!!</strong> Only <code style={{ fontSize: '10px' }}>/media/cursor-workspace</code> — never{' '}
+                                            <code style={{ fontSize: '10px' }}>/media</code>.
+                                        </p>
+                                        <pre style={ideCaptureCleanSlatePre}>{`sudo rm -rf /media/cursor-workspace`}</pre>
+                                    </div>
+                                    <div style={ideCaptureCleanSlateStepBox}>
+                                        <div style={ideCaptureCleanSlateStepTitle}>3 — Recreate an empty mount point</div>
+                                        <p style={{ margin: '0 0 6px 0', fontSize: '10px', color: 'var(--text-tertiary)' }}>
+                                            Ready for path A (mount) or B (local mkdir) again.
+                                        </p>
+                                        <pre style={ideCaptureCleanSlatePre}>{`sudo mkdir -p /media/cursor-workspace`}</pre>
+                                    </div>
+                                    <p style={{ margin: '0 0 6px 0', fontSize: '11px', color: 'var(--text-tertiary)' }}>
+                                        Then A <em>or</em> B — not both on the same path.
+                                    </p>
+                                    <p style={{ margin: '0 0 4px 0', fontWeight: 600, color: 'var(--text-secondary)', fontSize: '12px' }}>
+                                        A) SMB — empty dir, then sudo mount
+                                    </p>
+                                    <p style={{ margin: '0 0 6px 0', fontSize: '10px', color: '#e3c450', lineHeight: 1.45 }}>
+                                        Do not run mount without <code style={{ fontSize: '10px' }}>-o …</code> — bare mounts often report “read-only” errors. Use credentials + <code style={{ fontSize: '10px' }}>vers=3.0</code> + <code style={{ fontSize: '10px' }}>uid</code>/<code style={{ fontSize: '10px' }}>gid</code> as below.
+                                    </p>
+                                    <p style={{ margin: '0 0 6px 0', fontSize: '10px', color: 'var(--text-tertiary)', lineHeight: 1.45 }}>
+                                        Edit the four assignments at the top (Windows host/IP, SMB login, SMB password, Linux user that runs Node). The{' '}
+                                        <code style={{ fontSize: '10px' }}>sudo mount</code> line fills in automatically. Quote the{' '}
+                                        <code style={{ fontSize: '10px' }}>-o</code> string so commas in the password do not break the shell.
+                                    </p>
+                                    <pre
+                                        style={{
+                                            margin: '0 0 8px 0',
+                                            padding: '8px',
+                                            background: '#13141c',
+                                            borderRadius: '4px',
+                                            fontSize: '10px',
+                                            overflowX: 'auto',
+                                            color: '#e8e8e8',
+                                            border: '1px solid var(--border-color)',
+                                            lineHeight: 1.4
+                                        }}
+                                    >
+                                        {`WINDOWS_HOST="WINDOWS_HOST_OR_IP"  # computer name or IP address
+SMB_USER="YOUR_SMB_USER"           # email for Microsoft account
+SMB_PASS="YOUR_SMB_PASS"           # Microsoft account password (may differ from PIN / everyday login)
+APIUSER="LINUX_USER_RUNNING_NODE"  # Linux login name (user that runs Node)
+
+sudo mount -t cifs "//\${WINDOWS_HOST}/Users" /media/cursor-workspace \\
+  -o "username=\${SMB_USER},password=\${SMB_PASS},uid=$(id -u "$APIUSER"),gid=$(id -g "$APIUSER"),iocharset=utf8,file_mode=0640,dir_mode=0750,vers=3.0,noserverino"`}
+                                    </pre>
+                                    <p style={{ margin: '0 0 4px 0', fontWeight: 600, color: 'var(--text-secondary)', fontSize: '12px' }}>
+                                        B) No SMB — local tree only
+                                    </p>
+                                    <pre
+                                        style={{
+                                            margin: '0 0 8px 0',
+                                            padding: '8px',
+                                            background: '#13141c',
+                                            borderRadius: '4px',
+                                            fontSize: '11px',
+                                            overflowX: 'auto',
+                                            color: '#e8e8e8',
+                                            border: '1px solid var(--border-color)'
+                                        }}
+                                    >
+                                        {`APIUSER="LINUX_USER_RUNNING_NODE"  # Linux login name (user that runs Node)
+sudo mkdir -p /media/cursor-workspace/YOUR_USERNAME/AppData/Roaming/Cursor/User/workspaceStorage
+sudo chown -R "$APIUSER:$APIUSER" /media/cursor-workspace`}
+                                    </pre>
+                                    <p style={{ margin: '0 0 6px 0', fontSize: '11px', lineHeight: 1.5, color: 'var(--text-secondary)' }}>
+                                        <strong style={{ color: 'var(--text-primary)' }}>You must still do Step 1:</strong> Step 0 only prepares the filesystem
+                                        (mount or folders). The capture backend does <strong>not</strong> read your terminal — it needs the path saved
+                                        in Step 1 (<strong>Save path</strong>), unless ops set{' '}
+                                        <code style={{ fontSize: '10px' }}>CURSOR_WORKSPACE_STORAGE_ROOT</code> on the server instead.
+                                    </p>
+                                    <p style={{ margin: '0 0 6px 0', fontSize: '11px', color: 'var(--text-tertiary)' }}>
+                                        In Step 1, save exactly:
+                                    </p>
+                                    <pre
+                                        style={{
+                                            margin: '0 0 8px 0',
+                                            padding: '8px',
+                                            background: '#13141c',
+                                            borderRadius: '4px',
+                                            fontSize: '11px',
+                                            overflowX: 'auto',
+                                            color: '#e8e8e8',
+                                            border: '1px solid var(--border-color)'
+                                        }}
+                                    >
+                                        /media/cursor-workspace/YOUR_USERNAME/AppData/Roaming/Cursor/User/workspaceStorage
+                                    </pre>
+                                    <p style={{ margin: 0, fontSize: '11px', color: 'var(--text-tertiary)' }}>
+                                        Empty dirs are not chats — copy/rsync real <code style={{ fontSize: '11px' }}>workspaceStorage</code> data, or rely
+                                        on the SMB mount. Mount only via the commands here (or your own script) — not from this UI. Full detail:{' '}
+                                        <Link to="/docs#ide-capture-linux-mount" style={{ color: 'var(--accent)' }}>
+                                            docs → Linux path (Step 0)
+                                        </Link>
+                                        .
+                                    </p>
+                                </div>
+                            )}
+
+                            {/* Step 1 — path (after Step 0 terminal mount on Linux) */}
+                            <div style={captureStepSectionStyle}>
+                                <div style={captureStepHeadingStyle}>Step 1 — Path the server uses (required)</div>
+                                <div
+                                    style={{
+                                        margin: '0 0 12px 0',
+                                        padding: '8px 10px',
+                                        borderRadius: '6px',
+                                        border: '1px solid rgba(80, 227, 194, 0.45)',
+                                        background: 'rgba(80, 227, 194, 0.08)',
+                                        fontSize: '12px',
+                                        lineHeight: 1.5,
+                                        color: 'var(--text-secondary)'
+                                    }}
+                                >
+                                    <strong style={{ color: 'var(--text-primary)' }}>Save path is mandatory</strong> for normal setups: enter the
+                                    correct <code style={{ fontSize: '11px' }}>workspaceStorage</code> path and click <strong>Save path</strong>. Step 0
+                                    does not write server settings — without this save (or a pre-set{' '}
+                                    <code style={{ fontSize: '11px' }}>CURSOR_WORKSPACE_STORAGE_ROOT</code>, see <strong>More info</strong>), the
+                                    backend does not know where to read Cursor data.
+                                </div>
+                                {captureStatus?.captureBackend?.platform !== 'linux' && (
+                                    <p
+                                        style={{
+                                            margin: '0 0 10px 0',
+                                            fontSize: '12px',
+                                            color: 'var(--text-tertiary)',
+                                            lineHeight: 1.45
+                                        }}
+                                    >
+                                        This capture backend is not Linux — set a Windows or POSIX path below that the server can read.
+                                    </p>
+                                )}
+                                <p
+                                    style={{
+                                        margin: '0 0 10px 0',
+                                        fontSize: '13px',
+                                        lineHeight: 1.5,
+                                        color: 'var(--text-secondary)'
+                                    }}
+                                >
+                                    On Linux, use the <strong>POSIX path</strong> under your mount (typical:{' '}
+                                    <code style={{ fontSize: '12px' }}>/media/cursor-workspace/&lt;profile&gt;/AppData/Roaming/Cursor/User/workspaceStorage</code>{' '}
+                                    after Step 0). WSL-style <code style={{ fontSize: '12px' }}>/mnt/c/…</code> works if that tree exists on the API host.
+                                </p>
+                                {!captureStatus.workspaceRootExists && (
+                                    <div
+                                        style={{
+                                            marginBottom: '10px',
+                                            fontSize: '12px',
+                                            color: '#e3c450',
+                                            lineHeight: 1.45
+                                        }}
+                                    >
+                                        The backend still cannot access that folder. Fix the path, run <strong>Step 0</strong> (mkdir /{' '}
+                                        <code style={{ fontSize: '12px' }}>sudo mount</code>), then save again — open <strong>More info</strong> for details.
+                                    </div>
+                                )}
+                                <details style={{ marginBottom: '10px' }}>
+                                    <summary style={captureDetailsSummaryStyle}>
+                                        More info — what the server resolves, saved settings, overrides
+                                    </summary>
+                                    <div
+                                        style={{
+                                            marginTop: '8px',
+                                            fontSize: '12px',
+                                            color: 'var(--text-tertiary)',
+                                            lineHeight: 1.45
+                                        }}
+                                    >
+                                        <div style={{ marginBottom: '10px' }}>
+                                            <strong style={{ color: 'var(--text-secondary)' }}>Effective path</strong> (
+                                            {captureStatus.workspaceRootSource || '—'}):{' '}
+                                            <code style={{ fontSize: '12px', wordBreak: 'break-all' }}>
+                                                {captureStatus.workspaceRoot || '—'}
+                                            </code>
+                                            {captureStatus.workspaceRootExists ? (
+                                                <span style={{ color: '#7dcea0', marginLeft: '8px' }}>reachable</span>
+                                            ) : (
+                                                <span style={{ color: '#e3c450', marginLeft: '8px' }}>not found</span>
+                                            )}
+                                        </div>
+                                        {captureStatus.pathMappingApplied && (
+                                            <div style={{ marginBottom: '10px' }}>
+                                                <strong style={{ color: 'var(--text-secondary)' }}>Windows path mapping:</strong> the saved value
+                                                is a Windows path; on this Linux host it is mapped to WSL-style{' '}
+                                                <code style={{ fontSize: '12px' }}>/mnt/&lt;drive&gt;/…</code>. Override with{' '}
+                                                <code style={{ fontSize: '12px' }}>IDE_CAPTURE_WIN_DRIVE_C_MNT</code> or paste a POSIX path (e.g.
+                                                SMB mount under <code style={{ fontSize: '12px' }}>/media/…</code>).
+                                            </div>
+                                        )}
+                                        {captureStatus.envOverrideActive && (
+                                            <div style={{ color: '#e3c450', marginBottom: '10px' }}>
+                                                <code style={{ fontSize: '12px' }}>CURSOR_WORKSPACE_STORAGE_ROOT</code> overrides the saved path in
+                                                the field below.
+                                            </div>
+                                        )}
+                                        <div>
+                                            <strong style={{ color: 'var(--text-secondary)' }}>Persistence:</strong> the value you save is written
+                                            to <code style={{ fontSize: '12px' }}>ide_capture_settings.json</code> on the server (unless an env var
+                                            overrides it). The capture job reads that location on the API host — not in your browser.
+                                        </div>
+                                    </div>
+                                </details>
+                                {showPosixPathSaveHint && (
+                                    <div
+                                        style={{
+                                            marginBottom: '10px',
+                                            padding: '8px',
+                                            border: '1px solid rgba(80, 227, 194, 0.45)',
+                                            borderRadius: '4px',
+                                            background: 'rgba(80, 227, 194, 0.08)',
+                                            fontSize: '12px',
+                                            color: 'var(--text-secondary)',
+                                            lineHeight: 1.45
+                                        }}
+                                    >
+                                        <strong style={{ color: 'var(--text-primary)' }}>Still using a Windows path on the server:</strong> it
+                                        resolves to <code style={{ fontSize: '12px' }}>{captureStatus.workspaceRoot}</code>. Save the Linux path to
+                                        the same folder (default mount <code style={{ fontSize: '12px' }}>{defaultSmbMountPoint}</code> — adjust if
+                                        yours differs):
+                                        <input
+                                            type="text"
+                                            data-testid="ide-capture-posix-hint-draft"
+                                            value={posixPathHintDraft}
+                                            onChange={(e) => setPosixPathHintDraft(e.target.value)}
+                                            style={{
+                                                width: '100%',
+                                                margin: '6px 0',
+                                                padding: '6px',
+                                                background: '#13141c',
+                                                border: '1px solid var(--border-color)',
+                                                color: '#fff',
+                                                fontSize: '13px'
+                                            }}
+                                        />
+                                        <button
+                                            type="button"
+                                            className="tab"
+                                            data-testid="ide-capture-apply-posix-hint"
+                                            disabled={captureSettingsMutation.isPending || !posixPathHintDraft.trim()}
+                                            style={{ fontSize: '13px' }}
+                                            onClick={() => {
+                                                const v = posixPathHintDraft.trim();
+                                                setCapturePathDraft(v);
+                                                captureSettingsMutation.mutate(v);
+                                            }}
+                                        >
+                                            {captureSettingsMutation.isPending ? 'Saving…' : 'Save this Linux path'}
+                                        </button>
+                                    </div>
+                                )}
+                                <div style={{ fontSize: '12px', color: 'var(--text-tertiary)', marginBottom: '6px', lineHeight: 1.45 }}>
+                                    <strong>workspaceStorage path</strong> (edit and save to the server)
+                                </div>
+                                <input
+                                    type="text"
+                                    data-testid="ide-capture-path-input"
+                                    value={capturePathDraft}
+                                    onChange={(e) => setCapturePathDraft(e.target.value)}
+                                    style={{
+                                        width: '100%',
+                                        marginBottom: '6px',
+                                        padding: '6px',
+                                        background: '#13141c',
+                                        border: '1px solid var(--border-color)',
+                                        color: '#fff',
+                                        fontSize: '13px'
+                                    }}
+                                />
+                                {capturePathSaveStatus && (
+                                    <div
+                                        role="status"
+                                        aria-live="polite"
+                                        data-testid="ide-capture-path-save-status"
+                                        style={{
+                                            marginBottom: '10px',
+                                            padding: '8px 10px',
+                                            borderRadius: '6px',
+                                            fontSize: '12px',
+                                            lineHeight: 1.5,
+                                            border: `1px solid ${
+                                                capturePathSaveStatus.pending
+                                                    ? 'rgba(80, 227, 194, 0.55)'
+                                                    : capturePathSaveStatus.dirty
+                                                      ? 'rgba(227, 196, 80, 0.5)'
+                                                      : capturePathSaveStatus.saved === ''
+                                                        ? 'var(--border-color)'
+                                                        : 'rgba(125, 206, 160, 0.45)'
+                                            }`,
+                                            background: capturePathSaveStatus.pending
+                                                ? 'rgba(80, 227, 194, 0.1)'
+                                                : capturePathSaveStatus.dirty
+                                                  ? 'rgba(227, 196, 80, 0.1)'
+                                                  : capturePathSaveStatus.saved === ''
+                                                    ? 'rgba(19, 20, 28, 0.35)'
+                                                    : 'rgba(125, 206, 160, 0.12)',
+                                            color: 'var(--text-secondary)'
+                                        }}
+                                    >
+                                        {capturePathSaveStatus.envOn && (
+                                            <div
+                                                style={{
+                                                    marginBottom: '8px',
+                                                    paddingBottom: '8px',
+                                                    borderBottom: '1px solid var(--border-color)',
+                                                    color: '#e3c450',
+                                                    fontSize: '11px',
+                                                    lineHeight: 1.45
+                                                }}
+                                            >
+                                                <strong>Env override:</strong> live capture uses{' '}
+                                                <code style={{ fontSize: '10px' }}>CURSOR_WORKSPACE_STORAGE_ROOT</code>. Saving here still updates{' '}
+                                                <code style={{ fontSize: '10px' }}>ide_capture_settings.json</code> for when that variable is unset.
+                                            </div>
+                                        )}
+                                        {capturePathSaveStatus.pending ? (
+                                            <span>
+                                                <strong style={{ color: 'var(--text-primary)' }}>Saving…</strong> writing to the server.
+                                            </span>
+                                        ) : capturePathSaveStatus.dirty ? (
+                                            <span>
+                                                <strong style={{ color: '#e3c450' }}>Not saved</strong> — this field differs from{' '}
+                                                <code style={{ fontSize: '11px' }}>ide_capture_settings.json</code>. Click <strong>Save path</strong>{' '}
+                                                to persist.
+                                            </span>
+                                        ) : capturePathSaveStatus.saved === '' ? (
+                                            <span>
+                                                <strong style={{ color: 'var(--text-tertiary)' }}>No path in settings file</strong> — nothing
+                                                persisted yet (backend may use its default until you save).
+                                            </span>
+                                        ) : (
+                                            <span>
+                                                <strong style={{ color: '#7dcea0' }}>Saved</strong> — matches the server settings file
+                                                {formatIdeCaptureSavedAt(capturePathSaveStatus.updatedAt) ? (
+                                                    <>
+                                                        .{' '}
+                                                        <span style={{ color: 'var(--text-tertiary)' }}>
+                                                            Last written: {formatIdeCaptureSavedAt(capturePathSaveStatus.updatedAt)}
+                                                        </span>
+                                                    </>
+                                                ) : (
+                                                    '.'
+                                                )}
+                                            </span>
+                                        )}
+                                    </div>
+                                )}
+                                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', alignItems: 'center' }}>
+                                    <button
+                                        type="button"
+                                        className="tab"
+                                        data-testid="ide-capture-save-path"
+                                        disabled={captureSettingsMutation.isPending}
+                                        style={{ fontSize: '13px' }}
+                                        onClick={() => captureSettingsMutation.mutate(capturePathDraft.trim() || null)}
+                                    >
+                                        {captureSettingsMutation.isPending ? 'Saving…' : 'Save path'}
+                                    </button>
+                                    <button
+                                        type="button"
+                                        className="tab"
+                                        data-testid="ide-capture-clear-path"
+                                        disabled={captureSettingsMutation.isPending}
+                                        style={{ fontSize: '13px' }}
+                                        onClick={() => {
+                                            setCapturePathDraft(DEFAULT_WINDOWS_WORKSPACE_STORAGE);
+                                            captureSettingsMutation.mutate(null);
+                                        }}
+                                    >
+                                        Reset form & clear saved path
+                                    </button>
+                                    {captureSettingsMutation.isError && (
+                                        <span style={{ color: '#ff8f8f' }}>{captureSettingsMutation.error?.message}</span>
+                                    )}
+                                </div>
+                            </div>
+
+                            {/* Step 2 — optional mkdir on Linux */}
+                            {captureStatus.captureBackend?.platform === 'linux' && (
+                                <div style={{ ...captureStepSectionStyle, marginBottom: '12px' }}>
+                                    <div style={captureStepHeadingStyle}>Step 2 — Optional: create folders on server (mkdir -p)</div>
+                                    <p style={{ margin: '0 0 10px 0', fontSize: '12px', lineHeight: 1.45, color: 'var(--text-tertiary)' }}>
+                                        Same as running <code style={{ fontSize: '12px' }}>mkdir -p</code> in SSH for the Step 1 path. Prefer the
+                                        commands in the green box above; use this button if you like the UI. This never copies chat files — only
+                                        directories.
+                                    </p>
+                                    {!captureStatus.ensurePathEnabled && (
+                                        <div style={{ marginBottom: '10px', fontSize: '12px', color: '#e3c450', lineHeight: 1.45 }}>
+                                            This action is turned off on the server (
+                                            <code style={{ fontSize: '12px' }}>IDE_CAPTURE_ENSURE_PATH=false</code>). Set the variable to enable
+                                            (non-false) and restart the backend if you need UI-driven <code style={{ fontSize: '12px' }}>mkdir -p</code>.
+                                        </div>
+                                    )}
+                                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', alignItems: 'center' }}>
+                                        <button
+                                            type="button"
+                                            className="tab"
+                                            data-testid="ide-capture-ensure-path"
+                                            disabled={
+                                                !captureStatus.ensurePathEnabled || captureEnsurePathMutation.isPending
+                                            }
+                                            style={{ fontSize: '13px' }}
+                                            title={
+                                                !captureStatus.ensurePathEnabled
+                                                    ? 'Enable IDE_CAPTURE_ENSURE_PATH on the server'
+                                                    : undefined
+                                            }
+                                            onClick={() => captureEnsurePathMutation.mutate()}
+                                        >
+                                            {captureEnsurePathMutation.isPending ? '…' : 'Create folders (mkdir -p)'}
+                                        </button>
+                                        {captureEnsurePathMutation.isError && (
+                                            <span style={{ color: '#ff8f8f' }}>{captureEnsurePathMutation.error?.message}</span>
+                                        )}
+                                    </div>
+                                </div>
+                            )}
+
+                            <details style={{ marginBottom: '12px' }}>
+                                <summary style={captureDetailsSummaryStyle}>Advanced — script, sshfs, API hook</summary>
+                                <div style={{ marginTop: '10px', fontSize: '12px', color: 'var(--text-secondary)', lineHeight: 1.45 }}>
+                                    <div style={{ fontWeight: 600, marginBottom: '6px', color: 'var(--text-primary)' }}>
+                                        Remote workspaceStorage (terminal / hook)
+                                    </div>
+                                    <ol style={{ margin: '0 0 8px 0', paddingLeft: '18px' }}>
+                                        <li style={{ marginBottom: '4px' }}>
+                                            On the <strong>Linux host that runs the Node backend</strong>, you can mount via SMB/CIFS or sshfs
+                                            outside this UI.
+                                        </li>
+                                        <li style={{ marginBottom: '4px' }}>
+                                            Then set the POSIX path in Step 1 — or <code style={{ fontSize: '12px' }}>C:\…</code> only if{' '}
+                                            <code style={{ fontSize: '12px' }}>/mnt/c/…</code> exists (WSL).
+                                        </li>
+                                    </ol>
+                                    <div style={{ marginBottom: '8px' }}>
+                                        <strong>Repo script:</strong>{' '}
+                                        <code style={{ fontSize: '12px', wordBreak: 'break-all' }}>
+                                            Production_Nodejs_React/scripts/ide-capture-remote-mount.sh
+                                        </code>
+                                    </div>
+                                    <div style={{ marginBottom: '8px' }}>
+                                        Set <code style={{ fontSize: '12px' }}>IDE_CAPTURE_REMOTE_MOUNT_SCRIPT</code> for API-driven mount/umount/status
+                                        (same as terminal). <code style={{ fontSize: '12px' }}>IDE_CAPTURE_WORKSPACE_MOUNT_POINT</code> for status in
+                                        this panel.
+                                    </div>
+                                    {!captureStatus?.remoteMount?.scriptConfigured && (
+                                        <div
+                                            style={{
+                                                marginBottom: '8px',
+                                                padding: '6px',
+                                                background: 'rgba(227, 196, 80, 0.12)',
+                                                border: '1px solid rgba(227, 196, 80, 0.35)',
+                                                borderRadius: '4px',
+                                                color: '#e3c450'
+                                            }}
+                                        >
+                                            No <code style={{ fontSize: '12px' }}>IDE_CAPTURE_REMOTE_MOUNT_SCRIPT</code> — no script buttons here.
+                                        </div>
+                                    )}
+                                    {captureStatus?.remoteMount?.mountPointEnv && (
+                                        <div style={{ marginBottom: '6px' }}>
+                                            <code style={{ fontSize: '12px' }}>IDE_CAPTURE_WORKSPACE_MOUNT_POINT</code>:{' '}
+                                            <code style={{ fontSize: '12px', wordBreak: 'break-all' }}>
+                                                {captureStatus.remoteMount.mountPointEnv}
+                                            </code>
+                                            {captureStatus.remoteMount.mountPointIsActive === true && (
+                                                <span style={{ color: '#7dcea0', marginLeft: '6px' }}>mounted</span>
+                                            )}
+                                            {captureStatus.remoteMount.mountPointIsActive === false && (
+                                                <span style={{ color: '#e3c450', marginLeft: '6px' }}>not mounted</span>
+                                            )}
+                                        </div>
+                                    )}
+                                    {captureStatus?.remoteMount?.scriptConfigured && (
+                                        <div style={{ marginBottom: '6px' }}>
+                                            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', alignItems: 'center' }}>
+                                                <button
+                                                    type="button"
+                                                    className="tab"
+                                                    data-testid="ide-capture-mount"
+                                                    disabled={captureMountMutation.isPending}
+                                                    style={{ fontSize: '13px' }}
+                                                    onClick={() => captureMountMutation.mutate('mount')}
+                                                >
+                                                    {captureMountMutation.isPending ? '…' : 'Mount'}
+                                                </button>
+                                                <button
+                                                    type="button"
+                                                    className="tab"
+                                                    data-testid="ide-capture-umount"
+                                                    disabled={captureMountMutation.isPending}
+                                                    style={{ fontSize: '13px' }}
+                                                    onClick={() => captureMountMutation.mutate('umount')}
+                                                >
+                                                    Umount
+                                                </button>
+                                                <button
+                                                    type="button"
+                                                    className="tab"
+                                                    data-testid="ide-capture-mount-status"
+                                                    disabled={captureMountMutation.isPending}
+                                                    style={{ fontSize: '13px' }}
+                                                    onClick={() => captureMountMutation.mutate('status')}
+                                                >
+                                                    Mount status
+                                                </button>
+                                            </div>
+                                        </div>
+                                    )}
+                                    {mountOutput && (
+                                        <pre
+                                            style={{
+                                                marginTop: '6px',
+                                                padding: '6px',
+                                                background: '#13141c',
+                                                border: '1px solid var(--border-color)',
+                                                color: 'var(--text-secondary)',
+                                                fontSize: '12px',
+                                                whiteSpace: 'pre-wrap',
+                                                wordBreak: 'break-word',
+                                                maxHeight: '120px',
+                                                overflow: 'auto'
+                                            }}
+                                        >
+                                            {mountOutput}
+                                        </pre>
+                                    )}
+                                </div>
+                            </details>
+
+                            <details
+                                style={{ marginBottom: '8px' }}
+                                open={ideCaptureDiagnosticsOpen}
+                                onToggle={(e) => {
+                                    e.stopPropagation();
+                                    setIdeCaptureDiagnosticsOpen(e.currentTarget.open);
+                                }}
+                            >
+                                <summary style={captureDetailsSummaryStyle}>Problems & diagnostics</summary>
+                                <div
+                                    style={{
+                                        marginTop: '10px',
+                                        fontSize: '12px',
+                                        color: captureStatus?.workspaceRootExists
+                                            ? 'var(--text-secondary)'
+                                            : '#e3c450'
+                                    }}
+                                >
+                                    <div style={{ marginBottom: '8px' }}>
+                                        workspaceStorage:{' '}
+                                        <code style={{ fontSize: '12px' }}>{captureStatus?.workspaceRoot || '—'}</code>
+                                        {captureStatus?.workspaceRootExists ? (
+                                            <span style={{ marginLeft: '6px', color: '#7dcea0' }}>(reachable on API host)</span>
+                                        ) : (
+                                            <span style={{ marginLeft: '6px' }}>(not found on API host)</span>
+                                        )}
+                                        {captureStatus?.workspaceRootSource && (
+                                            <span style={{ marginLeft: '6px', color: 'var(--text-tertiary)', fontSize: '11px' }}>
+                                                — source: <code style={{ fontSize: '10px' }}>{captureStatus.workspaceRootSource}</code>
+                                            </span>
+                                        )}
+                                    </div>
+                                    {captureStatus?.workspaceRootExists && (
+                                        <div
+                                            style={{
+                                                marginBottom: '10px',
+                                                padding: '6px 8px',
+                                                borderRadius: '4px',
+                                                border: '1px solid rgba(125, 206, 160, 0.4)',
+                                                background: 'rgba(125, 206, 160, 0.08)',
+                                                color: 'var(--text-secondary)',
+                                                lineHeight: 1.45
+                                            }}
+                                        >
+                                            <strong style={{ color: '#7dcea0' }}>Path OK.</strong> The API host can access this folder. If capture
+                                            still fails, check permissions, disk, or the last run summary above — not a missing-path issue.
+                                        </div>
+                                    )}
+                                    <div
+                                        style={{
+                                            marginBottom: '8px',
+                                            lineHeight: 1.45,
+                                            color: '#b8e8df',
+                                            borderLeft: '3px solid rgba(80, 227, 194, 0.55)',
+                                            paddingLeft: '8px'
+                                        }}
+                                    >
+                                        <strong>Linux login vs. SMB:</strong> API host user and Windows/SMB user are unrelated — SMB credentials
+                                        must match the share only.
+                                    </div>
+                                    {captureStatus.workspacePathDiagnostics && (
+                                        <div
+                                            style={{
+                                                marginBottom: '10px',
+                                                lineHeight: 1.45,
+                                                color: '#d4f0ea',
+                                                borderLeft: '3px solid rgba(80, 227, 194, 0.75)',
+                                                paddingLeft: '8px'
+                                            }}
+                                        >
+                                            <strong>Path diagnosis:</strong>{' '}
+                                            {captureStatus.workspacePathDiagnostics.mediaMountPoint != null && (
+                                                <>
+                                                    <code style={{ fontSize: '12px' }}>
+                                                        {captureStatus.workspacePathDiagnostics.mediaMountPoint}
+                                                    </code>
+                                                    {captureStatus.workspacePathDiagnostics.mediaMountActive === false && (
+                                                        <span>
+                                                            {' '}
+                                                            → not mounted. Run <strong>Step 0</strong> (<code style={{ fontSize: '12px' }}>sudo mount</code>) or{' '}
+                                                            <code style={{ fontSize: '12px' }}>
+                                                                findmnt {captureStatus.workspacePathDiagnostics.mediaMountPoint}
+                                                            </code>
+                                                            .
+                                                        </span>
+                                                    )}
+                                                    {captureStatus.workspacePathDiagnostics.mediaMountActive === true &&
+                                                        captureStatus.workspacePathDiagnostics.firstMissingSuffix && (
+                                                            <span>
+                                                                {' '}
+                                                                → mounted; missing under mount (from{' '}
+                                                                <code style={{ fontSize: '12px' }}>
+                                                                    {captureStatus.workspacePathDiagnostics.deepestExistingDir || '—'}
+                                                                </code>
+                                                                ):{' '}
+                                                                <code style={{ fontSize: '12px' }}>
+                                                                    {captureStatus.workspacePathDiagnostics.firstMissingSuffix}
+                                                                </code>
+                                                            </span>
+                                                        )}
+                                                    {captureStatus.workspacePathDiagnostics.mediaMountActive === true &&
+                                                        !captureStatus.workspacePathDiagnostics.firstMissingSuffix && (
+                                                            <span> → mounted; check permissions.</span>
+                                                        )}
+                                                </>
+                                            )}
+                                            {captureStatus.workspacePathDiagnostics.mediaMountPoint == null &&
+                                                captureStatus.workspacePathDiagnostics.firstMissingSuffix && (
+                                                    <span>
+                                                        Exists up to{' '}
+                                                        <code style={{ fontSize: '12px' }}>
+                                                            {captureStatus.workspacePathDiagnostics.deepestExistingDir || '—'}
+                                                        </code>
+                                                        , then missing{' '}
+                                                        <code style={{ fontSize: '12px' }}>
+                                                            {captureStatus.workspacePathDiagnostics.firstMissingSuffix}
+                                                        </code>
+                                                        .
+                                                    </span>
+                                                )}
+                                        </div>
+                                    )}
+                                    {captureStatus.pathMappingApplied && !captureStatus?.workspaceRootExists && (
+                                        <div style={{ marginBottom: '8px', lineHeight: 1.45 }}>
+                                            Windows path resolves to <code style={{ fontSize: '12px' }}>/mnt/c/…</code> — works only if that mount
+                                            exists (WSL). On plain Linux use SMB and a POSIX path in Step 1, or{' '}
+                                            <code style={{ fontSize: '12px' }}>IDE_CAPTURE_WIN_DRIVE_C_MNT</code>.
+                                        </div>
+                                    )}
+                                    <div style={{ marginBottom: '6px' }}>
+                                        <strong>Capture backend:</strong>{' '}
+                                        <code style={{ fontSize: '12px' }}>
+                                            {captureStatus?.captureBackend?.platform}:{captureStatus?.captureBackend?.hostname}
+                                        </code>{' '}
+                                        — browser URL may tunnel; <code style={{ fontSize: '12px' }}>/api</code> hits the backend host.
+                                    </div>
+                                    {!captureStatus?.workspaceRootExists ? (
+                                        <div style={{ color: '#e3c450', lineHeight: 1.45 }}>
+                                            <strong>Fix (path missing):</strong> run the backend where Cursor data is reachable, complete{' '}
+                                            <strong>Step 0</strong> (mount) and <strong>Step 1</strong> (Save path), set{' '}
+                                            <code style={{ fontSize: '12px' }}>CURSOR_WORKSPACE_STORAGE_ROOT</code>, or sync{' '}
+                                            <code style={{ fontSize: '12px' }}>capture/</code> — see{' '}
+                                            <code style={{ fontSize: '12px' }}>020_IDE_chat_capture_A070.md</code>.
+                                        </div>
+                                    ) : (
+                                        <div style={{ color: 'var(--text-tertiary)', lineHeight: 1.45, fontSize: '11px' }}>
+                                            Reference: <code style={{ fontSize: '11px' }}>020_IDE_chat_capture_A070.md</code> (capture overview and
+                                            sync options).
+                                        </div>
+                                    )}
+                                </div>
+                            </details>
+                            </div>
+                        </details>
+                    )}
+
+                    {captureStatus?.enabled && captureStatus?.captureBackend && (
+                        <div style={{ fontSize: '12px', color: 'var(--text-tertiary)', marginBottom: '6px' }}>
+                            Capture backend: {captureStatus.captureBackend.platform}:{captureStatus.captureBackend.hostname}
+                        </div>
+                    )}
+                    {captureStatus?.enabled && (
+                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', alignItems: 'center' }}>
+                            <span>
+                                Last:{' '}
+                                {captureStatus?.summary?.updatedAt
+                                    ? `${captureStatus.summary.lastOutcome} · ${captureStatus.summary.updatedAt}`
+                                    : 'no run yet'}
+                            </span>
+                            {captureStatus?.summary?.lastPayloadPath && (
+                                <span style={{ color: 'var(--text-tertiary)' }} title="Latest snapshot path">
+                                    {captureStatus.summary.lastPayloadPath}
+                                </span>
+                            )}
+                            <button
+                                type="button"
+                                className="tab"
+                                data-testid="ide-capture-run"
+                                disabled={captureRunMutation.isPending}
+                                style={{ fontSize: '13px', marginLeft: 'auto' }}
+                                title="Run capture now (same as scheduled job). Use force to re-write unchanged chats."
+                                onClick={() => captureRunMutation.mutate(false)}
+                            >
+                                {captureRunMutation.isPending ? 'Capturing…' : 'Capture now'}
+                            </button>
+                            <button
+                                type="button"
+                                className="tab"
+                                data-testid="ide-capture-force"
+                                disabled={captureRunMutation.isPending}
+                                style={{ fontSize: '13px' }}
+                                title="Force new snapshot files even if content hash unchanged"
+                                onClick={() => captureRunMutation.mutate(true)}
+                            >
+                                Force capture
+                            </button>
+                        </div>
+                    )}
+                    {captureRunMutation.isError && (
+                        <div style={{ marginTop: '6px', color: '#ff8f8f' }}>{captureRunMutation.error?.message || 'Capture failed'}</div>
+                    )}
+                    {captureRunMutation.isSuccess && captureRunMutation.data?.ok && (
+                        <div style={{ marginTop: '6px', color: 'var(--text-tertiary)' }}>
+                            Done: {captureRunMutation.data.lastOutcome} (
+                            {(captureRunMutation.data.results || []).filter((r) => r.outcome === 'ok').length} ok,{' '}
+                            {(captureRunMutation.data.results || []).filter((r) => r.outcome === 'skipped_no_change').length}{' '}
+                            skipped)
+                        </div>
+                    )}
+                </div>
+            )}
+
+            {panel === 'a070' && (
+                <div style={{ padding: '8px 12px', borderBottom: '1px solid var(--border-color)', fontSize: '13px' }}>
+                    <div style={{ fontWeight: 600, marginBottom: '6px' }}>New summary (writes under A070_ide_cursor_summaries)</div>
                     <input
                         data-testid="ide-summary-draft-path"
                         value={draftPath}
@@ -506,7 +1695,7 @@ export default function IdeProjectSummaryPanel({ channelId, channelName }) {
                             background: '#13141c',
                             border: '1px solid var(--border-color)',
                             color: '#fff',
-                            fontSize: '11px'
+                            fontSize: '13px'
                         }}
                     />
                     <textarea
@@ -521,7 +1710,7 @@ export default function IdeProjectSummaryPanel({ channelId, channelName }) {
                             background: '#13141c',
                             border: '1px solid var(--border-color)',
                             color: '#fff',
-                            fontSize: '11px',
+                            fontSize: '13px',
                             fontFamily: 'inherit'
                         }}
                     />
@@ -542,7 +1731,7 @@ export default function IdeProjectSummaryPanel({ channelId, channelName }) {
                                 background: '#13141c',
                                 border: '1px solid var(--border-color)',
                                 color: '#fff',
-                                fontSize: '11px'
+                                fontSize: '13px'
                             }}
                         >
                             <option value="manual">Manual</option>
@@ -560,7 +1749,7 @@ export default function IdeProjectSummaryPanel({ channelId, channelName }) {
                                 background: '#13141c',
                                 border: '1px solid var(--border-color)',
                                 color: '#fff',
-                                fontSize: '11px'
+                                fontSize: '13px'
                             }}
                         />
                         <input
@@ -573,7 +1762,7 @@ export default function IdeProjectSummaryPanel({ channelId, channelName }) {
                                 background: '#13141c',
                                 border: '1px solid var(--border-color)',
                                 color: '#fff',
-                                fontSize: '11px'
+                                fontSize: '13px'
                             }}
                         />
                         <input
@@ -586,7 +1775,7 @@ export default function IdeProjectSummaryPanel({ channelId, channelName }) {
                                 background: '#13141c',
                                 border: '1px solid var(--border-color)',
                                 color: '#fff',
-                                fontSize: '11px'
+                                fontSize: '13px'
                             }}
                         />
                     </div>
@@ -597,7 +1786,7 @@ export default function IdeProjectSummaryPanel({ channelId, channelName }) {
                         onClick={() => saveMutation.mutate()}
                         style={{
                             padding: '6px 12px',
-                            fontSize: '11px',
+                            fontSize: '13px',
                             background: '#50e3c2',
                             color: '#000',
                             border: 'none',
@@ -685,7 +1874,7 @@ export default function IdeProjectSummaryPanel({ channelId, channelName }) {
                         width: '38%',
                         borderRight: '1px solid var(--border-color)',
                         overflowY: 'auto',
-                        fontSize: '11px'
+                        fontSize: '13px'
                     }}
                 >
                     {(isLoading || (panel === 'memory' && memLoading) || (panel === 'artifacts' && artifactIndexLoading)) && (
@@ -729,7 +1918,7 @@ export default function IdeProjectSummaryPanel({ channelId, channelName }) {
                     )}
                     {!isLoading && !list.length && panel === 'a070' && (
                         <div style={{ padding: '12px', color: 'var(--text-secondary)' }}>
-                            No Markdown summaries under A070 yet, or none match this channel id in the path.
+                            No Markdown summaries under A070_ide_cursor_summaries yet, or none match this channel id in the path.
                         </div>
                     )}
                     {!memLoading && !list.length && panel === 'memory' && (
@@ -782,7 +1971,7 @@ export default function IdeProjectSummaryPanel({ channelId, channelName }) {
                                             : 'transparent',
                                     color: 'var(--text-primary)',
                                     cursor: 'pointer',
-                                    fontSize: '11px'
+                                    fontSize: '13px'
                                 }}
                             >
                                 <span style={{ color: '#e3c450' }}>{r.binding?.status || '?'}</span>
@@ -811,7 +2000,7 @@ export default function IdeProjectSummaryPanel({ channelId, channelName }) {
                                 background: selectedRel === f.relativePath ? 'rgba(80,227,194,0.12)' : 'transparent',
                                 color: 'var(--text-primary)',
                                 cursor: 'pointer',
-                                fontSize: '11px'
+                                fontSize: '13px'
                             }}
                         >
                             {f.relativePath}

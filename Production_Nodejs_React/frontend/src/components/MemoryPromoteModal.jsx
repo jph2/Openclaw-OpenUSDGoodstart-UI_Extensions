@@ -5,7 +5,7 @@ function todayIsoDate() {
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 }
 
-/** Bundle C2 — preview + confirm append of A070 summary into OpenClaw memory. */
+/** Bundle C2 — preview + confirm append of a summary from A070_ide_cursor_summaries into OpenClaw memory. */
 export default function MemoryPromoteModal({ open, sourceRelativePath, onClose, onPromoted, queryClient, channelId }) {
     const [destination, setDestination] = useState('daily');
     const [dateSlug, setDateSlug] = useState(todayIsoDate);
@@ -115,7 +115,7 @@ export default function MemoryPromoteModal({ open, sourceRelativePath, onClose, 
                 <div style={{ padding: '16px 20px', borderBottom: '1px solid #333' }}>
                     <h2 style={{ margin: 0, fontSize: '1.05rem' }}>Promote to OpenClaw memory</h2>
                     <p style={{ margin: '8px 0 0', fontSize: 12, color: '#888', lineHeight: 1.45 }}>
-                        Appends this A070 summary to your OpenClaw workspace memory file (never replaces the whole file).
+                        Appends this summary (from A070_ide_cursor_summaries) to your OpenClaw workspace memory file (never replaces the whole file).
                         Source: <code style={{ color: '#9ff0dc' }}>{sourceRelativePath}</code>
                     </p>
                 </div>

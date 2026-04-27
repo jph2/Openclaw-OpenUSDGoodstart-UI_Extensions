@@ -31,7 +31,7 @@ with `OPENCLAW_CM_SEND_TRANSPORT=auto`.
 
 - Roadmap §8b.4 was not started in that session. It was implemented and
   validated in the 2026-04-24 continuation; see
-  `SESSION_CLEANUP_2026-04-24.md` and `030_ROADMAP.md`.
+  `SESSION_CLEANUP_2026-04-24.md` and `../030_ROADMAP.md`.
 - Bootstrap optimisation remains optional. It is no longer a blocker for the
   practical CM chat latency target.
 

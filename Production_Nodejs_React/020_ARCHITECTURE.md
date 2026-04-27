@@ -38,7 +38,7 @@
  └──────────┬────────────────────────┬────────────┬─────┘
             │ exports                │ reads      │ mirrors
             ▼                        ▼            ▼
-       openclaw.json         A070 summaries   IDE bundle
+       openclaw.json         A070_ide_cursor_summaries   IDE bundle
       (apply w/ preview)     (Studio_Framework) (.cursor/*)
 ```
 
@@ -106,7 +106,7 @@ Row sub-tabs per channel:
 
 1. **Configuration** — agents, sub-agents, skills, MCP whitelist, TTG name.
 2. **OpenClaw Chat** — session-native transcript (SSE stream).
-3. **TARS in IDE · IDE project summary** — A070 summaries list + renderer +
+3. **TARS in IDE · IDE project summary** — A070_ide_cursor_summaries list + renderer +
    **C2** promote to OpenClaw memory (modal).
 
 ### 3.2 Key frontend components
@@ -118,7 +118,7 @@ Row sub-tabs per channel:
   Open/Collapse and resize handle), constants `ROW_HEIGHT_COLLAPSED=260`,
   `ROW_HEIGHT_EXPANDED=1010`. Row heights persist to `localStorage` under
   `ag-channel-row-heights`.
-- `IdeProjectSummaryPanel.jsx` — lists and renders A070 summaries from
+- `IdeProjectSummaryPanel.jsx` — lists and renders A070_ide_cursor_summaries from
   `/api/ide-project-summaries` (alias `/api/summaries`); **C2:** opens
   `MemoryPromoteModal.jsx` for `POST /api/summaries/promote`.
 - `MemoryPromoteModal.jsx` — **C2** destination picker, dry-run check, confirm append.
@@ -153,7 +153,7 @@ backend is restarting.
 | `openclaw.js`     | Legacy `/api/openclaw/*` aliases → `chat.js` handlers.                                       |
 | `exports.js`      | `GET /api/exports/{canonical,openclaw,ide,cursor}`; **Bundle C1:** `POST /openclaw/apply`, |
 |                   | `POST /openclaw/undo`, `GET /openclaw/apply-status` (merge + backup + audit).              |
-| `summaries.js`    | A070: `GET/POST /api/summaries`, `GET …/file`; memory index `GET …/memory`; **C2:** `POST …/promote`. |
+| `summaries.js`    | A070_ide_cursor_summaries: `GET/POST /api/summaries`, `GET …/file`; memory index `GET …/memory`; **C2:** `POST …/promote`. |
 | `workbench.js`    | File-tree under allowed roots; respects `WORKBENCH_EXTRA_ROOTS` and FS-root flag.          |
 
 **Bundle B / P4 (done):** `routes/chat.js` is canonical; `telegram.js` and
@@ -168,7 +168,7 @@ backend is restarting.
 |                         | `buildIdeWorkbenchBundle`, `buildCursorProjection`.                 |                                                |
 | `openclawApply.js`      | **C1 + C1b.1 + C1b.2a + C1b.2b + C1b.2c + C1b.2e + C1b.3:** merge `channel_config` → `openclaw.json`: `channels.telegram.groups` (`requireMention`, `skills`); optional account-level `channels.telegram` policy when `telegramAccountPolicy.applyOnOpenClawApply`; optional **`agents.defaults.model.primary`** when `openclawAgentsDefaultsPolicy.applyModelOnOpenClawApply` (preserves existing `model` object fields except `primary`); synthesized `agents.list[]` + `bindings[]` (CM-tagged) with **C1b.3** synth skills; C1b.2b orphan prune; lock, backup, audit, undo. | — |
 | `channelConfigWriter.js`| atomic writer for `channel_config.json`.                            | Unchanged.                                     |
-| `memoryPromote.js`      | **C2:** append A070 summary into OpenClaw `memory/*.md` or `MEMORY.md`; dedup, lock, audit. | Unchanged.                             |
+| `memoryPromote.js`      | **C2:** append a summary from A070_ide_cursor_summaries into OpenClaw `memory/*.md` or `MEMORY.md`; dedup, lock, audit. | Unchanged.                             |
 | `skillsRegistry.js`     | scans `OPENCLAW_WORKSPACE/skills`, exposes skill metadata.          | Add filter/sort API (Backlog).                 |
 
 Chat send transport lives under `backend/services/chat/`: `sessionSender.js`
@@ -321,7 +321,7 @@ From `backend/`: `npm run apply-ide-export -- --help`. **Stale guard:** after a 
 The Workbench tab (separate from Channel Manager tabs but shipped by the same
 backend) is a **lean local editing and diff surface for artifacts and source
 files**. It is not a full IDE replacement. Its product boundary is defined in
-[`SPEC_WORKBENCH_POSITIONING.md`](./SPEC_WORKBENCH_POSITIONING.md).
+[`SPEC_WORKBENCH_POSITIONING.md`](./030_ROADMAP_DETAILS/SPEC_WORKBENCH_POSITIONING.md).
 
 It exposes a filesystem tree under a set of allowed roots:
 

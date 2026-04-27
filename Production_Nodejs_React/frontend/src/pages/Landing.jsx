@@ -26,8 +26,8 @@ export default function Landing() {
             </p>
             
             <div style={{
-                display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))',
-                gap: '20px', width: '100%', maxWidth: '800px'
+                display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))',
+                gap: '20px', width: '100%', maxWidth: '1100px'
             }}>
                 {/* Node 1: Workbench */}
                 <Link to="/workbench" style={{
@@ -71,6 +71,28 @@ export default function Landing() {
                     <div style={{ fontSize: '2rem', marginBottom: '16px' }}>💬</div>
                     <h2 style={{ color: '#fff', fontSize: '1.25rem', marginBottom: '8px' }}>Channel Manager</h2>
                     <p style={{ color: 'var(--text-secondary)', fontSize: '0.95rem', lineHeight: '1.5' }}>Manage Agentic Channel mappings, active sub-agents, and cross-platform syncing.</p>
+                </Link>
+
+                {/* Node 3: Documentation */}
+                <Link to="/docs" style={{
+                    background: 'var(--bg-surface)', border: '1px solid var(--border-color)',
+                    borderRadius: '16px', padding: '32px 24px', textDecoration: 'none',
+                    transition: 'all 0.2s cubic-bezier(0.16, 1, 0.3, 1)',
+                    position: 'relative', overflow: 'hidden'
+                }}
+                onMouseOver={e => {
+                    e.currentTarget.style.borderColor = 'var(--accent)';
+                    e.currentTarget.style.transform = 'translateY(-2px)';
+                    e.currentTarget.style.boxShadow = '0 8px 24px rgba(0,0,0,0.4)';
+                }}
+                onMouseOut={e => {
+                    e.currentTarget.style.borderColor = 'var(--border-color)';
+                    e.currentTarget.style.transform = 'translateY(0)';
+                    e.currentTarget.style.boxShadow = 'none';
+                }}>
+                    <div style={{ fontSize: '2rem', marginBottom: '16px' }}>📖</div>
+                    <h2 style={{ color: '#fff', fontSize: '1.25rem', marginBottom: '8px' }}>Documentation</h2>
+                    <p style={{ color: 'var(--text-secondary)', fontSize: '0.95rem', lineHeight: '1.5' }}>What the Workbench and Channel Manager do, how to use them, and how they connect.</p>
                 </Link>
             </div>
             

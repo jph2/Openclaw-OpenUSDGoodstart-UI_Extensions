@@ -35,7 +35,7 @@ Der Button **Import** (Upload) im Channel Manager ruft **`POST /api/channels/imp
 
 | Stufe | Ort (typisch) | Rolle |
 |--------|----------------|--------|
-| **Entwicklung / Studio** | z. B. `Studio_Framework/015_AgentSkills_Dev/` | Experimente, Git-Review; keine Pflicht für OpenClaw-Laufzeit. |
+| **Entwicklung / Studio** | z. B. `Studio_Framework/030_AgentSkills_Dev/` | Experimente, Git-Review; keine Pflicht für OpenClaw-Laufzeit. |
 | **Production (OpenClaw Workspace)** | `OPENCLAW_WORKSPACE/skills/<skillId>/` + `SKILL.md` | Sichtbar für Gateway/Scanner, `GET /api/channels` → `metadata.skills`, `src: workspace`. |
 | **Gebündelt** | `~/.npm-global/…/openclaw/skills/<skillId>/` | Mitgelieferte Skills; Control Center/Workbench über Backend-Roots. |
 

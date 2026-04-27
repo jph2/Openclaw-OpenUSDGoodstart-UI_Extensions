@@ -16,7 +16,7 @@ import {
 } from './helpers/bridgeTestHelpers.js';
 
 test.describe('E2E_GOLDEN_PATH_8B5', () => {
-  test('saves an A070 draft, resolves TTG by project mapping, promotes, and confirms read-back', async ({
+  test('saves an A070_ide_cursor_summaries draft, resolves TTG by project mapping, promotes, and confirms read-back', async ({
     page,
     request
   }, testInfo) => {

@@ -29,6 +29,21 @@ import {
     writeJsonAtomic
 } from '../services/ideWorkUnit.js';
 import {
+    readIdeCaptureStatus,
+    resolveWorkspaceStorageRoot,
+    runIdeChatCapture,
+    isIdeCaptureEnabled
+} from '../services/ideChatCapture.js';
+import { writeIdeCaptureSettings } from '../services/ideCaptureSettingsStore.js';
+import { runRemoteMountScript } from '../services/ideCaptureRemoteMount.js';
+import {
+    isSimpleMountEnabled,
+    runSimpleSmbMount,
+    runSimpleUmount
+} from '../services/ideCaptureSimpleMount.js';
+import { ensureIdeCaptureWorkspaceDir } from '../services/ideCapturePathEnsure.js';
+import { normalizeWorkspaceStorageRootForFs, isStoredWorkspaceStorageRootValid } from '../services/cursorWorkspacePath.js';
+import {
     readChannelConfigForProjectMappings,
     readProjectMappings,
     writeProjectMappings
@@ -93,6 +108,38 @@ const MemoryPromoteSchema = z
             });
         }
     });
+
+const IdeCaptureRunSchema = z.object({
+    force: z.boolean().optional().default(false)
+});
+
+const IdeCaptureSettingsSchema = z.object({
+    workspaceStorageRoot: z.union([z.string().max(4096), z.literal(''), z.null()])
+});
+
+const IdeCaptureMountSchema = z.object({
+    action: z.enum(['mount', 'umount', 'status'])
+});
+
+const IdeCaptureEnsurePathSchema = z.object({
+    path: z.string().max(4096).optional()
+});
+
+const IdeCaptureSimpleSmbMountSchema = z.discriminatedUnion('action', [
+    z.object({
+        action: z.literal('mount'),
+        host: z.string().min(1).max(253),
+        share: z.string().min(1).max(80),
+        username: z.string().min(1).max(256),
+        password: z.string().max(512),
+        mountPoint: z.string().min(1).max(4096),
+        domain: z.string().max(256).optional()
+    }),
+    z.object({
+        action: z.literal('umount'),
+        mountPoint: z.string().min(1).max(4096)
+    })
+]);
 
 const ProjectMappingsBodySchema = z.object({
     projectMappings: z.array(z.object({
@@ -179,7 +226,7 @@ const MAX_MEMORY_LIST = 200;
 
 /**
  * POST /api/summaries
- * Write Markdown under A070 (Sub-Task 6.10b). Paths must stay under the A070 root.
+ * Write Markdown under A070_ide_cursor_summaries (Sub-Task 6.10b). Paths must stay under the A070_ide_cursor_summaries root.
  */
 router.post('/', async (req, res, next) => {
     try {
@@ -276,7 +323,7 @@ router.get('/', async (req, res, next) => {
                 returned: 0,
                 truncated: false,
                 files: [],
-                note: 'A070 path missing or empty — create Studio_Framework/050_Artifacts/A070_ide_cursor_summaries/'
+                note: 'A070_ide_cursor_summaries path missing or empty — create Studio_Framework/050_Artifacts/A070_ide_cursor_summaries/'
             });
         }
 
@@ -640,7 +687,7 @@ router.get('/memory', async (req, res, next) => {
  */
 /**
  * POST /api/summaries/promote
- * Append A070 summary into `~/.openclaw/workspace/memory/YYYY-MM-DD.md` or `MEMORY.md` (Bundle C2).
+ * Append a summary from A070_ide_cursor_summaries into `~/.openclaw/workspace/memory/YYYY-MM-DD.md` or `MEMORY.md` (Bundle C2).
  * Default `dryRun: true` — preview duplicate + append text; set `dryRun: false` and `confirm: true` to write.
  */
 router.post('/promote', apiLimiter, async (req, res, next) => {
@@ -698,6 +745,178 @@ router.get('/memory/file', async (req, res, next) => {
     } catch (e) {
         if (e.status === 403) return res.status(403).json({ ok: false, error: 'path blocked' });
         next(e);
+    }
+});
+
+/**
+ * GET /api/summaries/capture/status
+ * IDE chat capture status (SPEC_8B5 §15.10) — Cursor workspaceStorage → A070/capture/.
+ */
+router.get('/capture/status', async (req, res, next) => {
+    try {
+        const base = a070BaseResolved();
+        const status = await readIdeCaptureStatus(base);
+        res.json(status);
+    } catch (e) {
+        next(e);
+    }
+});
+
+/**
+ * POST /api/summaries/capture/run
+ * Run capture once (optional force). Disable with IDE_CAPTURE_ENABLED=false.
+ */
+router.post('/capture/run', apiLimiter, async (req, res, next) => {
+    try {
+        if (!isIdeCaptureEnabled()) {
+            return res.status(403).json({
+                ok: false,
+                error: 'IDE capture disabled (set IDE_CAPTURE_ENABLED unset or not false)'
+            });
+        }
+        const body = IdeCaptureRunSchema.parse(req.body || {});
+        const base = a070BaseResolved();
+        const state = await runIdeChatCapture({ a070Base: base, force: body.force });
+        res.json({ ok: true, ...state });
+    } catch (e) {
+        if (e instanceof z.ZodError) {
+            return res.status(400).json({ ok: false, error: 'Validation failed', details: e.flatten() });
+        }
+        if (e.status === 400 || e.status === 403) {
+            return res.status(e.status).json({ ok: false, error: e.message });
+        }
+        next(e);
+    }
+});
+
+/**
+ * POST /api/summaries/capture/settings
+ * Persist `workspaceStorageRoot` (absolute path or null). Used when `CURSOR_WORKSPACE_STORAGE_ROOT` is unset.
+ * File: alongside channel_config — `ide_capture_settings.json`.
+ */
+router.post('/capture/settings', apiLimiter, async (req, res, next) => {
+    try {
+        const body = IdeCaptureSettingsSchema.parse(req.body || {});
+        const saved = await writeIdeCaptureSettings(body);
+        res.json({ ok: true, ...saved });
+    } catch (e) {
+        if (e instanceof z.ZodError) {
+            return res.status(400).json({ ok: false, error: 'Validation failed', details: e.flatten() });
+        }
+        next(e);
+    }
+});
+
+/**
+ * POST /api/summaries/capture/mount
+ * Runs IDE_CAPTURE_REMOTE_MOUNT_SCRIPT with action mount|umount|status (operator hook for SMB/sshfs).
+ * Disabled unless IDE_CAPTURE_REMOTE_MOUNT_SCRIPT is a safe absolute path to an existing file.
+ */
+router.post('/capture/mount', apiLimiter, async (req, res, next) => {
+    try {
+        const body = IdeCaptureMountSchema.parse(req.body || {});
+        const result = runRemoteMountScript(body.action);
+        res.json({ ok: result.ok, ...result });
+    } catch (e) {
+        if (e instanceof z.ZodError) {
+            return res.status(400).json({ ok: false, error: 'Validation failed', details: e.flatten() });
+        }
+        if (e.status === 400) {
+            return res.status(400).json({ ok: false, error: e.message });
+        }
+        next(e);
+    }
+});
+
+/**
+ * POST /api/summaries/capture/mount/simple
+ * Guided SMB mount (password only kept in memory for this request; temp credentials file on disk).
+ * Requires IDE_CAPTURE_SIMPLE_MOUNT=true on a Linux API host.
+ */
+router.post('/capture/mount/simple', apiLimiter, async (req, res, next) => {
+    try {
+        if (!isSimpleMountEnabled()) {
+            return res.status(403).json({
+                ok: false,
+                error: 'Simple SMB mount is disabled. Set IDE_CAPTURE_SIMPLE_MOUNT=true on the API server (Linux only).'
+            });
+        }
+        const body = IdeCaptureSimpleSmbMountSchema.parse(req.body || {});
+        if (body.action === 'umount') {
+            const result = runSimpleUmount(body.mountPoint);
+            return res.json({ ok: result.ok, ...result });
+        }
+        const result = await runSimpleSmbMount(body);
+        res.json({ ok: result.ok, ...result });
+    } catch (e) {
+        if (e instanceof z.ZodError) {
+            return res.status(400).json({ ok: false, error: 'Validation failed', details: e.flatten() });
+        }
+        if (e.status === 400) {
+            return res.status(400).json({ ok: false, error: e.message });
+        }
+        console.error('[capture/mount/simple]', e);
+        return res.status(500).json({
+            ok: false,
+            error: e?.message || 'Simple SMB mount failed (unexpected server error). Check API process logs.'
+        });
+    }
+});
+
+/**
+ * POST /api/summaries/capture/ensure-path
+ * mkdir -p for workspaceStorage root (allowed prefixes only). Optional body.path; else uses resolved settings/env path.
+ * Disable with IDE_CAPTURE_ENSURE_PATH=false.
+ */
+router.post('/capture/ensure-path', apiLimiter, async (req, res, next) => {
+    try {
+        if (!isIdeCaptureEnabled()) {
+            return res.status(403).json({
+                ok: false,
+                error: 'IDE capture disabled (set IDE_CAPTURE_ENABLED unset or not false)'
+            });
+        }
+        const body = IdeCaptureEnsurePathSchema.parse(req.body || {});
+        let target;
+        if (body.path != null && String(body.path).trim() !== '') {
+            const raw = String(body.path).trim();
+            if (!isStoredWorkspaceStorageRootValid(raw)) {
+                return res.status(400).json({ ok: false, error: 'invalid path' });
+            }
+            target = normalizeWorkspaceStorageRootForFs(raw);
+        } else {
+            const resolved = await resolveWorkspaceStorageRoot();
+            target = resolved.path;
+        }
+        await ensureIdeCaptureWorkspaceDir(target);
+        let ensuredPathExists = false;
+        try {
+            await fs.access(target);
+            ensuredPathExists = true;
+        } catch {
+            ensuredPathExists = false;
+        }
+        const base = a070BaseResolved();
+        const status = await readIdeCaptureStatus(base);
+        res.json({
+            ok: true,
+            path: target,
+            ensuredPathExists,
+            workspaceRootExists: status.workspaceRootExists,
+            workspaceRoot: status.workspaceRoot
+        });
+    } catch (e) {
+        if (e instanceof z.ZodError) {
+            return res.status(400).json({ ok: false, error: 'Validation failed', details: e.flatten() });
+        }
+        if (e.status === 400 || e.status === 403 || e.status === 500) {
+            return res.status(e.status).json({ ok: false, error: e.message });
+        }
+        console.error('[capture/ensure-path]', e);
+        return res.status(500).json({
+            ok: false,
+            error: e?.message || 'ensure-path failed (unexpected server error). Check API process logs.'
+        });
     }
 });
 

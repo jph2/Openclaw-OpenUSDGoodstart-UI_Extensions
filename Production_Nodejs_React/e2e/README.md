@@ -9,7 +9,7 @@ This test proves the current IDE memory bridge happy path:
 1. Load `/channels`.
 2. Open the `TARS in IDE` summary tab.
 3. Install a temporary project mapping through the mapping API.
-4. Save an A070 draft under `drafts/e2e/`.
+4. Save an A070_ide_cursor_summaries draft under `drafts/e2e/`.
 5. Promote the draft to OpenClaw memory.
 6. Verify UI status and backend sidecar metadata.
 7. Clean up mapping, draft, sidecar, and promoted memory block.
@@ -54,7 +54,7 @@ Useful optional environment variables:
 
 - `E2E_FRONTEND_URL`: default `http://127.0.0.1:5173`
 - `E2E_BACKEND_URL`: default `http://127.0.0.1:3000`
-- `E2E_A070_ROOT`: default auto-derived Studio A070 directory
+- `E2E_A070_IDE_CURSOR_SUMMARIES_ROOT`: overrides the E2E root for `A070_ide_cursor_summaries` (falls back to `E2E_A070_ROOT`, then auto-derives from the repo layout)
 - `E2E_OPENCLAW_WORKSPACE`: default `/home/claw-agentbox/.openclaw/workspace`
 - `E2E_TTG_ID`: force a specific Telegram topic group id
 

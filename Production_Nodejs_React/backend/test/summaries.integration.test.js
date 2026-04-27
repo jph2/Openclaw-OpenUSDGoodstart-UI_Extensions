@@ -3,8 +3,19 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
+import { execFileSync } from 'node:child_process';
 import request from 'supertest';
 import app from '../index.js';
+
+/** Create a minimal Cursor-like state.vscdb without better-sqlite3 (avoids native rebuild mismatch in tests). */
+function writeMinimalStateVscdb(dbPath) {
+    const sql = [
+        'CREATE TABLE ItemTable (key TEXT PRIMARY KEY, value TEXT);',
+        `INSERT INTO ItemTable VALUES ('aiService.prompts', '${JSON.stringify({ prompts: [1] }).replace(/'/g, "''")}');`,
+        `INSERT INTO ItemTable VALUES ('workbench.panel.aichat.view.aichat.chatdata', '${JSON.stringify({ chats: [] }).replace(/'/g, "''")}');`
+    ].join('\n');
+    execFileSync('sqlite3', [dbPath, sql], { stdio: 'pipe' });
+}
 
 let tmpRoot;
 let oldStudioRoot;
@@ -677,5 +688,236 @@ status: active
         assert.equal(res.body.meta, null);
         assert.equal(res.body.metaInvalid, true);
         assert.equal(res.body.bridgeStatus, 'meta_invalid');
+    });
+
+    it('GET capture/status and POST capture/run write capture/ snapshots from Cursor workspaceStorage', async () => {
+        let oldCur;
+        let oldIde;
+        try {
+            try {
+                execFileSync('sqlite3', ['-version'], { stdio: 'pipe' });
+            } catch {
+                return;
+            }
+
+            oldCur = process.env.CURSOR_WORKSPACE_STORAGE_ROOT;
+            oldIde = process.env.IDE_CAPTURE_ENABLED;
+
+            const wsRoot = path.join(tmpRoot, 'fake-cursor-workspaceStorage');
+            await fs.mkdir(wsRoot, { recursive: true });
+            const wid = 'testws0001';
+            const folder = path.join(wsRoot, wid);
+            await fs.mkdir(folder, { recursive: true });
+            writeMinimalStateVscdb(path.join(folder, 'state.vscdb'));
+
+            process.env.CURSOR_WORKSPACE_STORAGE_ROOT = wsRoot;
+            delete process.env.IDE_CAPTURE_ENABLED;
+
+            const st = await request(app).get('/api/ide-project-summaries/capture/status').expect(200);
+            assert.equal(st.body.enabled, true);
+            assert.equal(st.body.workspaceRootExists, true);
+            assert.equal(typeof st.body.remoteMount, 'object');
+            assert.equal(st.body.remoteMount.scriptConfigured, false);
+            assert.equal(typeof st.body.simpleMountEnabled, 'boolean');
+            assert.equal(typeof st.body.ensurePathEnabled, 'boolean');
+            assert.equal(st.body.workspacePathDiagnostics, null);
+
+            const run1 = await request(app).post('/api/ide-project-summaries/capture/run').send({ force: false }).expect(200);
+            assert.equal(run1.body.ok, true);
+            const ok1 = run1.body.results.filter((r) => r.outcome === 'ok');
+            assert.ok(ok1.length >= 1);
+            assert.ok(ok1.some((r) => r.workspaceStorageId === wid));
+
+            const run2 = await request(app).post('/api/ide-project-summaries/capture/run').send({ force: false }).expect(200);
+            assert.ok(run2.body.results.every((r) => r.outcome === 'skipped_no_change'));
+
+            const run3 = await request(app).post('/api/ide-project-summaries/capture/run').send({ force: true }).expect(200);
+            assert.ok(run3.body.results.some((r) => r.outcome === 'ok'));
+
+            process.env.IDE_CAPTURE_ENABLED = 'false';
+            const blocked = await request(app).post('/api/ide-project-summaries/capture/run').send({}).expect(403);
+            assert.equal(blocked.body.ok, false);
+        } finally {
+            if (oldCur === undefined) delete process.env.CURSOR_WORKSPACE_STORAGE_ROOT;
+            else process.env.CURSOR_WORKSPACE_STORAGE_ROOT = oldCur;
+            if (oldIde === undefined) delete process.env.IDE_CAPTURE_ENABLED;
+            else process.env.IDE_CAPTURE_ENABLED = oldIde;
+        }
+    });
+
+    it('POST capture/settings persists workspaceStorageRoot and GET status reports source settings', async () => {
+        let oldCur;
+        try {
+            oldCur = process.env.CURSOR_WORKSPACE_STORAGE_ROOT;
+            delete process.env.CURSOR_WORKSPACE_STORAGE_ROOT;
+
+            const savedRoot = path.join(tmpRoot, 'operator-workspace-storage');
+            await fs.mkdir(savedRoot, { recursive: true });
+
+            const save = await request(app)
+                .post('/api/ide-project-summaries/capture/settings')
+                .send({ workspaceStorageRoot: savedRoot })
+                .expect(200);
+            assert.equal(save.body.ok, true);
+            assert.equal(save.body.workspaceStorageRoot, savedRoot);
+
+            const st = await request(app).get('/api/ide-project-summaries/capture/status').expect(200);
+            assert.equal(st.body.workspaceRootSource, 'settings');
+            assert.equal(st.body.workspaceRoot, path.resolve(savedRoot));
+            assert.equal(st.body.workspaceRootExists, true);
+
+            await request(app)
+                .post('/api/ide-project-summaries/capture/settings')
+                .send({ workspaceStorageRoot: null })
+                .expect(200);
+            const st2 = await request(app).get('/api/ide-project-summaries/capture/status').expect(200);
+            assert.equal(st2.body.workspaceRootSource, 'default');
+        } finally {
+            if (oldCur === undefined) delete process.env.CURSOR_WORKSPACE_STORAGE_ROOT;
+            else process.env.CURSOR_WORKSPACE_STORAGE_ROOT = oldCur;
+        }
+    });
+
+    it('POST capture/settings accepts Windows path when API is on Linux (WSL-style mapping)', async () => {
+        if (process.platform === 'win32') return;
+        let oldCur;
+        try {
+            oldCur = process.env.CURSOR_WORKSPACE_STORAGE_ROOT;
+            delete process.env.CURSOR_WORKSPACE_STORAGE_ROOT;
+
+            const winPath = 'C:\\Users\\jan\\AppData\\Roaming\\Cursor\\User\\workspaceStorage';
+            await request(app)
+                .post('/api/ide-project-summaries/capture/settings')
+                .send({ workspaceStorageRoot: winPath })
+                .expect(200);
+
+            const st = await request(app).get('/api/ide-project-summaries/capture/status').expect(200);
+            assert.equal(st.body.workspaceRootSource, 'settings');
+            assert.equal(st.body.savedWorkspaceStorageRoot, winPath);
+            assert.ok(
+                st.body.workspaceRoot.startsWith('/mnt/c/'),
+                `expected WSL-style path, got ${st.body.workspaceRoot}`
+            );
+            assert.equal(st.body.pathMappingApplied, true);
+
+            await request(app)
+                .post('/api/ide-project-summaries/capture/settings')
+                .send({ workspaceStorageRoot: null })
+                .expect(200);
+        } finally {
+            if (oldCur === undefined) delete process.env.CURSOR_WORKSPACE_STORAGE_ROOT;
+            else process.env.CURSOR_WORKSPACE_STORAGE_ROOT = oldCur;
+        }
+    });
+
+    it('POST capture/mount runs IDE_CAPTURE_REMOTE_MOUNT_SCRIPT when configured', async () => {
+        let oldHook;
+        try {
+            oldHook = process.env.IDE_CAPTURE_REMOTE_MOUNT_SCRIPT;
+            const hook = path.join(tmpRoot, 'mount-hook.sh');
+            await fs.writeFile(hook, '#!/bin/sh\necho "action=$1"\nexit 0\n', 'utf8');
+            await fs.chmod(hook, 0o755);
+            process.env.IDE_CAPTURE_REMOTE_MOUNT_SCRIPT = hook;
+
+            const r = await request(app).post('/api/ide-project-summaries/capture/mount').send({ action: 'status' }).expect(200);
+            assert.equal(r.body.ok, true);
+            assert.match(String(r.body.stdout || ''), /action=status/);
+        } finally {
+            if (oldHook === undefined) delete process.env.IDE_CAPTURE_REMOTE_MOUNT_SCRIPT;
+            else process.env.IDE_CAPTURE_REMOTE_MOUNT_SCRIPT = oldHook;
+        }
+    });
+
+    it('POST capture/mount returns 400 when hook script is not configured', async () => {
+        let oldHook;
+        try {
+            oldHook = process.env.IDE_CAPTURE_REMOTE_MOUNT_SCRIPT;
+            delete process.env.IDE_CAPTURE_REMOTE_MOUNT_SCRIPT;
+            const r = await request(app).post('/api/ide-project-summaries/capture/mount').send({ action: 'mount' }).expect(400);
+            assert.equal(r.body.ok, false);
+        } finally {
+            if (oldHook === undefined) delete process.env.IDE_CAPTURE_REMOTE_MOUNT_SCRIPT;
+            else process.env.IDE_CAPTURE_REMOTE_MOUNT_SCRIPT = oldHook;
+        }
+    });
+
+    it('POST capture/mount/simple returns 403 when simple mount is disabled', async () => {
+        let old;
+        try {
+            old = process.env.IDE_CAPTURE_SIMPLE_MOUNT;
+            process.env.IDE_CAPTURE_SIMPLE_MOUNT = 'false';
+            const r = await request(app)
+                .post('/api/ide-project-summaries/capture/mount/simple')
+                .send({
+                    action: 'mount',
+                    host: '127.0.0.1',
+                    share: 'x',
+                    username: 'u',
+                    password: 'p',
+                    mountPoint: '/media/x'
+                })
+                .expect(403);
+            assert.equal(r.body.ok, false);
+        } finally {
+            if (old === undefined) delete process.env.IDE_CAPTURE_SIMPLE_MOUNT;
+            else process.env.IDE_CAPTURE_SIMPLE_MOUNT = old;
+        }
+    });
+
+    it('POST capture/mount/simple returns 400 for invalid host when enabled', async () => {
+        if (process.platform === 'win32') return;
+        let old;
+        let oldPref;
+        try {
+            old = process.env.IDE_CAPTURE_SIMPLE_MOUNT;
+            oldPref = process.env.IDE_CAPTURE_SIMPLE_MOUNT_PREFIXES;
+            process.env.IDE_CAPTURE_SIMPLE_MOUNT = 'true';
+            process.env.IDE_CAPTURE_SIMPLE_MOUNT_PREFIXES = tmpRoot;
+            const mp = path.join(tmpRoot, 'smb-mp');
+            const r = await request(app)
+                .post('/api/ide-project-summaries/capture/mount/simple')
+                .send({
+                    action: 'mount',
+                    host: 'bad;host',
+                    share: 'Users',
+                    username: 'u',
+                    password: 'p',
+                    mountPoint: mp
+                })
+                .expect(400);
+            assert.equal(r.body.ok, false);
+        } finally {
+            if (old === undefined) delete process.env.IDE_CAPTURE_SIMPLE_MOUNT;
+            else process.env.IDE_CAPTURE_SIMPLE_MOUNT = old;
+            if (oldPref === undefined) delete process.env.IDE_CAPTURE_SIMPLE_MOUNT_PREFIXES;
+            else process.env.IDE_CAPTURE_SIMPLE_MOUNT_PREFIXES = oldPref;
+        }
+    });
+
+    it('POST capture/ensure-path mkdir -p under allowed prefix', async () => {
+        if (process.platform === 'win32') return;
+        let oldPref;
+        let oldEnsure;
+        try {
+            oldPref = process.env.IDE_CAPTURE_SIMPLE_MOUNT_PREFIXES;
+            oldEnsure = process.env.IDE_CAPTURE_ENSURE_PATH;
+            process.env.IDE_CAPTURE_SIMPLE_MOUNT_PREFIXES = tmpRoot;
+            delete process.env.IDE_CAPTURE_ENSURE_PATH;
+            const deep = path.join(tmpRoot, 'ensure-ws', 'nested', 'workspaceStorage');
+            const r = await request(app)
+                .post('/api/ide-project-summaries/capture/ensure-path')
+                .send({ path: deep })
+                .expect(200);
+            assert.equal(r.body.ok, true);
+            assert.equal(r.body.ensuredPathExists, true);
+            assert.equal(r.body.path, deep);
+            const st = await fs.stat(deep);
+            assert.ok(st.isDirectory());
+        } finally {
+            if (oldPref === undefined) delete process.env.IDE_CAPTURE_SIMPLE_MOUNT_PREFIXES;
+            else process.env.IDE_CAPTURE_SIMPLE_MOUNT_PREFIXES = oldPref;
+            if (oldEnsure === undefined) delete process.env.IDE_CAPTURE_ENSURE_PATH;
+            else process.env.IDE_CAPTURE_ENSURE_PATH = oldEnsure;
+        }
     });
 });

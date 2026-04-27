@@ -23,8 +23,10 @@ export function defaultStudioFrameworkRoot() {
     || path.join(LOCAL_REPO_ROOT, 'Studio_Framework');
 }
 
-export function defaultA070Root() {
-  return process.env.E2E_A070_ROOT
+/** Root of `A070_ide_cursor_summaries` under Studio Framework (E2E). */
+export function defaultA070IdeCursorSummariesRoot() {
+  return process.env.E2E_A070_IDE_CURSOR_SUMMARIES_ROOT
+    || process.env.E2E_A070_ROOT
     || path.join(LOCAL_REPO_ROOT, 'Studio_Framework', '050_Artifacts', 'A070_ide_cursor_summaries');
 }
 
@@ -157,7 +159,7 @@ export async function writeEvidence(testInfo, name, payload) {
 }
 
 export async function cleanupDraftAndSidecar(relativePath) {
-  const a070Root = defaultA070Root();
+  const a070Root = defaultA070IdeCursorSummariesRoot();
   const normalized = relativePath.split('/').join(path.sep);
   const draftPath = path.join(a070Root, normalized);
   const sidecarPath = draftPath.replace(/\.md$/i, '.meta.json');

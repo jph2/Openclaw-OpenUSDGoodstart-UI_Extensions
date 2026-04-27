@@ -1,5 +1,5 @@
 /**
- * Bundle C2 — append A070 summary text into OpenClaw workspace memory with dedup + audit.
+ * Bundle C2 — append text from a summary in A070_ide_cursor_summaries into OpenClaw workspace memory with dedup + audit.
  */
 import fs from 'fs';
 import fsPromises from 'fs/promises';
@@ -46,7 +46,7 @@ export function buildPromoteBlock(sourceRelativePath, text) {
         .update(`v1\0${sourceRelativePath}\0${trimmed}`)
         .digest('hex');
     const marker = `<!-- CM_PROMOTE_${hash} -->`;
-    const block = `\n\n${marker}\n## Promoted from A070 \`${sourceRelativePath}\`\n*${new Date().toISOString()}*\n\n${trimmed}\n\n`;
+    const block = `\n\n${marker}\n## Promoted from A070_ide_cursor_summaries \`${sourceRelativePath}\`\n*${new Date().toISOString()}*\n\n${trimmed}\n\n`;
     return { block, marker, hash };
 }
 
@@ -58,7 +58,7 @@ async function appendAudit(entry) {
 
 /**
  * @param {object} opts
- * @param {string} opts.sourceRelativePath — path under A070
+ * @param {string} opts.sourceRelativePath — path under A070_ide_cursor_summaries
  * @param {'daily'|'MEMORY_MD'} opts.destination
  * @param {string} [opts.date] — YYYY-MM-DD for daily file
  * @param {boolean} [opts.dryRun=true]

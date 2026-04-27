@@ -2276,3 +2276,107 @@ button.primary.apply-openclaw-pending:not(:disabled):hover {
     box-shadow: 0 0 0 0 rgba(245, 165, 36, 0);
   }
 }
+
+/* Documentation page: <details> disclosure polish */
+.doc-details > summary {
+  list-style: none;
+}
+.doc-details > summary::-webkit-details-marker {
+  display: none;
+}
+.doc-details > summary::before {
+  content: '▸ ';
+  color: var(--accent);
+  margin-right: 6px;
+  font-size: 0.85em;
+}
+.doc-details[open] > summary::before {
+  content: '▾ ';
+}
+
+/* Documentation: mega-sections & nested disclosures */
+.doc-mega-section {
+  margin-top: 1.75rem;
+  margin-bottom: 1.75rem;
+  padding: 20px 20px 8px;
+  background: var(--bg-surface);
+  border: 1px solid var(--border-color);
+  border-radius: 12px;
+  border-left: 4px solid var(--accent);
+}
+.doc-mega-section__title {
+  margin: 0 0 4px;
+  font-size: 1.3rem;
+  font-weight: 700;
+  color: #fff;
+  letter-spacing: -0.02em;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.doc-mega-section__subtitle {
+  margin: 0 0 16px;
+  font-size: 0.92rem;
+  color: var(--text-secondary);
+  line-height: 1.55;
+}
+
+/* Documentation: hierarchical bullets (top-level + nested) */
+.doc-list-outline {
+  margin: 0 0 1rem;
+  padding-left: 1.35rem;
+  list-style: disc;
+  color: var(--text-secondary);
+  font-size: 0.92rem;
+  line-height: 1.55;
+}
+.doc-list-outline:last-child {
+  margin-bottom: 0;
+}
+.doc-list-outline > li {
+  margin-bottom: 0.55rem;
+}
+.doc-list-outline > li:last-child {
+  margin-bottom: 0;
+}
+.doc-list-outline .doc-list-outline-sub {
+  margin: 0.4rem 0 0.15rem;
+  padding-left: 1.35rem;
+  list-style: circle;
+  color: var(--text-secondary);
+  font-size: 0.88rem;
+  line-height: 1.5;
+}
+.doc-list-outline .doc-list-outline-sub > li {
+  margin-bottom: 0.35rem;
+}
+.doc-list-outline .doc-list-outline-sub > li:last-child {
+  margin-bottom: 0;
+}
+.doc-list-outline strong {
+  color: var(--text-primary);
+  font-weight: 600;
+}
+.doc-mega-section__subtitle .doc-list-outline {
+  margin-bottom: 0;
+}
+.doc-bundle-banner {
+  margin: 0 0 1.5rem;
+  padding: 14px 16px;
+  background: rgba(80, 227, 194, 0.08);
+  border: 1px solid rgba(80, 227, 194, 0.25);
+  border-radius: 10px;
+  font-size: 0.95rem;
+  color: var(--text-secondary);
+  line-height: 1.6;
+}
+.doc-details.doc-details--nested {
+  margin-left: 8px;
+  padding-left: 12px;
+  border-left: 2px solid rgba(80, 227, 194, 0.35);
+  background: rgba(0, 0, 0, 0.2);
+}
+.doc-details.doc-details--nested > summary {
+  font-size: 0.9rem;
+  color: var(--text-primary);
+}

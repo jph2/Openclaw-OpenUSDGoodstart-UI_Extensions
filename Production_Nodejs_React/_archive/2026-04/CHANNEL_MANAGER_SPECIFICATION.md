@@ -6,7 +6,7 @@ type: TECHNICAL
 status: active
 trust_level: 3
 agent_index:
-  context: "Gateway-first Channel Manager: configuration plane, OpenClaw transcript mirror, session-bound routing, Zod-hardening, Studio A070 bridge."
+  context: "Gateway-first Channel Manager: configuration plane, OpenClaw transcript mirror, session-bound routing, Zod-hardening, Studio A070_ide_cursor_summaries bridge."
   maturation: 3
   routing:
     hub: "#3-zielbild-der-architektur-gateway-first-konfigurationsspiegel--studio-bridges"
@@ -67,7 +67,7 @@ Der Channel Manager bleibt **Konfigurations-Hub** und **OpenClaw-Chat-Spiegel**;
 | Schicht | Rolle |
 |--------|--------|
 | **OpenClaw Harness** | Gateway, Sessions, Web-Chat, `openclaw.json`, Workspace-`memory/` — **governing layer**. |
-| **Channel Manager** | **Laufzeit:** `openclaw.json` / Kanäle lesen-schreiben, SSE, Chat-Spiegel **OpenClaw Chat**, Tab **TARS in IDE · IDE project summary** (Studio A070 + optional `memory/` read-only; tool-agnostischer Name, API **`/api/ide-project-summaries`** Alias zu **`/api/summaries`**). |
+| **Channel Manager** | **Laufzeit:** `openclaw.json` / Kanäle lesen-schreiben, SSE, Chat-Spiegel **OpenClaw Chat**, Tab **TARS in IDE · IDE project summary** (Studio A070_ide_cursor_summaries + optional `memory/` read-only; tool-agnostischer Name, API **`/api/ide-project-summaries`** Alias zu **`/api/summaries`**). |
 | **Telegram** | Private Gruppen / Topics — **Anbindung** über Gateway; **kein** alleiniges `getUpdates`-Backend als SoT. |
 | **Projects \| IDE** | Cursor / Repos; **MCP** zum Channel Manager; **kein** paralleles „alles nochmal an Telegram senden“ im MVP. |
 | **Studio Framework** | Artefakte, u. a. **`A070_ide_cursor_summaries`** — Rückfluss der IDE-Verdichtung in die Studio-Struktur (Horizon `050` / `080`). |
@@ -136,7 +136,7 @@ graph TB
     end
 
     subgraph Studio["Studio Framework optional"]
-        A070[A070 IDE Summaries]
+        A070_ide_cursor_summaries["IDE / Cursor → Studio distillation"]
     end
 
     GW <--> TGG
@@ -144,7 +144,7 @@ graph TB
     CFG <-->|config| GW
     GW -->|SSE transcript mirror| CHAT
     CFG -->|openclaw agent send| GW
-    SUM -.->|Markdown path| A070
+    SUM -.->|Markdown path| A070_ide_cursor_summaries
     CUR -.->|MCP stdio| CFG
 ```
 

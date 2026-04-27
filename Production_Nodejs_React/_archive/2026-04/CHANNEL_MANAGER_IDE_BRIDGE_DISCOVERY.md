@@ -25,33 +25,33 @@ last_modified: "2026-04-18"
 
 ## OpenClaw
 
-- **Governance file:** `~/.openclaw/openclaw.json` (group routing, models).  
-- Channel Manager already **reads** groups and **merges** local `channel_config.json`.  
+- **Governance file:** `~/.openclaw/openclaw.json` (group routing, models).
+- Channel Manager already **reads** groups and **merges** local `channel_config.json`.
 - A **full automatic write** into `openclaw.json` is **high risk** (schema drift); exports expose a **`openclawMergeHints`** object for manual or scripted merge — not silent overwrite.
 
 ## Canonical layer (implemented in code)
 
 See `backend/services/ideConfigBridge.js`:
 
-- **`buildCanonicalSnapshot(config)`** — normalised view of agents, subAgents, channels (IDs only).  
-- **`buildOpenClawProjection(snapshot)`** — safe hints + channel rows.  
+- **`buildCanonicalSnapshot(config)`** — normalised view of agents, subAgents, channels (IDs only).
+- **`buildOpenClawProjection(snapshot)`** — safe hints + channel rows.
 - **`buildCursorProjection(snapshot)`** — suggested `.cursor/agents` entries + skill IDs list.
 
 ## UI
 
-- Row tabs: **Configuration** | **OpenClaw Chat** (gateway SSE mirror, same stream as before) | **Cursor Summary** (A070 markdown index under Studio).  
+- Row tabs: **Configuration** | **OpenClaw Chat** (gateway SSE mirror, same stream as before) | **Cursor Summary** (A070_ide_cursor_summaries markdown index under Studio).
 - Summaries API lists `Studio_Framework/050_Artifacts/A070_ide_cursor_summaries/**/*.md` filtered by optional `telegramId`.
 
 ## Risks / cost
 
-- **Paid APIs:** none in this bridge.  
+- **Paid APIs:** none in this bridge.
 - **Writing into `~/.openclaw` or `~/.cursor` from server:** disabled by default; exports are **read-only JSON** unless a future “apply” tool is added with explicit user consent.
 
-## Abgrenzung: IDE-Summary / A070 vs. operativer Chat-Spiegel (18.04.2026)
+## Abgrenzung: IDE-Summary / A070_ide_cursor_summaries vs. operativer Chat-Spiegel (18.04.2026)
 
 | Spur | Rolle |
 |------|--------|
 | **OpenClaw Chat** (Tab) | **Session-nativer** Transcript-Mirror (SSE) — **kein** Ersatz für das Gateway; siehe [CHANNEL_MANAGER_SPECIFICATION.md](CHANNEL_MANAGER_SPECIFICATION.md) §3.4. |
-| **IDE project summary** (A070) | Markdown-Verdichtung aus dem Studio-Baum — **read-only** im MVP; **kein** zweiter Live-Chat. |
+| **IDE project summary** (A070_ide_cursor_summaries) | Markdown-Verdichtung aus dem Studio-Baum — **read-only** im MVP; **kein** zweiter Live-Chat. |
 
 **Traceability** (Projekt/Lineage neben TTG) ist **nicht** Gegenstand dieser Discovery-Datei; kanonisch: [TRACEABILITY_SCHEMA_V1.1.md](../../Studio_Framework/020_Standards_Definitions_Rules/010_Schema/TRACEABILITY_SCHEMA_V1.1.md). **Restaurations-/Proxy-Themen** (17.04.) gehören in [OPENCLAW_CHANNEL_MANAGER_RESTORATION_REPORT.md](OPENCLAW_CHANNEL_MANAGER_RESTORATION_REPORT.md), nicht hier.

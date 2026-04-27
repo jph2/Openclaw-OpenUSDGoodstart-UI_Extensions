@@ -3,7 +3,7 @@
 Date: 2026-04-25
 Status: Architecture guardrail
 Applies to: Studio Framework artifacts, Channel Manager §8b.5, OpenClaw memory
-Related: `SPEC_8B5_IDE_MEMORY_BRIDGE.md`, `030_ROADMAP.md`
+Related: `SPEC_8B5_IDE_MEMORY_BRIDGE.md`, `../030_ROADMAP.md`
 
 ## 1. Intent
 
@@ -16,7 +16,7 @@ The integration boundary is artifact-centered:
 ```text
 Producer surface (Codex / Cursor / OpenCode / Chat / Telegram)
   -> Studio Framework artifact + artifact metadata
-  -> optional A070 summary / sidecar
+  -> optional summary / sidecar under A070_ide_cursor_summaries
   -> explicit promote to OpenClaw operational memory
   -> export/sync to Open Brain semantic memory
   -> Open Brain search / MCP read-back by any AI client
@@ -78,7 +78,7 @@ Never place credentials, API keys, access keys, auth profiles, local tokens,
 browser cookies, or `.env` values in:
 
 - Studio artifacts
-- A070 summaries
+- A070_ide_cursor_summaries
 - sidecar metadata
 - OpenClaw memory promote blocks
 - Open Brain export payloads

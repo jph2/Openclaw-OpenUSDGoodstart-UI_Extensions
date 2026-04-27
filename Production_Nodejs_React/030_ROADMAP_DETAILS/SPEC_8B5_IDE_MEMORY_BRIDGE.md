@@ -1,6 +1,6 @@
 # SPEC 8b.5 - TARS in IDE / IDE Memory Bridge
 
-Date: 2026-04-24
+Date: 2026-04-24 (§15 capture pipeline: 2026-04-26)
 Status: Draft for implementation
 Owner surface: Channel Manager, third TTG workspace tab
 QA checklist: `QA_8B5_IDE_MEMORY_BRIDGE.md`
@@ -16,7 +16,7 @@ Canonical flow:
 ```text
 IDE/Codex work
   -> canonical work-unit contract
-  -> Studio A070 summary artifact
+  -> Studio summary artifact in A070_ide_cursor_summaries
   -> explicit promotion
   -> OpenClaw memory read-back
 ```
@@ -112,7 +112,7 @@ Rules:
   mapping registry. Ephemeral UI state, chat text, or transient adapter metadata
   are never sufficient alone.
 
-## 5. A070 Summary + Sidecar Metadata
+## 5. A070_ide_cursor_summaries Summary + Sidecar Metadata
 
 Markdown remains the human-readable artifact. Machine state lives beside it as
 a JSON sidecar.
@@ -155,7 +155,7 @@ and metadata remains easy to validate.
 ## 6. Artifact Header Binding Contract
 
 Implementation status 2026-04-25: `ARTIFACT_HEADER_BINDING_V1` is implemented
-for A070 summary writes. The backend parses Markdown frontmatter,
+for writes to A070_ide_cursor_summaries. The backend parses Markdown frontmatter,
 `current_ttg.id` resolves as `binding.method = "artifact_header"`, and
 `initial_ttg.id` is retained as history/fallback evidence. This does not make
 producer tools authoritative; it makes artifact-owned routing metadata visible
@@ -251,7 +251,7 @@ Failure behavior:
 
 The third tab computes status from exactly three questions:
 
-1. Does an A070 artifact exist?
+1. Does an A070_ide_cursor_summaries artifact exist?
 2. Is the TTG binding unambiguous?
 3. Does the promotion marker exist in the target memory file?
 
@@ -270,7 +270,7 @@ Supported states:
 
 Primary actions:
 
-- Save A070 draft
+- Save A070_ide_cursor_summaries draft
 - Promote to OpenClaw memory
 
 Secondary display:
@@ -322,7 +322,7 @@ Audit events must not include auth secrets or full hidden IDE transcripts.
 ## 11. Implementation Order
 
 1. Add work-unit contract helpers and validation.
-2. Add A070 `.meta.json` sidecar read/write.
+2. Add A070_ide_cursor_summaries `.meta.json` sidecar read/write.
 3. Add TTG binding resolver.
 4. Add status engine for `IdeProjectSummaryPanel`.
 5. Couple promotion success to marker-based read-back.
@@ -331,7 +331,7 @@ Audit events must not include auth secrets or full hidden IDE transcripts.
 
 ## 12. Acceptance Criteria
 
-- From one TTG row, the operator can save an A070 summary with sidecar metadata.
+- From one TTG row, the operator can save a summary in A070_ide_cursor_summaries (with sidecar metadata).
 - The summary is bound to one TTG or blocked as ambiguous.
 - The operator can explicitly promote the summary to OpenClaw memory.
 - The tab shows read-back confirmation from the target memory file.
@@ -345,7 +345,7 @@ Audit events must not include auth secrets or full hidden IDE transcripts.
 
 First implementation slice is in place:
 
-- A070 save writes the Markdown summary plus a sibling `.meta.json`.
+- A070_ide_cursor_summaries save writes the Markdown summary plus a sibling `.meta.json`.
 - Summary list/file APIs return `meta`, `metaRelativePath`, and
   `bridgeStatus`.
 - `IdeProjectSummaryPanel.jsx` displays bridge status and core ledger fields:
@@ -450,11 +450,11 @@ Remaining production gates before calling §8b.5 “done” in the strict sense:
 1. **Producer adapters** — Codex/Cursor/OpenCode (and peers) create/update Studio artifacts under the same contract; CM is not the only write path for long-form context.
 2. **OB1/MCP upsert** — optional first-party client; HTTP adapter exists today.
 3. **Review / ops polish** — filters, previews, topology read-only view (§8b.7) when gateway APIs are stable.
-4. **Hardening backlog** (see below) — row-level mapping conflicts, guarded A070 edits, full ledger UX.
+4. **Hardening backlog** (see below) — row-level mapping conflicts, guarded A070_ide_cursor_summaries edits, full ledger UX.
 
 Hardening backlog after those gates:
 
-- Guarded edit/update support for existing A070 drafts and sidecars.
+- Guarded edit/update support for existing A070_ide_cursor_summaries drafts and sidecars.
 - Row-level conflict/ambiguity affordances in the mapping editor.
 - Complete row sync ledger across draft, promote target, read-back, and
   stale/failed states.
@@ -476,7 +476,7 @@ Recommended next implementation steps:
 1. Producer adapters (Cursor/Codex/OpenCode) toward Studio artifacts.
 2. OB1/MCP upsert when you prioritize it (HTTP path exists today).
 3. §8b.7 topology / `tools.effective` when the gateway contract is stable.
-4. Hardening backlog items above (mapping conflicts, A070 edit guards, audit JSONL).
+4. Hardening backlog items above (mapping conflicts, A070_ide_cursor_summaries edit guards, audit JSONL).
 
 ## 14. Ticket Specs - Next Session
 
@@ -651,7 +651,7 @@ OpenClaw promote and Open Brain sync operate from the same artifact truth.
 **Tests:**
 
 1. A010 Discovery artifact is indexed with TTG header metadata.
-2. A070 summary + sidecar are indexed.
+2. A070_ide_cursor_summaries file + sidecar are indexed.
 3. invalid YAML is represented safely.
 4. content hash changes when relevant content changes.
 5. secret-like content blocks export eligibility.
@@ -772,7 +772,7 @@ flow, with backend verification after the UI actions.
 2. Open a TTG row.
 3. Open **TARS in IDE · IDE project summary**.
 4. Ensure test project mapping exists.
-5. Save an A070 draft.
+5. Save an A070_ide_cursor_summaries draft.
 6. Select the draft.
 7. Promote to OpenClaw memory.
 8. Observe `Read-back confirmed`.
@@ -798,7 +798,7 @@ flow, with backend verification after the UI actions.
 
 - no browser console error from app code
 - draft save succeeds
-- summary appears in A070 list
+- summary appears in A070_ide_cursor_summaries list
 - preview shows TTG, project, surface, binding method, and target
 - promote succeeds
 - UI shows `Read-back confirmed`
@@ -902,3 +902,175 @@ type CodexAdapterOutput = {
 3. no git/session: minimal shape, no crash
 4. explicit override beats derived metadata
 5. dirty/partial input does not produce fantasy provenance
+
+## 15. IDE chat capture pipeline (PC host → Studio)
+
+**Status:** Partial CM implementation live (2026-04-27); remaining pipeline work below.
+**Companion:** `Studio_Framework/050_Artifacts/A070_ide_cursor_summaries/README_A070_IDE_Summaries.md` §Capture pipeline.
+
+**Current CM slice:** `GET/POST …/capture/{status,run,settings,ensure-path}` and
+the Summaries-tab UI are live. For the remote Windows-PC → Linux-backend case,
+the guided workflow is **Step 0** (operator mounts or creates a readable path in
+SSH/terminal) plus **Step 1** (required **Save path** to
+`ide_capture_settings.json`, unless `CURSOR_WORKSPACE_STORAGE_ROOT` is set by
+ops). The old in-browser SMB wizard is not part of the primary flow. See
+[`030_ROADMAP_DETAILS/ide-chat-capture-a070.md`](./ide-chat-capture-a070.md).
+
+### 15.1 Problem statement
+
+Cursor/VS-Code-family IDEs store composer/chat state under the **machine where the IDE UI runs** (e.g. Windows `%APPDATA%\Cursor\User\workspaceStorage\…\state.vscdb`). With **Remote-SSH**, the **repository and OpenClaw** may live on a **different host** (e.g. laptop). Capture and sync jobs must therefore run on the **PC (IDE host)** and **push** artifacts to the Studio canonical tree; a cron on the **Studio host** only ingests what arrived.
+
+### 15.2 Design principles
+
+1. **Deterministic sync:** Copy/export and manifest append are scripts (scheduler on PC), not LLM calls.
+2. **RAW is append-only ground truth:** Each successful capture adds a new snapshot file (or new revision); do not silently overwrite the only copy of a session.
+3. **Summaries are distilled and incremental:** Nightly (or on-demand) jobs append **delta sections** to Markdown summaries that reference RAW paths, hashes, and capture ids.
+4. **Change detection:** Prefer **content hash** and/or **stable file size** of a **SQLite copy** over naive “once per calendar day” — chats may sit idle for days then grow again.
+5. **Memory promotion:** Remains **explicit** (existing `POST /api/ide-project-summaries/promote` / UI). The pipeline may **prepare** summary text; it does not auto-append to `MEMORY.md` without operator policy (future automation must be a separate ADR).
+6. **Secrets:** RAW may contain tokens; encrypt in transit (SSH/scp/rsync), restrict file permissions, optional redaction pass before leaving the PC.
+
+### 15.3 Directory layout (under `A070_ide_cursor_summaries/`)
+
+All paths are relative to the A070 root.
+
+```text
+capture/
+  manifest.jsonl                    # one JSON object per line, append-only
+  <surface>/                        # e.g. cursor, vscode, codex (producer)
+    <workspace_storage_id>/         # hash folder name from IDE storage, opaque id
+      YYYY-MM-DDTHHMMSSZ__<shortsha>__snapshot.json   # or .json.gz
+      YYYY-MM-DDTHHMMSSZ__<shortsha>__snapshot.meta.json
+by_ttg/…                            # existing TTG summaries (human-facing)
+drafts/…                            # optional drafts before TTG placement
+```
+
+**Naming:** `workspace_storage_id` MUST match the IDE’s workspace storage folder name (e.g. Cursor `workspaceStorage/<id>`). `shortsha` is first 8 chars of `content_sha256` of the payload file.
+
+**Do not** commit live `state.vscdb` binaries as the canonical artifact; export **JSON** (or gzip JSON) extracted from a **copy** of the DB.
+
+### 15.4 Manifest schema (`capture/manifest.jsonl`)
+
+Each line is a JSON object. Append only.
+
+| Field | Type | Required | Description |
+| ----- | ---- | -------- | ----------- |
+| `schema` | string | yes | `studio.ide-capture.manifest.v1` |
+| `capturedAt` | string (ISO-8601) | yes | When the PC script finished this capture |
+| `surface` | string | yes | `cursor`, `vscode`, `codex`, … |
+| `workspaceStorageId` | string | yes | IDE storage folder id |
+| `sourceHost` | string | yes | Human label, e.g. `pc-jan-win11` |
+| `sourceDb` | object | yes | `{ "path": "…", "byteLength": n, "mtimeUtc": "…" }` of the **copied** db or export source |
+| `contentSha256` | string | yes | Hash of the snapshot **payload** file (the `.json` or `.json.gz`) |
+| `payloadRelativePath` | string | yes | Path under A070 root after sync, e.g. `capture/cursor/<id>/…snapshot.json.gz` |
+| `summaryRelativePath` | string | no | Markdown summary this capture was merged into (if known) |
+| `watermarkKey` | string | yes | Stable id for dedup, e.g. `cursor:<workspaceStorageId>` |
+| `previousSha256` | string | null | Last known payload hash for this watermark before this run |
+| `trigger` | string | yes | `scheduled`, `manual`, `size_change`, `hash_change` |
+
+**Watermark state** may also live in a small `capture/watermarks.json` (per `watermarkKey`: last `contentSha256`, `byteLength`, `capturedAt`) on the PC; the manifest line remains the audit trail after sync.
+
+### 15.5 PC-side algorithm (reference)
+
+1. For each configured `workspaceStorageId` (or scan directory):
+   - Copy `state.vscdb` to a temp file (avoid WAL locks).
+   - If `byteLength` and/or hash unchanged vs watermark → skip (optional heartbeat manifest line omitted).
+2. Run extraction query (example keys for Cursor; adjust per IDE/version):
+   - `ItemTable` keys such as `aiService.prompts`, `workbench.panel.aichat.view.aichat.chatdata` (see IDE docs/community; keys may drift).
+3. Write `…__snapshot.json` (+ optional `.meta.json` with query version, key list).
+4. Append manifest line; update `watermarks.json`.
+5. **Sync** to Studio host: `scp`/`rsync` into `Studio_Framework/050_Artifacts/A070_ide_cursor_summaries/capture/…` or git push from a clone.
+
+### 15.6 Studio-side nightly job (reference)
+
+1. **Ingest:** Read new tail of `capture/manifest.jsonl` since last processed offset or id.
+2. For each new line, load payload; compute delta vs previous snapshot for same `watermarkKey` (diff in script or feed both to summarizer).
+3. **Summarize:** Produce an **appendix** block for the operator-facing summary (Markdown under `by_ttg/…` or `drafts/…`) with:
+   - `## Capture <capturedAt> (surface, workspaceStorageId)`
+   - Bullets: decisions, changes, open questions
+   - Footer: `RAW: <payloadRelativePath> sha256=<contentSha256>`
+4. **Memory:** No automatic promote in v1; operator uses existing CM promote flow when satisfied.
+
+### 15.7 Skills and subagents
+
+- **Per-IDE skill** documents: default paths (Windows/Linux), DB copy, keys, extraction version, and sync command.
+- **Orchestrator skill** (`ide-summarizer` or similar): given manifest + paths, run summarize step and suggest summary edits (optional; can be human-in-the-loop first).
+
+Channel Manager now has a partial control surface for deployments where the
+backend can read `workspaceStorage`: status, saved path, capture run, force run,
+and optional directory creation. It still **does not** replace the PC scheduler
+or local companion for deployments where the IDE data lives on a machine the
+backend cannot read.
+
+### 15.8 Acceptance (pipeline v1)
+
+- After a chat grows on the PC, a scheduled run produces a **new** snapshot file and manifest line on the Studio tree without duplicating the same `contentSha256`.
+- A nightly Studio job can append a **delta** section to a summary that cites the RAW path and hash.
+- No silent write to OpenClaw memory without going through existing promote semantics.
+
+### 15.9 Phased delivery: shared contract first, CM and scheduler as two launchers
+
+**Current decision (v1):** Keep the capture contract shared:
+`workspaceStorage` input → snapshot payloads under `capture/` → append-only
+`manifest.jsonl` → explicit summary/memory promotion. Channel Manager can run
+the capture module when its backend can read the path; a standalone PC script or
+local companion remains the right launcher when the IDE data lives on a
+different host.
+
+**How it runs by deployment shape:**
+
+1. **CM backend can read the IDE data:** use the Summaries tab status/run
+   controls. On Linux with a Windows IDE host, first do **Step 0** terminal mount
+   and **Step 1** required Save path.
+2. **IDE data only exists on a PC the CM backend cannot read:** Task Scheduler
+   (Windows) or `cron` (Linux) invokes a script on the **IDE host**. The script
+   writes snapshots + `watermarks.json`, appends a local manifest fragment (or
+   full manifest), then **syncs** to the Studio tree (`scp` / `rsync` /
+   `git pull && copy && commit` — operator choice; document in runbook).
+3. **Studio host:** Existing nightly job (or manual run) ingests
+   `capture/manifest.jsonl` and updates summaries per §15.6.
+
+**Not a magic browser import:** CM can only read what its Node backend can read.
+If that is not true, a scheduler, local companion, upload, or sync step is still
+required.
+
+**Channel Manager “Capture now” / “Get chat”**
+
+A UI button such as **Capture now**, **Get chat**, or **Import capture** is not
+equivalent to reading `%APPDATA%\…` from the browser:
+
+| Approach | What it can do |
+| -------- | -------------- |
+| **Browser-only CM** | User **uploads** a file or paste; server writes into `capture/` — works, but manual. |
+| **CM + path field (local CM)** | If Channel Manager’s **Node backend runs on the same machine** as Cursor (same Windows user), it **can** read `%APPDATA%\Cursor\…` and `workspaceStorage` — implement with explicit allowlisted roots and path validation. This is the preferred “button in CM” deployment for solo operators. |
+| **CM + path field (remote CM)** | Server only sees **its own** filesystem; a PC path string does not reach the IDE DB unless shared/mounted. |
+| **Local companion** | Small **localhost agent** on the PC (or extension) that watches `workspaceStorage` and **POSTs** snapshots to CM/API — same contract as the standalone script, different trigger. |
+| **Reverse flow** | PC script **pushes** to CM `POST` endpoint (if added) — CM does not pull from PC by magic. |
+
+So a **path field + button** only works without extra moving parts if (a) CM and the DB live on the **same machine**, or (b) the path is a **UNC/SMB/SSHFS** path the CM host can read, or (c) a **local helper** performs the read and uploads. **Document any chosen variant** in the runbook when implementing the button.
+
+**Summary:** CM and a standalone scheduler are launchers for the same ingest
+contract (`capture/` + `manifest.jsonl`). The deployment must still decide where
+the read runs: always on a host that can access the IDE data.
+
+### 15.10 Channel Manager UX — capture status + force run
+
+**Intent:** Operators who run CM **on the IDE host** (see §15.9) should get a **single control surface** instead of only an external scheduler.
+
+**Recommended UI (IDE / TARS tab or settings slice):**
+
+1. **Status (always visible, read-only)** — derived from durable state the pipeline already writes:
+   - `lastCaptureAt` (ISO), `lastTrigger` (`scheduled` | `manual` | `cm_force`), `lastOutcome` (`ok` | `skipped_no_change` | `error`),
+   - `lastWorkspaceStorageId` (or “multi” if several),
+   - `lastPayloadSha256` / relative path under `capture/`,
+   - optional: **last manifest line** tail or link to open `capture/manifest.jsonl` in Workbench.
+   Source of truth: either the **last line of `capture/manifest.jsonl`** on the Studio tree, or a small **`capture/cm-capture-state.json`** updated atomically by the capture module (so the UI does not parse the whole journal).
+
+2. **Primary button — “Capture now” / “Sync IDE chat”** — calls **`POST /api/ide-project-summaries/capture/run`** (alias: `/api/summaries/capture/run`) with body `{ "force": false }`; **`force: true`** re-exports even when the content hash is unchanged. Status: **`GET /api/ide-project-summaries/capture/status`** (returns `workspaceRoot`, `workspaceRootSource`, `savedWorkspaceStorageRoot`, `summary` / `lastRun`). **Saved path:** **`POST …/capture/settings`** body `{ "workspaceStorageRoot": "<abs path or null>" }` persists **`ide_capture_settings.json`** (used when `CURSOR_WORKSPACE_STORAGE_ROOT` is unset).
+
+3. **Secondary:** Link to **configure** allowlisted `workspaceStorage` roots or default `%APPDATA%\Cursor\User\workspaceStorage` (environment override).
+
+**Backend:** Must reuse the §15.5 extraction + §15.3 write paths; **no duplicate** ad-hoc export logic in the React bundle — only HTTP → shared Node module or `child_process` to the CLI.
+
+**Security:** Restrict readable paths to Cursor/VS Code workspace storage roots; reject `..` and absolute escapes; optional env `IDE_CAPTURE_ENABLED=true` gate.
+
+**Scope note:** Ships as part of **backlog 6.22** once capture is implemented; status-only view can land in the same PR as `POST …/run` or immediately after.

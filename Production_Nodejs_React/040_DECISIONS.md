@@ -9,7 +9,7 @@
 > references them.
 >
 > For current state see [`020_ARCHITECTURE.md`](./020_ARCHITECTURE.md), for schedule
-> [`030_ROADMAP.md`](./030_ROADMAP.md), for framing [`010_VISION.md`](./010_VISION.md).
+> [`030_ROADMAP.md`](./030_ROADMAP.md) ([`030_ROADMAP_DETAILS/`](./030_ROADMAP_DETAILS/README.md)), for framing [`010_VISION.md`](./010_VISION.md).
 
 ---
 
@@ -111,7 +111,7 @@ Apply** action (Bundle C1). No background writer into `~/.openclaw/` or
 Backup + atomic write + audit are mandatory on every Apply path. **Bundle C1b**
 extends the *merge slice* into `openclaw.json` (and related targets) using the
 same explicit Apply UX; the mapping table and OpenClaw version pin live in
-`030_ROADMAP.md` §5.1 and implementation, with a new ADR only if an irrevocable
+[`030_ROADMAP_DETAILS/historical-bundles.md`](./030_ROADMAP_DETAILS/historical-bundles.md) §5.1 and implementation, with a new ADR only if an irrevocable
 merge rule is locked (e.g. skills replace vs union semantics).
 
 ---
@@ -148,7 +148,7 @@ MCP whitelisting are the channel-level knobs.
 
 **Consequences.** No engine-dropdown UI. If triad weighting ever lands, it
 will be **sliders summing to 100 %** injected into prompts, not an engine
-switcher (see `030_ROADMAP.md` §Future).
+switcher (see [`030_ROADMAP_DETAILS/backlog-future-release.md`](./030_ROADMAP_DETAILS/backlog-future-release.md) §8).
 
 ---
 
@@ -327,7 +327,7 @@ expensive to un-pollute. Three modes were on the table: auto-on-save,
 manual-with-preview, review-first (PR-style).
 
 **Decision.** The MVP default is **manual-with-preview**: the operator clicks
-"Promote to OpenClaw memory" on a specific A070 summary; a modal shows the
+"Promote to OpenClaw memory" on a specific summary in A070_ide_cursor_summaries; a modal shows the
 destination, the full text to write, and a dedup check; Confirm performs the
 atomic append; audit log records the event. `MEMORY.md` requires an
 additional destination opt-in.
@@ -416,7 +416,7 @@ must perform the same `bindings[]` lookup the inbound Telegram path
 performs, find the matching synth agent for the peer, and use its model.
 
 **Consequences.** The "OpenClaw chat shows the wrong model" complaint is
-documented as a **known upstream limitation** (`030_ROADMAP.md` §8b.2a),
+documented as a **known upstream limitation** ([`030_ROADMAP_DETAILS/8b-followups.md`](./030_ROADMAP_DETAILS/8b-followups.md) §8b.2a),
 not a CM bug. Telegram traffic remains the canonical signal that "the
 per-channel model is live." **C1b.2c (2026-04-20)** adds an *opt-in* slice
 (`openclawAgentsDefaultsPolicy.applyModelOnOpenClawApply` + `modelPrimary` in
@@ -453,7 +453,8 @@ is artifact-centered:
 demoted from architecture-critical truth sources to producer/importer
 conveniences. The new core gates are artifact header binding, artifact indexing,
 Open Brain export contract, reviewable agent classification, and audited Open
-Brain sync. See `SPEC_OPEN_BRAIN_BOUNDARY_CONDITIONS.md`.
+Brain sync. See
+[`SPEC_OPEN_BRAIN_BOUNDARY_CONDITIONS.md`](./030_ROADMAP_DETAILS/SPEC_OPEN_BRAIN_BOUNDARY_CONDITIONS.md).
 
 ---
 

@@ -39,7 +39,7 @@ narrower than "IDE": it is a **lean local editing and diff surface for artifacts
 and source files**. It supports human and agentic edit/review workflows around
 files, but it is not a Cursor/VS Code replacement and does not own channel,
 TTG, memory, or sync decisions. See
-[`SPEC_WORKBENCH_POSITIONING.md`](./SPEC_WORKBENCH_POSITIONING.md).
+[`SPEC_WORKBENCH_POSITIONING.md`](./030_ROADMAP_DETAILS/SPEC_WORKBENCH_POSITIONING.md).
 
 ---
 
@@ -122,10 +122,10 @@ Manager assumes the triad exists; it does not redefine it.
 ## 4. Relationship to Studio Framework
 
 The **Studio Framework** is the operator's outer knowledge base and artifact
-repository (ARYS/GILD schema, A070 IDE summaries, skill definitions). The
+repository (ARYS/GILD schema, A070_ide_cursor_summaries, skill definitions). The
 Channel Manager:
 
-- **Reads** A070 summaries to display them in the Cursor Summary tab.
+- **Reads** Markdown in **A070_ide_cursor_summaries** to display it in the Cursor Summary tab.
 - **Does not own** the pipeline that produces those summaries.
 - **Does not write** into `Studio_Framework/` directly.
 
@@ -194,7 +194,7 @@ A run is "successful" if the operator can, on a fresh machine:
    `openclaw.json` with preview, explicit confirm, backup, and undo (**C1**
    shipped for `requireMention`; **C1b** broadens the merge — `030_ROADMAP.md`
    §5.1).
-5. Promote an A070 summary into OpenClaw memory (`memory/YYYY-MM-DD.md` or
+5. Promote a summary from A070_ide_cursor_summaries into OpenClaw memory (`memory/YYYY-MM-DD.md` or
    `MEMORY.md` with extra acknowledgement) after preview and confirm, with an
    audit entry (**Bundle C2** — shipped; `030_ROADMAP.md` §6).
 6. Never lose data to a silent write or a racing file poller.
