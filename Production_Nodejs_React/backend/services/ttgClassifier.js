@@ -89,6 +89,36 @@ export async function loadTtgDefinitions({ studioRoot, channelMappings = [] } = 
     return definitions.sort((a, b) => a.code.localeCompare(b.code));
 }
 
+const MIN_CLASSIFIER_SCORE = 3;
+const INFER_TOP_PERCENT = 70;
+const INFER_GAP_PERCENT = 20;
+
+/** Largest-remainder percent shares that sum to 100. */
+function buildPercentDistribution(candidates) {
+    const sum = candidates.reduce((s, c) => s + c.score, 0);
+    if (sum <= 0) return [];
+    const rows = candidates.map((c) => {
+        const exact = (100 * c.score) / sum;
+        return {
+            ttgId: c.ttgId || null,
+            ttgName: c.ttgName,
+            code: c.code,
+            score: c.score,
+            evidence: Array.isArray(c.evidence) ? [...c.evidence] : [],
+            exact,
+            percent: Math.floor(exact)
+        };
+    });
+    let remainder = 100 - rows.reduce((s, r) => s + r.percent, 0);
+    const order = rows
+        .map((r, i) => ({ i, frac: r.exact - r.percent }))
+        .sort((a, b) => b.frac - a.frac || rows[b.i].score - rows[a.i].score);
+    for (let k = 0; k < remainder; k++) {
+        rows[order[k].i].percent += 1;
+    }
+    return rows.map(({ exact, ...rest }) => rest);
+}
+
 function foundationBoosts(definition, haystack, artifactType) {
     const code = definition.code;
     if (code === '001') {
@@ -161,7 +191,7 @@ export function classifyArtifactTtg({ artifact = {}, markdown = '', ttgDefinitio
     }
 
     candidates.sort((a, b) => b.score - a.score || a.code.localeCompare(b.code));
-    if (!candidates.length || candidates[0].score < 3) {
+    if (!candidates.length || candidates[0].score < MIN_CLASSIFIER_SCORE) {
         return {
             status: 'unknown',
             method: 'agent_classification',
@@ -169,31 +199,60 @@ export function classifyArtifactTtg({ artifact = {}, markdown = '', ttgDefinitio
             ttgName: '',
             confidence: 0,
             evidence: ['no useful TTG definition match'],
-            candidates: []
+            candidates: [],
+            distribution: []
         };
     }
-    const top = candidates[0];
-    const second = candidates[1];
-    if (second && top.score - second.score <= 1) {
+
+    const distribution = buildPercentDistribution(candidates);
+    const top = distribution[0];
+    const second = distribution[1];
+    const topPercent = top.percent;
+    const secondPercent = second ? second.percent : 0;
+    const gapPercent = topPercent - secondPercent;
+    const scoreTie = Boolean(candidates[1] && candidates[0].score - candidates[1].score <= 1);
+
+    if (
+        (second && gapPercent < INFER_GAP_PERCENT)
+        || (second && scoreTie && topPercent < 85)
+    ) {
         return {
             status: 'ambiguous',
             method: 'agent_classification',
             ttgId: null,
             ttgName: '',
             confidence: Math.min(0.69, top.score / 14),
-            evidence: ['multiple TTG definitions are similarly plausible'],
-            candidates: candidates.slice(0, 3)
+            evidence: ['multiple TTG definitions are similarly plausible by score or percentage gap'],
+            candidates: candidates.slice(0, 8),
+            distribution
         };
     }
 
-    const confidence = Math.min(0.95, top.score / 14);
+    if (topPercent >= INFER_TOP_PERCENT && gapPercent >= INFER_GAP_PERCENT) {
+        const topCand = candidates[0];
+        const confidence = Math.min(0.95, topCand.score / 14);
+        return {
+            status: 'inferred',
+            method: 'agent_classification',
+            ttgId: topCand.ttgId,
+            ttgName: topCand.ttgName,
+            confidence,
+            evidence: topCand.evidence,
+            candidates: candidates.slice(0, 8),
+            distribution
+        };
+    }
+
+    const topCand = candidates[0];
+    const confidence = Math.min(0.95, topCand.score / 14);
     return {
-        status: confidence >= 0.72 ? 'inferred' : 'needs_review',
+        status: 'needs_review',
         method: 'agent_classification',
-        ttgId: top.ttgId,
-        ttgName: top.ttgName,
+        ttgId: topCand.ttgId,
+        ttgName: topCand.ttgName,
         confidence,
-        evidence: top.evidence,
-        candidates: candidates.slice(0, 3)
+        evidence: topCand.evidence,
+        candidates: candidates.slice(0, 8),
+        distribution
     };
 }

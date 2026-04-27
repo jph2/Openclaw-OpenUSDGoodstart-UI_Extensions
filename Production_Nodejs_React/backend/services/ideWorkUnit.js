@@ -181,6 +181,82 @@ export function computeWorkUnitStatus(meta, hasSummary = true) {
     return 'not_promoted';
 }
 
+/**
+ * Merge TTG classifier output into sidecar meta. Hard resolver signals
+ * (explicit, header, project mapping, path hint) always win; classifier
+ * fills binding only when the resolver did not produce an authoritative TTG.
+ */
+export function mergeTtgClassificationIntoMeta(meta, classification) {
+    if (!meta || !classification) return meta;
+    const now = new Date().toISOString();
+    const next = {
+        ...meta,
+        ttgClassification: {
+            status: classification.status,
+            method: classification.method,
+            confidence: classification.confidence,
+            evidence: classification.evidence,
+            candidates: classification.candidates,
+            distribution: classification.distribution,
+            computedAt: now
+        }
+    };
+    const binding = meta.binding || {};
+    const hardMethod = binding.method === 'explicit'
+        || binding.method === 'artifact_header'
+        || binding.method === 'project_mapping'
+        || binding.method === 'path_hint';
+    const headerInferred = binding.status === 'inferred' && binding.method === 'artifact_header';
+    if (binding.status === 'ambiguous' || binding.status === 'confirmed' || hardMethod || headerInferred) {
+        return next;
+    }
+    if (classification.status === 'unknown') {
+        return next;
+    }
+    return {
+        ...next,
+        binding: {
+            status: classification.status,
+            method: 'agent_classification',
+            ttgId: classification.ttgId,
+            ...(classification.candidates?.length ? { candidates: classification.candidates } : {}),
+            reason: `agent classification (${classification.status})`
+        },
+        ttgId: classification.ttgId || meta.ttgId || null
+    };
+}
+
+/** Block memory promotion until binding is operator- or artifact-confirmed (not classifier-only). */
+export function assertPromoteBindingAllowed(meta) {
+    if (!meta || typeof meta !== 'object' || meta.__invalid) {
+        const err = new Error('Promotion blocked: missing or invalid summary metadata');
+        err.status = 400;
+        throw err;
+    }
+    if (!meta.ttgId) {
+        const err = new Error('Promotion blocked: no resolved TTG id');
+        err.status = 400;
+        throw err;
+    }
+    const st = meta.binding?.status;
+    const method = meta.binding?.method;
+    if (st === 'ambiguous' || st === 'unknown') {
+        const err = new Error(`Promotion blocked: binding status is ${st}`);
+        err.status = 400;
+        throw err;
+    }
+    if (st === 'needs_review') {
+        const err = new Error('Promotion blocked: binding needs review — confirm TTG (re-save with explicit TTG or artifact header)');
+        err.status = 400;
+        throw err;
+    }
+    if (method === 'agent_classification') {
+        const err = new Error('Promotion blocked: confirm TTG in artifact header or re-save with explicit TTG (classifier-only binding is not promotable)');
+        err.status = 400;
+        throw err;
+    }
+}
+
 export function updateMetaAfterPromotion(meta, result) {
     const now = new Date().toISOString();
     const marker = result.marker || meta?.promotion?.marker || null;

@@ -129,6 +129,15 @@ const STATUS_COLORS = {
     unknown: '#aaa'
 };
 
+/** Resolver may return string ids or classifier candidate objects. */
+function formatBindingCandidates(candidates) {
+    if (!Array.isArray(candidates) || !candidates.length) return '';
+    return candidates
+        .map((c) => (typeof c === 'string' ? c : c.ttgId || c.ttgName || c.code || ''))
+        .filter(Boolean)
+        .join(', ');
+}
+
 function projectSlugFromPath(pathname) {
     const parts = String(pathname || '').split('/').filter(Boolean);
     return (parts[parts.length - 1] || 'openclaw-control-center')
@@ -2067,6 +2076,45 @@ sudo chown -R "$APIUSER:$APIUSER" /media/cursor-workspace`}
                                     <div>Binding note: {selectedArtifactRecord.binding.reason}</div>
                                 )}
                             </div>
+                            {(selectedArtifactRecord.classificationEvidence?.distribution || []).length > 0 && (
+                                <div style={{ marginBottom: 12, fontSize: 11 }}>
+                                    <div style={{ fontWeight: 600, marginBottom: 6 }}>TTG match (content/tags)</div>
+                                    {selectedArtifactRecord.classificationEvidence.distribution.map((row) => (
+                                        <div key={`${row.code}-${row.ttgId}`} style={{ marginBottom: 6 }}>
+                                            <div
+                                                style={{
+                                                    display: 'flex',
+                                                    justifyContent: 'space-between',
+                                                    fontSize: 10,
+                                                    gap: 8
+                                                }}
+                                            >
+                                                <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                                                    {row.ttgName || row.code || row.ttgId}
+                                                </span>
+                                                <span style={{ flexShrink: 0 }}>{row.percent}%</span>
+                                            </div>
+                                            <div
+                                                style={{
+                                                    height: 6,
+                                                    background: '#222',
+                                                    borderRadius: 3,
+                                                    overflow: 'hidden',
+                                                    marginTop: 2
+                                                }}
+                                            >
+                                                <div
+                                                    style={{
+                                                        width: `${Math.min(100, row.percent)}%`,
+                                                        height: '100%',
+                                                        background: 'rgba(80,227,194,0.45)'
+                                                    }}
+                                                />
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
                             {(selectedArtifactRecord.binding?.candidates || []).length > 0 && (
                                 <div style={{ marginBottom: 10, fontSize: 11 }}>
                                     <div style={{ fontWeight: 600, marginBottom: 6 }}>Candidates</div>
@@ -2385,7 +2433,57 @@ sudo chown -R "$APIUSER:$APIUSER" /media/cursor-workspace`}
                                             <div>Reason: <code>{selectedMeta.binding.reason}</code></div>
                                         )}
                                         {selectedMeta?.binding?.candidates?.length > 0 && (
-                                            <div>Candidates: <code>{selectedMeta.binding.candidates.join(', ')}</code></div>
+                                            <div>
+                                                Candidates: <code>{formatBindingCandidates(selectedMeta.binding.candidates)}</code>
+                                            </div>
+                                        )}
+                                        {selectedMeta?.ttgClassification?.distribution?.length > 0 && (
+                                            <div style={{ marginTop: 8 }}>
+                                                <div style={{ fontWeight: 600, marginBottom: 6, color: 'var(--text-primary)' }}>
+                                                    TTG match (content/tags)
+                                                </div>
+                                                {selectedMeta.ttgClassification.distribution.map((row) => (
+                                                    <div key={`${row.code}-${row.ttgId}`} style={{ marginBottom: 6 }}>
+                                                        <div
+                                                            style={{
+                                                                display: 'flex',
+                                                                justifyContent: 'space-between',
+                                                                fontSize: 10,
+                                                                gap: 8
+                                                            }}
+                                                        >
+                                                            <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                                                                {row.ttgName || row.code || row.ttgId}
+                                                            </span>
+                                                            <span style={{ flexShrink: 0 }}>{row.percent}%</span>
+                                                        </div>
+                                                        <div
+                                                            style={{
+                                                                height: 6,
+                                                                background: '#222',
+                                                                borderRadius: 3,
+                                                                overflow: 'hidden',
+                                                                marginTop: 2
+                                                            }}
+                                                        >
+                                                            <div
+                                                                style={{
+                                                                    width: `${Math.min(100, row.percent)}%`,
+                                                                    height: '100%',
+                                                                    background: 'rgba(80,227,194,0.45)'
+                                                                }}
+                                                            />
+                                                        </div>
+                                                    </div>
+                                                ))}
+                                                <div style={{ fontSize: 10, marginTop: 4, opacity: 0.85 }}>
+                                                    Status:{' '}
+                                                    <code>{selectedMeta.ttgClassification.status}</code>
+                                                    {selectedMeta.ttgClassification.computedAt
+                                                        ? ` · ${new Date(selectedMeta.ttgClassification.computedAt).toLocaleString()}`
+                                                        : ''}
+                                                </div>
+                                            </div>
                                         )}
                                         <div>Target: <code>{selectedMeta?.promotion?.target || 'not promoted'}</code></div>
                                         {selectedMeta?.promotion?.lastPromotedAt && (

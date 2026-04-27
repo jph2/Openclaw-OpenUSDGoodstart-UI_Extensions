@@ -6,7 +6,7 @@ import { z } from 'zod';
 import { resolveSafe } from '../utils/security.js';
 import { apiLimiter } from '../utils/rateLimiter.js';
 import { isValidTtgId } from '../services/ttgBindingResolver.js';
-import { upsertArtifactHeaderBinding } from '../services/artifactHeaderBinding.js';
+import { parseArtifactHeaderBinding, upsertArtifactHeaderBinding } from '../services/artifactHeaderBinding.js';
 import { buildArtifactIndex, indexMarkdownArtifact } from '../services/artifactIndex.js';
 import {
     buildOpenBrainExportRecord,
@@ -17,11 +17,13 @@ import {
     OpenBrainSyncDispatchError,
     runOpenBrainLiveSync
 } from '../services/openBrainSyncDispatch.js';
-import { buildChannelMappingsFromConfig, loadTtgDefinitions } from '../services/ttgClassifier.js';
+import { buildChannelMappingsFromConfig, classifyArtifactTtg, loadTtgDefinitions } from '../services/ttgClassifier.js';
 import { runMemoryPromote } from '../services/memoryPromote.js';
 import {
+    assertPromoteBindingAllowed,
     buildIdeWorkUnit,
     computeWorkUnitStatus,
+    mergeTtgClassificationIntoMeta,
     readJsonIfExists,
     readJsonWithStatus,
     summaryMetaRelativePath,
@@ -44,6 +46,7 @@ import {
 import { ensureIdeCaptureWorkspaceDir } from '../services/ideCapturePathEnsure.js';
 import { normalizeWorkspaceStorageRootForFs, isStoredWorkspaceStorageRootValid } from '../services/cursorWorkspacePath.js';
 import {
+    normalizeProjectMappings,
     readChannelConfigForProjectMappings,
     readProjectMappings,
     writeProjectMappings
@@ -249,8 +252,24 @@ router.post('/', async (req, res, next) => {
         const metaRel = summaryMetaRelativePath(body.relativePath);
         const { resolved: metaResolved } = await resolveSafe(base, metaRel.split('/').join(path.sep));
         const existingMeta = await readJsonIfExists(metaResolved);
-        const projectMappings = await readProjectMappings();
-        const meta = buildIdeWorkUnit({
+        const { config } = await readChannelConfigForProjectMappings();
+        const projectMappings = normalizeProjectMappings(config.projectMappings);
+        const headerParsed = parseArtifactHeaderBinding(body.text);
+        const artifactForClassifier = {
+            title: String(headerParsed.frontmatter?.title || ''),
+            type: String(headerParsed.frontmatter?.type || ''),
+            tags: Array.isArray(headerParsed.frontmatter?.tags) ? headerParsed.frontmatter.tags.map(String) : []
+        };
+        const ttgDefinitions = await loadTtgDefinitions({
+            studioRoot: studioFrameworkRoot(),
+            channelMappings: buildChannelMappingsFromConfig(config)
+        });
+        const classification = classifyArtifactTtg({
+            artifact: artifactForClassifier,
+            markdown: body.text,
+            ttgDefinitions
+        });
+        let meta = buildIdeWorkUnit({
             summaryRelativePath: body.relativePath,
             text: body.text,
             ttgId: body.meta?.explicitTtgId || body.meta?.ttgId,
@@ -270,6 +289,7 @@ router.post('/', async (req, res, next) => {
             projectMappings,
             existing: existingMeta
         });
+        meta = mergeTtgClassificationIntoMeta(meta, classification);
         await writeJsonAtomic(metaResolved, meta);
 
         res.json({ ok: true, relativePath: body.relativePath, metaRelativePath: metaRel, meta });
@@ -693,6 +713,24 @@ router.get('/memory', async (req, res, next) => {
 router.post('/promote', apiLimiter, async (req, res, next) => {
     try {
         const body = MemoryPromoteSchema.parse(req.body);
+        const base = a070BaseResolved();
+        const relOs = body.sourceRelativePath.split('/').join(path.sep);
+        try {
+            const { resolved: sourceResolved } = await resolveSafe(base, relOs);
+            await fs.access(sourceResolved);
+        } catch (e) {
+            if (e && e.code === 'ENOENT') {
+                return res.status(404).json({
+                    ok: false,
+                    error: `Source summary not found: ${body.sourceRelativePath}`
+                });
+            }
+            throw e;
+        }
+        const metaRel = summaryMetaRelativePath(body.sourceRelativePath);
+        const { resolved: metaResolved } = await resolveSafe(base, metaRel.split('/').join(path.sep));
+        const existingMeta = await readJsonIfExists(metaResolved);
+        assertPromoteBindingAllowed(existingMeta);
         const result = await runMemoryPromote({
             sourceRelativePath: body.sourceRelativePath,
             destination: body.destination,
@@ -703,10 +741,6 @@ router.post('/promote', apiLimiter, async (req, res, next) => {
             operator: req.ip || null
         });
         if (!body.dryRun && result.ok) {
-            const base = a070BaseResolved();
-            const metaRel = summaryMetaRelativePath(body.sourceRelativePath);
-            const { resolved: metaResolved } = await resolveSafe(base, metaRel.split('/').join(path.sep));
-            const existingMeta = await readJsonIfExists(metaResolved);
             const meta = updateMetaAfterPromotion(existingMeta, result);
             await writeJsonAtomic(metaResolved, meta);
             return res.json({

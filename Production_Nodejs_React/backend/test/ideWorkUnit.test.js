@@ -1,9 +1,11 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import {
+    assertPromoteBindingAllowed,
     buildIdeWorkUnit,
     computeWorkUnitStatus,
     inferTtgId,
+    mergeTtgClassificationIntoMeta,
     summaryMetaRelativePath,
     updateMetaAfterPromotion
 } from '../services/ideWorkUnit.js';
@@ -81,5 +83,46 @@ binding:
     it('distinguishes invalid metadata from healthy drafts', () => {
         assert.equal(computeWorkUnitStatus(null), 'draft_saved');
         assert.equal(computeWorkUnitStatus({ __invalid: true }), 'meta_invalid');
+    });
+
+    it('mergeTtgClassificationIntoMeta keeps hard binding and still attaches ttgClassification', () => {
+        const unit = buildIdeWorkUnit({
+            summaryRelativePath: 'drafts/summary.md',
+            ttgId: '-1003752539559',
+            projectId: 'x'
+        });
+        const merged = mergeTtgClassificationIntoMeta(unit, {
+            status: 'inferred',
+            method: 'agent_classification',
+            ttgId: '-1003930983368',
+            ttgName: 'Other',
+            confidence: 0.9,
+            evidence: ['test'],
+            candidates: [],
+            distribution: [{ ttgId: '-1003930983368', percent: 100, score: 10, evidence: [], code: '010', ttgName: 'T' }]
+        });
+        assert.equal(merged.ttgId, '-1003752539559');
+        assert.equal(merged.binding.method, 'explicit');
+        assert.equal(merged.ttgClassification.status, 'inferred');
+    });
+
+    it('assertPromoteBindingAllowed rejects classifier-only binding', () => {
+        assert.throws(
+            () =>
+                assertPromoteBindingAllowed({
+                    ttgId: '-1003752539559',
+                    binding: { status: 'inferred', method: 'agent_classification' }
+                }),
+            /classifier-only|confirm TTG/i
+        );
+    });
+
+    it('assertPromoteBindingAllowed allows confirmed explicit binding', () => {
+        assert.doesNotThrow(() =>
+            assertPromoteBindingAllowed({
+                ttgId: '-1003752539559',
+                binding: { status: 'confirmed', method: 'explicit' }
+            })
+        );
     });
 });

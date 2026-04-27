@@ -87,6 +87,17 @@ describe('ttgClassifier', () => {
 
         assert.equal(res.status, 'unknown');
         assert.equal(res.ttgId, null);
+        assert.deepEqual(res.distribution, []);
+    });
+
+    it('distribution percentages sum to 100 across matched TTGs', () => {
+        const res = classifyArtifactTtg({
+            artifact: { title: 'Open Brain discovery', type: 'DISCOVERY', tags: ['research'] },
+            markdown: '# Research\n\nWe need structured discovery, analysis, and documentation.',
+            ttgDefinitions: DEFINITIONS
+        });
+        const sum = (res.distribution || []).reduce((s, d) => s + d.percent, 0);
+        assert.equal(sum, 100);
     });
 
     it('builds channel mappings from legacy TG and canonical TTG names', () => {

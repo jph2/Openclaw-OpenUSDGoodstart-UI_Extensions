@@ -518,6 +518,67 @@ status: active
         assert.match(res.body.error, /not eligible/i);
     });
 
+    it('blocks promote when binding is classifier-only (must confirm TTG first)', async () => {
+        const cfgPath = path.join(tmpRoot, 'OpenClaw_Control_Center', 'Prototyp', 'channel_CHAT-manager', 'channel_config.json');
+        await fs.writeFile(
+            cfgPath,
+            JSON.stringify(
+                {
+                    channels: [{ id: '-1003930983368', name: 'TTG010_General_Discovery_Plus_Research' }],
+                    agents: [],
+                    subAgents: [],
+                    projectMappings: []
+                },
+                null,
+                2
+            ),
+            'utf8'
+        );
+        const ttgDir = path.join(process.env.STUDIO_FRAMEWORK_ROOT, '000_TelegramTopicGroups_Def');
+        await fs.mkdir(ttgDir, { recursive: true });
+        await fs.writeFile(
+            path.join(ttgDir, 'TTG010_General_Discovery_Plus_Research.md'),
+            `---
+title: TTG010 General Discovery
+tags: [discovery, research, analysis]
+---
+
+# Discovery lane
+`,
+            'utf8'
+        );
+
+        const relativePath = 'drafts/2026-04-27__all__solo-proj__summary.md';
+        const text = '# Note\n\nStructured discovery and research with analysis for the API.';
+        const write = await request(app)
+            .post('/api/ide-project-summaries')
+            .send({
+                relativePath,
+                text,
+                createOnly: true,
+                meta: { surface: 'manual', projectId: 'solo-proj' }
+            })
+            .expect(200);
+
+        assert.equal(write.body.meta.binding.method, 'agent_classification');
+        assert.ok(write.body.meta.ttgClassification?.distribution?.length > 0);
+
+        const res = await request(app)
+            .post('/api/ide-project-summaries/promote')
+            .send({
+                dryRun: true,
+                confirm: false,
+                sourceRelativePath: relativePath,
+                destination: 'daily',
+                date: '2026-04-27'
+            })
+            .expect(400);
+
+        assert.equal(res.body.ok, false);
+        assert.match(res.body.error, /Promotion blocked/i);
+        assert.match(res.body.error, /classifier-only|explicit TTG|artifact header/i);
+    });
+
     it('promote writes marker, confirms readback, and updates sidecar meta', async () => {
         const relativePath = 'drafts/2026-04-24__-1003752539559__openclaw-control-center__summary.md';
         await request(app)
