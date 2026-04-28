@@ -103,7 +103,7 @@ Es wurde final beschlossen, den Channel Manager um einen **Sovereign MCP Server*
 - **`AGENTS.md`** / **`SOUL.md`** im OpenClaw-Workspace: Triade **TARS · MARVIN · CASE** (SONIC → CASE); IDE primär **TARS**, Personas wechselbar. **`CASE_SOUL.md`** deprecated (Pointer).
 - **Cursor Rule (workspace, immer aktiv):** `~/.openclaw/workspace/.cursor/rules/openclaw-workspace-context.mdc` (`alwaysApply: true`) — Verweis auf die Kanon-Dateien oben. (Alt: `case-cursor-identity.mdc`.)
 - **Cursor Rule (global):** `~/.cursor/rules/openclaw-harness-hint.mdc` — kurzer Hinweis; Kanon bleibt `AGENTS.md`/`SOUL.md`. (Alt: `case-global-identity.mdc`.)
-- **Studio_Framework:** `Studio_Framework/.cursor/rules/openclaw-channel-gems-context.mdc` — bei Edits in **`A075_Channel_Gems/**` Alignment mit Control-Center-Specs und Harness-Kontext.
+- **Studio_Framework:** `Studio_Framework/.cursor/rules/openclaw-workspace-authority.mdc` — ein IDE-Zeiger; bei Edits in **`A075_Channel_Gems/**` normativer Kontext über OpenClaw-Workspace + Control-Center-Specs (früher `openclaw-channel-gems-context.mdc`).
 
 ### 2.8 Native Chat: Bilder & Medien — Roadmap (15.04.2026)
 

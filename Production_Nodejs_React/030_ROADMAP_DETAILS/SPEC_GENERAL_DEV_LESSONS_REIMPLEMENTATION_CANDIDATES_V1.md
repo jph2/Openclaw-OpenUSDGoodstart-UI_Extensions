@@ -1,7 +1,8 @@
 # SPEC - General_Dev Lessons And Reimplementation Candidates V1
 
-**Status:** planned active companion to §8b.6 migration; hardening pass added
-(2026-04-27)  
+**Status:** active companion spec to §8b.6 migration; **first mirror-batch lesson triage
+closed 2026-04-28** (batch `2026-04-27-1fe240e` — see Studio
+`lessons/STUDIO_BRIDGE.md`).  
 **Scope:** identify what `General_Dev` taught us, document missed capabilities,
 and turn high-value legacy patterns into candidates for deliberate
 reimplementation in `Studio_Framework` / Channel Manager  
@@ -123,7 +124,9 @@ Evidence rules:
 - Quote or summarize the smallest source excerpt needed to understand the
   lesson; do not copy sensitive source content into the lesson record.
 - Link to source paths and commits rather than duplicating full legacy files.
-- Record negative lessons and anti-patterns, not only ideas worth rebuilding.
+- Record **anti-patterns** (and their matching positive practices), not only ideas
+  worth rebuilding — “negative lesson” in checklists means the same track as an
+  anti-pattern; see `README_ANTI_PATTERNS_STUDIO.md` for canonical naming.
 - If the source path is sensitive, use a redacted path category plus private
   reviewer note instead of exposing the raw content in shared docs.
 
@@ -324,7 +327,9 @@ Legacy inputs:
 
 Candidate outputs:
 
-- Documented anti-patterns in onboarding and implementation checklists.
+- Documented anti-patterns (and paired positive practices) in
+  `Studio_Framework/020_Standards_Definitions_Rules/040_Quality_enforcement/README_ANTI_PATTERNS_STUDIO.md`
+  and onboarding checklists.
 - Regression checks to prevent reintroducing the same failure mode.
 - `reject` or `archive` decisions with enough rationale to avoid rediscovery.
 
@@ -380,7 +385,7 @@ inventory:
 | MCP config whitelist candidates | `opencode.json` and MCP notes | C1c / MCP whitelist | Medium | Treat config as sensitive and scan before copying excerpts. |
 | Operator context/horizon navigator | Context/Horizon indexes | CM roadmap/workbench UX | Medium | Tie every view to an operator decision or drop it. |
 | Admin/ops privacy policy | `General_Admin_Ops__ownREPO` | Security/import policy | High | Private-by-default; no shared import without explicit review. |
-| Negative lessons registry | broken paths, stale caches, duplicate taxonomies | Studio onboarding/checklists | High | Capture anti-patterns so they are not rebuilt. |
+| Anti-pattern / migration failure registry | broken paths, stale caches, duplicate taxonomies | [`README_ANTI_PATTERNS_STUDIO.md`](../../../Studio_Framework/020_Standards_Definitions_Rules/040_Quality_enforcement/README_ANTI_PATTERNS_STUDIO.md) + onboarding checklists | High | Single canonical Studio registry; lesson id `gendev-lesson-negative-patterns` = legacy label only. |
 
 ## 8. Workflow
 
@@ -435,3 +440,14 @@ V1 is complete when:
 - Do not treat old architectural intent as current truth without validating it
   against the new roadmap and runtime.
 
+## 11. Closed batch reference (2026-04-27-1fe240e)
+
+**Triage closed** 2026-04-28. Lesson markdown records are **archived** (not deleted) under:
+
+`Studio_Framework/095_Migration_Staging/General_Dev/2026-04-27-1fe240e/lessons/_archive/2026-04-27-1fe240e/`
+
+**Outcomes, deferrals, and upcoming items** (single screen): [`STUDIO_BRIDGE.md`](../../Studio_Framework/095_Migration_Staging/General_Dev/2026-04-27-1fe240e/lessons/STUDIO_BRIDGE.md)
+
+Channel Manager roadmap: **§8b.6B** batch triage marked **closed** in `030_ROADMAP.md` §3; follow-up implementation is **§8b.6C**, **§8b.6D**, and backlog **6.23** — not a new lesson pass for this wave.
+
+This SPEC remains the **methodology** for future `General_Dev` mirror batches or other legacy corpora.

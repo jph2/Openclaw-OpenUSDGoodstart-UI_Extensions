@@ -1,5 +1,7 @@
 # SPEC - CM Dual-Target Agent/Skill Configuration V1
 
+**See first:** [`SPEC_GOVERNANCE_STACK_V1.md`](./SPEC_GOVERNANCE_STACK_V1.md) — where CM ends and OpenClaw workspace (soul, rules, guardrails) begins; Cursor is projection-only.
+
 **Status:** proposed active hardening block
 **Scope:** Channel Manager source-of-truth to OpenClaw runtime and Cursor repo
 projection

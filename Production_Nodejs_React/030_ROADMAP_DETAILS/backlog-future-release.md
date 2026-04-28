@@ -27,6 +27,7 @@ not part of the A → B → C1 → C2 sequence above.
 | 10.1  | Replacement for `occ-ctl.mjs` (Makefile or root `package.json`).                        |
 | 11.1  | Absolute-path audit across `.js`/`.mjs`/`.sh`/`.json`.                                  |
 | 11.3  | ARYS/GILD metadata sync (`git_path` mass update).                                       |
+| 6.23  | **(Optional)** **Workbench / CM — operator corpus discovery & tag hygiene.** **(A) Search:** portable **name + metadata** search and optional **semantic** index over a **rebuilt** governed corpus (old Everything + local RAG pattern; **not** Open Brain / memex). Prior art in **`General_Dev`:** `Master_Rules/.cursor/skills/framework-rag/scripts/framework_rag.py` (Ollama + SQLite; `framework_rag.db` is legacy cache only). Lesson record: `gendev-lesson-portable-search`. **(B) Tag vocabulary lint:** merge/validate YAML `tags:` (and related front matter) against a canonical tag map and semantic index. Prior art in **`General_Dev`:** `Master_Rules/master_tag_system.yml`, `Master_Rules/TAG_SEMANTIC_INDEX.md`. Lesson record: `gendev-lesson-tag-vocabulary-lint`. **Trace:** studio batch `Studio_Framework/095_Migration_Staging/General_Dev/<batch-id>/lessons/`; [`SPEC_GENERAL_DEV_LESSONS_REIMPLEMENTATION_CANDIDATES_V1.md`](./SPEC_GENERAL_DEV_LESSONS_REIMPLEMENTATION_CANDIDATES_V1.md) §7 (*Portable Studio search*, *Studio tag vocabulary and tag lint*). |
 
 ---
 

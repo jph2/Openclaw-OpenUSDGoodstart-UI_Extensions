@@ -1,6 +1,6 @@
 # Channel Manager — Roadmap
 
-**Status:** normative index · **Scope:** `Production_Nodejs_React` · **Last reviewed:** 2026-04-27
+**Status:** normative index · **Scope:** `Production_Nodejs_React` · **Last reviewed:** 2026-04-28
 
 > This file is the **one-screen entry point** for what is done, what is active,
 > and where the detail specs live. Long implementation history is intentionally
@@ -16,6 +16,7 @@ working on.
 
 | Need | Open |
 | ---- | ---- |
+| **Governance stack** (CM vs OpenClaw workspace vs Cursor — rules, soul, skills) | [`030_ROADMAP_DETAILS/SPEC_GOVERNANCE_STACK_V1.md`](./030_ROADMAP_DETAILS/SPEC_GOVERNANCE_STACK_V1.md) |
 | Current status and priorities | This file |
 | Phase 0, Bundles A/B/C1/C1b/C2 history | [`030_ROADMAP_DETAILS/historical-bundles.md`](./030_ROADMAP_DETAILS/historical-bundles.md) |
 | §8b follow-ups and detailed active specs | [`030_ROADMAP_DETAILS/8b-followups.md`](./030_ROADMAP_DETAILS/8b-followups.md) |
@@ -23,6 +24,8 @@ working on.
 | Dual-target agents / sub-agents / skills (OpenClaw + Cursor) | [`030_ROADMAP_DETAILS/SPEC_CM_DUAL_TARGET_AGENT_SKILL_CONFIG_V1.md`](./030_ROADMAP_DETAILS/SPEC_CM_DUAL_TARGET_AGENT_SKILL_CONFIG_V1.md) |
 | IDE chat capture / A070 specifics | [`030_ROADMAP_DETAILS/ide-chat-capture-a070.md`](./030_ROADMAP_DETAILS/ide-chat-capture-a070.md) |
 | General_Dev -> Studio migration plan | [`030_ROADMAP_DETAILS/SPEC_GENERAL_DEV_STUDIO_MIGRATION_V1.md`](./030_ROADMAP_DETAILS/SPEC_GENERAL_DEV_STUDIO_MIGRATION_V1.md) |
+| §8b.6D — Domain → artifact & TTG mapping | [`030_ROADMAP_DETAILS/SPEC_8B6D_DOMAIN_TTG_ARTIFACT_MAPPING_V1.md`](./030_ROADMAP_DETAILS/SPEC_8B6D_DOMAIN_TTG_ARTIFACT_MAPPING_V1.md) |
+| §8b.6C — Studio ARYS header governance | [`030_ROADMAP_DETAILS/SPEC_8B6C_STUDIO_ARYS_HEADER_GOVERNANCE_V1.md`](./030_ROADMAP_DETAILS/SPEC_8B6C_STUDIO_ARYS_HEADER_GOVERNANCE_V1.md) |
 | General_Dev lessons / reimplementation candidates | [`030_ROADMAP_DETAILS/SPEC_GENERAL_DEV_LESSONS_REIMPLEMENTATION_CANDIDATES_V1.md`](./030_ROADMAP_DETAILS/SPEC_GENERAL_DEV_LESSONS_REIMPLEMENTATION_CANDIDATES_V1.md) |
 | Architecture | [`020_ARCHITECTURE.md`](./020_ARCHITECTURE.md) |
 | ADRs / irreversible decisions | [`040_DECISIONS.md`](./040_DECISIONS.md) |
@@ -46,6 +49,9 @@ becomes too long for this index, move it into a linked file under
 | Config Apply to `openclaw.json` | C1/C1b shipped: group policy, synth agents/bindings, skills merge, orphan prune, account policy, defaults model opt-in, stale-session release script. Next: runtime verification/readback. |
 | Summary promotion to memory | Live (C2): explicit `POST /api/summaries/promote` / `POST /api/ide-project-summaries/promote`; no silent memory writes. |
 | Local LLM / LM Studio | Wired; operator must still load model in LM Studio with sufficient `n_ctx` (`>= 16384`, 32768 recommended). |
+| Studio ARYS header governance (§8b.6C) | **V1 read-only scan** lives in sibling repo `Studio_Framework/tools/arys_header_governance/`; normative spec [`SPEC_8B6C_STUDIO_ARYS_HEADER_GOVERNANCE_V1.md`](./030_ROADMAP_DETAILS/SPEC_8B6C_STUDIO_ARYS_HEADER_GOVERNANCE_V1.md). |
+| **Domain → artifact & TTG mapping (§8b.6D)** | **Critical / next for import ordering.** Versioned mapper + `ROUTER_IDENTITY_DOMAIN.md` as narrative seed; spec [`SPEC_8B6D_DOMAIN_TTG_ARTIFACT_MAPPING_V1.md`](./030_ROADMAP_DETAILS/SPEC_8B6D_DOMAIN_TTG_ARTIFACT_MAPPING_V1.md). Template: `Studio_Framework/095_Migration_Staging/General_Dev/<batch-id>/mapping/domain_to_artifact_ttg.v1.yaml`. |
+| **Governance stack** (CM vs OpenClaw workspace vs IDE) | [`SPEC_GOVERNANCE_STACK_V1.md`](./030_ROADMAP_DETAILS/SPEC_GOVERNANCE_STACK_V1.md): CM = control plane / Apply–export; **`~/.openclaw/workspace/`** = soul, `GOVERNANCE.md`, skills; Studio = **one** `.cursor/rules/openclaw-workspace-authority.mdc` pointer (no extra normative `.mdc` shards). |
 | OpenClaw webchat ↔ Telegram binding parity | Known upstream limitation (ADR-018): webchat session resolver still reads defaults for some group sessions. |
 
 ---
@@ -62,6 +68,7 @@ Details live in [`030_ROADMAP_DETAILS/historical-bundles.md`](./030_ROADMAP_DETA
 | Bundle C1 — Config Apply MVP | Closed 2026-04-18; preview/confirm/backup/audit apply path. |
 | Bundle C1b — Master config → OpenClaw | Closed 2026-04-20; model routing, synth agents, skills, account policy, defaults opt-in, stale-session script. |
 | Bundle C2 — Summary → memory promotion | Closed 2026-04-18; explicit dry-run/confirm promote into OpenClaw memory. |
+| §8b.6B — General_Dev lessons / reimplementation candidates (batch triage) | **Closed 2026-04-28** for mirror batch `2026-04-27-1fe240e`: lesson records archived under `Studio_Framework/095_Migration_Staging/General_Dev/2026-04-27-1fe240e/lessons/_archive/`; outcomes in [`STUDIO_BRIDGE.md`](../../Studio_Framework/095_Migration_Staging/General_Dev/2026-04-27-1fe240e/lessons/STUDIO_BRIDGE.md). Follow-up work: **§8b.6C**, **§8b.6D**, backlog **6.23**. Methodology for future batches: [`SPEC_GENERAL_DEV_LESSONS_REIMPLEMENTATION_CANDIDATES_V1.md`](./030_ROADMAP_DETAILS/SPEC_GENERAL_DEV_LESSONS_REIMPLEMENTATION_CANDIDATES_V1.md). |
 
 ---
 
@@ -74,7 +81,8 @@ Details live in [`030_ROADMAP_DETAILS/historical-bundles.md`](./030_ROADMAP_DETA
 | C1c / §8b.7A — Dual-target Agent/Skill configuration | Active; OpenClaw **Apply** ~92–96%, **Runtime** ~55–70%; Cursor **Repo-Export** ~88–93%, **IDE-Parität** ~40–55%. See [`SPEC_CM_DUAL_TARGET_AGENT_SKILL_CONFIG_V1.md`](./030_ROADMAP_DETAILS/SPEC_CM_DUAL_TARGET_AGENT_SKILL_CONFIG_V1.md). | Close Cursor export gap (~90–95%): `--prune-managed`, skill existence checks, MCP bridge verification. OpenClaw: configured-vs-runtime topology/readback, stale-session guidance. |
 | 6.22 — IDE chat capture pipeline | Partially shipped; see [`030_ROADMAP_DETAILS/ide-chat-capture-a070.md`](./030_ROADMAP_DETAILS/ide-chat-capture-a070.md). | After path/mount UX stabilization, implement nightly summary-delta job and retention policy. |
 | §8b.6 — General_Dev -> Studio corpus migration | Active planning; `General_Dev` is the legacy source corpus and must be frozen, inventoried, staged through quality/security gates, header-normalized, and then imported into Studio Framework. See [`SPEC_GENERAL_DEV_STUDIO_MIGRATION_V1.md`](./030_ROADMAP_DETAILS/SPEC_GENERAL_DEV_STUDIO_MIGRATION_V1.md). | First freeze `General_Dev` with a commit+push, then create a read-only inventory and a `095_Migration_Staging/General_Dev/<batch-id>/` quarantine layer before any final import. |
-| §8b.6B — General_Dev lessons / reimplementation candidates | Planned companion to §8b.6; extract what `General_Dev` already solved or attempted (search, tags, RAG, headers, domain routing, Obsidian, Open Brain, MCP/tooling) and turn valuable patterns into clean Studio/CM-native candidates. See [`SPEC_GENERAL_DEV_LESSONS_REIMPLEMENTATION_CANDIDATES_V1.md`](./030_ROADMAP_DETAILS/SPEC_GENERAL_DEV_LESSONS_REIMPLEMENTATION_CANDIDATES_V1.md). | During inventory, create lesson records with source paths, value, risk, target surface, and decision (`reimplement`, `document-only`, `archive`, `defer`, `reject`) before any old tool or workflow is rebuilt. |
+| **§8b.6D — Domain → Studio artifact & TTG mapping** | **Critical priority — next implementation wave for orderly import.** Turn `ROUTER_IDENTITY_DOMAIN.md` + `Domain_*` / `General_*` inventory into a **versioned YAML mapping** (`source_prefix` → `studio_target`, optional **TTG candidates** as hypotheses, confidence/reviewer, explicit `deferred`). **Not** Open Brain; **not** auto-`confirmed` TTG from folder names. See [`SPEC_8B6D_DOMAIN_TTG_ARTIFACT_MAPPING_V1.md`](./030_ROADMAP_DETAILS/SPEC_8B6D_DOMAIN_TTG_ARTIFACT_MAPPING_V1.md). Prior art: archived lesson `gendev-lesson-domain-ttg-mapper`. Template in Studio batch: `mapping/domain_to_artifact_ttg.v1.yaml`. | Populate rows from manifest top-level prefixes + router §4; validate coverage; wire import tooling to `accepted` rows only; surface ambiguous rows for CM/operator review. |
+| **§8b.6C — Studio ARYS header governance** | **High priority / next slice.** Replace legacy General_Dev Python header stack with **Studio-native**, read-first tooling: structural scans, duplicate `id` reports, mechanical vs semantic review split; optional later apply with dry-run. **V1 shipped:** `Studio_Framework/tools/arys_header_governance/scan-markdown-headers.mjs`. See [`SPEC_8B6C_STUDIO_ARYS_HEADER_GOVERNANCE_V1.md`](./030_ROADMAP_DETAILS/SPEC_8B6C_STUDIO_ARYS_HEADER_GOVERNANCE_V1.md). Prior art: archived lesson `gendev-lesson-header-normalization`; legacy `General_Dev/Master_Rules/040_Framework_TOOLS/arys_header_normalize_v12.py` (+ validators). | Run default scan on `050_Artifacts/` before releases or in CI; extend with per-type rules, manifest `header: fixed/review`, and CM artifact index hooks. |
 | §8b.7 — TTG topology readout | Planned after §8b.5 is stable. | Define read-only effective topology shape (agent, model, channel skills, sub-agents, runtime confirmation). |
 
 ---
@@ -86,6 +94,7 @@ The backlog table and release cadence live in
 
 High-signal later items:
 
+- **(Optional)** Workbench **corpus search** + **tag vocabulary lint** (same backlog **6.23**) — not Open Brain; prior art in `General_Dev`: `Master_Rules/.cursor/skills/framework-rag/scripts/framework_rag.py`; `Master_Rules/master_tag_system.yml`; `Master_Rules/TAG_SEMANTIC_INDEX.md`. See [`backlog-future-release.md`](./030_ROADMAP_DETAILS/backlog-future-release.md).
 - Channel Manager chat media V1 is now active as §8b.8 / 6.9 above.
 - Workbench / Channel Manager boundary hardening: [`SPEC_WORKBENCH_POSITIONING.md`](./030_ROADMAP_DETAILS/SPEC_WORKBENCH_POSITIONING.md) and [`SESSION_CLEANUP_2026-04-25.md`](./030_ROADMAP_DETAILS/SESSION_CLEANUP_2026-04-25.md).
 - Slash-command parity and no-fake-send guardrails in CM chat (§8b.10).

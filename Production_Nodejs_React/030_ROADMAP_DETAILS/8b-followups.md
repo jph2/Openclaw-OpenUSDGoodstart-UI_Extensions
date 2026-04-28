@@ -361,7 +361,9 @@ header normalization, duplicate detection, and security checks. CM continues to
 prepare OB1/export/audit contracts, but final import governance lives in the
 Studio corpus.
 
-### 8b.6B · General_Dev lessons & reimplementation candidates (planned companion)
+### 8b.6B · General_Dev lessons & reimplementation candidates
+
+**Status (batch `2026-04-27-1fe240e`):** triage **closed 2026-04-28** — lesson records archived under Studio `095_Migration_Staging/General_Dev/2026-04-27-1fe240e/lessons/_archive/`; outcomes in [`STUDIO_BRIDGE.md`](../../Studio_Framework/095_Migration_Staging/General_Dev/2026-04-27-1fe240e/lessons/STUDIO_BRIDGE.md). See `030_ROADMAP.md` §3.
 
 **Detailed spec:** [`SPEC_GENERAL_DEV_LESSONS_REIMPLEMENTATION_CANDIDATES_V1.md`](./SPEC_GENERAL_DEV_LESSONS_REIMPLEMENTATION_CANDIDATES_V1.md)
 
@@ -606,5 +608,19 @@ dispatch is confirmed.
   errors.
 - Successful command effects are reflected in session/mirror behavior.
 - E2E covers at least one successful command and one failed command.
+
+### 8b.6C · Studio ARYS header governance (high priority)
+
+Companion to `§8b.6` migration: implement **Studio-native** header tooling (lesson `gendev-lesson-header-normalization`) without importing legacy General_Dev Python mutators wholesale.
+
+**Normative index:** [`SPEC_8B6C_STUDIO_ARYS_HEADER_GOVERNANCE_V1.md`](./SPEC_8B6C_STUDIO_ARYS_HEADER_GOVERNANCE_V1.md) · **Roadmap row:** [`030_ROADMAP.md`](../030_ROADMAP.md) §4 Active / Next Blocks.
+
+**V1 (landed in Studio_Framework repo):** read-only scan `tools/arys_header_governance/scan-markdown-headers.mjs` over `050_Artifacts/` by default.
+
+### 8b.6D · Domain → Studio artifact & TTG mapping (critical priority)
+
+Drives **orderly General_Dev import**: each `Domain_*` / agreed `General_*` root gets a **mapping row** (or explicit `deferred`). Narrative seed: **`ROUTER_IDENTITY_DOMAIN.md`**; machine truth: versioned YAML in the migration batch.
+
+**Normative index:** [`SPEC_8B6D_DOMAIN_TTG_ARTIFACT_MAPPING_V1.md`](./SPEC_8B6D_DOMAIN_TTG_ARTIFACT_MAPPING_V1.md) · **Roadmap:** [`030_ROADMAP.md`](../030_ROADMAP.md) §4.
 
 ---

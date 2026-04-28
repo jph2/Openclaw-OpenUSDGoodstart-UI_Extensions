@@ -182,7 +182,7 @@ Ziel: Anbindung der IDE (AntiGravity / **Cursor**) an den Channel Manager über 
   - **`~/.openclaw/workspace/.cursor/rules/openclaw-workspace-context.mdc`** (`alwaysApply: true`) — points agents to **`AGENTS.md`** + **`SOUL.md`** (triad; not CASE-only). Legacy: `case-cursor-identity.mdc`.
   - **`~/.cursor/rules/openclaw-harness-hint.mdc`** — global short reminder; canonical: workspace files. Legacy: `case-global-identity.mdc`.
   - **`AGENTS.md`:** Harness personas; IDE uses TARS by default; CASE_SOUL deprecated.
-  - **`Studio_Framework/.cursor/rules/openclaw-channel-gems-context.mdc`** — Kontext für Edits unter `A075_Channel_Gems/`.
+  - **`Studio_Framework/.cursor/rules/openclaw-workspace-authority.mdc`** — ein IDE-Zeiger; normativer Kontext für u. a. `A075_Channel_Gems/` liegt in OpenClaw-Workspace + CM-SPECs (früher eigenes `openclaw-channel-gems-context.mdc`).
 
 ## 8. Phase: Gateway & MCP Port-Stabilisierung (AKTIVE PHASE 🛠️)
 Ziel: Behebung von Port-Konflikten (EADDRINUSE) und Stabilisierung der Port-Forwarding Architektur zwischen IDE, Backend und Frontend.

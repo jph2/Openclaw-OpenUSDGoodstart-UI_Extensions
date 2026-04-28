@@ -133,6 +133,10 @@ and must not be committed to shared Studio history by default.
 index, Open Brain export, live upsert, or runtime memory promotion until a file
 has been admitted into its final governed target.
 
+### IDE / Cursor (ancillary)
+
+Normative migration and quarantine policy lives in **this SPEC** and related CM documents — **not** as long-form rules under `Studio_Framework/.cursor/rules` (that tree holds **one** pointer stub: `openclaw-workspace-authority.mdc`). For the global stack (Channel Manager vs OpenClaw workspace vs IDE), see [`SPEC_GOVERNANCE_STACK_V1.md`](./SPEC_GOVERNANCE_STACK_V1.md). Admin/finance/ops defaults: quarantine and `private-quarantine/` per tables above.
+
 ### Layer C - Governed Studio Target
 
 Only accepted files move into final Studio locations such as:
